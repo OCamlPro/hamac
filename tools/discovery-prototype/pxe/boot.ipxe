@@ -1,0 +1,45 @@
+#!ipxe
+# SIESTE Infrastructure Discovery - iPXE boot script
+# This script registers the node with the discovery server
+
+# Set discovery server URL
+set discovery_server http://10.99.0.1:8877
+
+# Get network info
+echo ============================================
+echo SIESTE Infrastructure Discovery
+echo ============================================
+echo
+echo MAC Address: ${net0/mac}
+echo IP Address:  ${net0/ip}
+echo Hostname:    ${hostname:node-${net0/mac:hexhyp}}
+echo
+
+# Build registration JSON payload
+# Note: iPXE has limited string handling, so we use a simple format
+set hostname node-${net0/mac:hexhyp}
+set mac ${net0/mac}
+set ip ${net0/ip}
+
+# Register with discovery server
+echo Registering with discovery server at ${discovery_server}...
+imgfetch ${discovery_server}/register?hostname=${hostname}&ip_address=${ip}&mac_address=${mac}&cpus=2&memory_mb=1024&disk_gb=10 || goto register_failed
+
+echo Registration successful!
+echo
+echo Node registered. Waiting for deployment instructions...
+echo Press any key to reboot, or wait 60 seconds...
+
+# In a real deployment, we would chain to the actual OS boot
+# For testing, we just show success and halt
+sleep 60
+reboot
+
+:register_failed
+echo
+echo ERROR: Failed to register with discovery server
+echo Server: ${discovery_server}
+echo
+echo Retrying in 10 seconds...
+sleep 10
+goto register
