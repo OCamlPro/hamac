@@ -55,10 +55,10 @@ echo ""
 echo "Waiting for network interface..."
 sleep 2
 
-# Try to find network interface
+# Try to find network interface (any non-loopback interface)
 IFACE=""
-for iface in eth0 ens3 enp0s3; do
-    if [ -d "/sys/class/net/$iface" ]; then
+for iface in eth0 ens3 enp0s3 enp0s2 virtio0 $(ls /sys/class/net/ 2>/dev/null | grep -v lo); do
+    if [ -d "/sys/class/net/$iface" ] && [ "$iface" != "lo" ]; then
         IFACE="$iface"
         break
     fi
