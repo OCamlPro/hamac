@@ -1,0 +1,149 @@
+#!/bin/busybox sh
+
+# SIESTE Infrastructure Discovery Agent
+# Hybrid init: uses Alpine kernel modules with custom registration script
+
+# Mount essential filesystems
+/bin/busybox mount -t proc none /proc
+/bin/busybox mount -t sysfs none /sys
+/bin/busybox mount -t devtmpfs none /dev 2>/dev/null || mknod /dev/console c 5 1
+
+# Create busybox symlinks
+/bin/busybox --install -s /bin
+/bin/busybox --install -s /sbin
+
+# Set hostname - use simple grep without -P
+HOSTNAME=""
+for word in $(cat /proc/cmdline); do
+    case "$word" in
+        sieste.hostname=*) HOSTNAME="${word#sieste.hostname=}" ;;
+    esac
+done
+[ -z "$HOSTNAME" ] && HOSTNAME="sieste-node-$$"
+hostname "$HOSTNAME"
+
+echo ""
+echo "============================================"
+echo "  SIESTE Infrastructure Discovery Agent"
+echo "============================================"
+echo "Hostname: $HOSTNAME"
+echo ""
+
+# Load essential kernel modules for networking
+echo "[*] Loading network drivers..."
+KERNEL_VER=$(uname -r)
+MODULES_DIR="/lib/modules/$KERNEL_VER"
+
+# Load e1000 driver first (simplest, most compatible)
+for mod in e1000 e1000e; do
+    modpath=$(find "$MODULES_DIR" -name "${mod}.ko*" 2>/dev/null | head -1)
+    if [ -n "$modpath" ]; then
+        insmod "$modpath" 2>/dev/null && echo "  Loaded $mod"
+    fi
+done
+
+sleep 2
+
+# Wait for network interface
+echo "[*] Waiting for network interface..."
+IFACE=""
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    for iface in eth0 ens3 enp0s3; do
+        if [ -e "/sys/class/net/$iface" ] && [ "$iface" != "lo" ]; then
+            IFACE="$iface"
+            break 2
+        fi
+    done
+    sleep 1
+done
+
+if [ -z "$IFACE" ]; then
+    echo "[!] ERROR: No network interface found"
+    echo "Available interfaces:"
+    ls -la /sys/class/net/
+    echo ""
+    echo "Kernel modules loaded:"
+    lsmod 2>/dev/null || cat /proc/modules
+    echo ""
+    echo "Entering shell for debug..."
+    exec /bin/sh
+fi
+
+echo "[*] Found interface: $IFACE"
+
+# Get MAC address
+MAC=$(cat /sys/class/net/$IFACE/address)
+echo "[*] MAC Address: $MAC"
+
+# Bring up interface
+ip link set "$IFACE" up
+sleep 1
+
+# Configure network via DHCP
+echo "[*] Configuring network via DHCP..."
+if udhcpc -i "$IFACE" -q -n -t 10 2>/dev/null; then
+    echo "[*] DHCP successful"
+else
+    echo "[!] DHCP failed, trying static configuration..."
+    # For QEMU user-mode networking: 10.0.2.x
+    ip addr add 10.0.2.15/24 dev "$IFACE"
+    ip route add default via 10.0.2.2
+fi
+
+# Get IP address
+IP=$(ip -4 addr show "$IFACE" | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+echo "[*] IP Address: $IP"
+
+# Get system info
+CPUS=$(grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)
+MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+MEM_MB=$((MEM_KB / 1024))
+
+echo ""
+echo "System Info:"
+echo "  CPUs: $CPUS"
+echo "  Memory: ${MEM_MB}MB"
+echo ""
+
+# Discovery server (passed via kernel command line)
+DISCOVERY_SERVER=""
+for word in $(cat /proc/cmdline); do
+    case "$word" in
+        sieste.discovery=*) DISCOVERY_SERVER="${word#sieste.discovery=}" ;;
+    esac
+done
+[ -z "$DISCOVERY_SERVER" ] && DISCOVERY_SERVER="http://10.0.2.2:8877"
+
+echo "[*] Registering with discovery server: $DISCOVERY_SERVER"
+
+# Build JSON payload
+KVER=$(uname -r 2>/dev/null || echo 'minimal')
+JSON="{\"hostname\": \"$HOSTNAME\", \"ip_address\": \"$IP\", \"mac_address\": \"$MAC\", \"cpus\": $CPUS, \"memory_mb\": $MEM_MB, \"disk_gb\": 10, \"metadata\": {\"boot_method\": \"pxe\", \"kernel\": \"$KVER\"}}"
+
+echo "[*] Payload: $JSON"
+echo ""
+
+# Register with server using wget (busybox)
+echo "[*] Sending registration..."
+RESULT=$(wget -q -O - --header="Content-Type: application/json" --post-data="$JSON" "${DISCOVERY_SERVER}/register" 2>&1)
+
+if echo "$RESULT" | grep -q '"id"'; then
+    NODE_ID=$(echo "$RESULT" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+    echo ""
+    echo "============================================"
+    echo "  [SUCCESS] Node registered!"
+    echo "  Node ID: $NODE_ID"
+    echo "============================================"
+else
+    echo ""
+    echo "[!] Registration failed: $RESULT"
+    echo "[*] Retrying in 5 seconds..."
+    sleep 5
+    wget -q -O - --header="Content-Type: application/json" --post-data="$JSON" "${DISCOVERY_SERVER}/register" 2>&1 || true
+fi
+
+echo ""
+echo "System will halt in 5 seconds..."
+sleep 5
+echo "Halting system..."
+halt -f

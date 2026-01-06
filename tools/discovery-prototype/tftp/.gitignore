@@ -1,0 +1,6 @@
+# Large binary files - download or build locally
+vmlinuz
+initramfs-lts
+initramfs-sieste.gz
+initramfs-hybrid.gz
+initrd.img

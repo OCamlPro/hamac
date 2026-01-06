@@ -1,0 +1,76 @@
+# SIESTE PXE Boot Files
+
+This directory contains the boot files for PXE network boot infrastructure discovery.
+
+## Files (not in git - download/build locally)
+
+- `vmlinuz` - Alpine Linux kernel
+- `initramfs-hybrid.gz` - Hybrid initramfs with kernel modules and SIESTE registration
+
+## Setup Instructions
+
+### 1. Download Alpine Linux kernel and initramfs
+
+```bash
+# Download Alpine netboot files
+ALPINE_VERSION="3.21"
+ALPINE_RELEASE="3.21.2"
+wget https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/netboot/vmlinuz-lts
+wget https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/netboot/initramfs-lts
+
+mv vmlinuz-lts vmlinuz
+```
+
+### 2. Build hybrid initramfs
+
+The hybrid initramfs combines Alpine's kernel modules with SIESTE's custom init script:
+
+```bash
+# Create build directory
+mkdir -p /tmp/hybrid-initramfs
+cd /tmp/hybrid-initramfs
+
+# Extract Alpine initramfs (contains kernel modules)
+zcat /path/to/initramfs-lts | cpio -idmv
+
+# Replace init with SIESTE's version
+cp /path/to/sieste/tools/discovery-prototype/pxe-build/init ./init
+chmod +x init
+
+# Rebuild initramfs
+find . | cpio -ov --format=newc | gzip -9 > /path/to/sieste/tools/discovery-prototype/tftp/initramfs-hybrid.gz
+```
+
+### 3. Test with QEMU
+
+```bash
+# Run the test script
+./tools/seed/scripts/test-pxe-qemu.sh
+
+# Or manually:
+qemu-system-x86_64 \
+    -m 512 \
+    -kernel vmlinuz \
+    -initrd initramfs-hybrid.gz \
+    -append "console=ttyS0 sieste.discovery=http://10.0.2.2:8877 rdinit=/init" \
+    -net nic,model=e1000 \
+    -net user \
+    -nographic \
+    -no-reboot
+```
+
+## Technical Details
+
+- **Kernel**: Alpine Linux 6.6.x LTS (required for kernel modules)
+- **NIC Driver**: e1000 (Intel PRO/1000) - best compatibility
+- **Network**: QEMU SLIRP user-mode (10.0.2.0/24, gateway 10.0.2.2)
+- **Init**: Custom busybox init script for node registration
+- **Registration**: HTTP POST to discovery server with node info
+
+## Boot Flow
+
+1. Kernel boots, loads e1000 module
+2. Init script runs, configures network via DHCP
+3. Collects system info (hostname, IP, MAC, CPU, RAM)
+4. Sends registration request to discovery server
+5. Halts after registration
