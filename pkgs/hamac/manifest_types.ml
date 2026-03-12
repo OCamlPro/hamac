@@ -85,13 +85,22 @@ type signature = {
 (* kind: service                                                 *)
 (* ============================================================ *)
 
+type readiness = {
+  command: string list;
+  readiness_interval: int;
+  readiness_timeout: int;
+} [@@deriving show]
+
 type service_manifest = {
   manifest_version: string;
   name: string;
   runtime: string;           (** http | cli | batch | eventloop | custom *)
   artifact: artifact option;
+  capability: string option; (** for providers: database, cache, queue, storage *)
+  inputs: (string * string) list;  (** for providers: input generation templates *)
   consumes: consumption list;
   provides: (string * string) list;
+  readiness: readiness option;     (** for providers: readiness check *)
   security: security option;
   ports: port list;
   volumes: volume list;

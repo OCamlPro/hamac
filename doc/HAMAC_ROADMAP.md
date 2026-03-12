@@ -2,26 +2,30 @@
 
 Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure est inferee a partir des contraintes des services, pas ecrite a la main.
 
-## Milestone 1 — Parser et validation
+## Milestone 1 — Parser et validation ✅
 
 **Objectif** : Lire et valider les trois types de manifestes (`kind: service`, `kind: stack`, `kind: infrastructure`).
 
-- [ ] Parser YAML → types OCaml pour service manifest
-- [ ] Parser YAML → types OCaml pour stack manifest
-- [ ] Validation des champs obligatoires et coherence (artifact.sha256, etc.)
-- [ ] Commande `hamac validate <files...>`
-- [ ] Messages d'erreur clairs avec position dans le fichier
+- [x] Parser YAML → types OCaml pour service manifest
+- [x] Parser YAML → types OCaml pour stack manifest
+- [x] Parser YAML → types OCaml pour infrastructure manifest
+- [x] Validation des champs obligatoires et coherence (artifact.sha256, etc.)
+- [x] Commande `hamac validate <files...>` (multi-fichier)
+- [x] Messages d'erreur clairs avec chemin YAML dans l'erreur
+- [x] Commande `hamac plan <files...>` (affichage des contraintes extraites)
 
-## Milestone 2 — Resolution des providers
+## Milestone 2 — Resolution des providers ✅
 
 **Objectif** : Resoudre les `consumes` d'un service vers des providers connus.
 
-- [ ] Registry local de providers (dossier `~/.hamac/providers/` ou `./providers/`)
-- [ ] Provider PostgreSQL (manifest provider de reference)
-- [ ] Provider Redis
-- [ ] Resolution : pour chaque `consumes`, trouver le provider correspondant
-- [ ] Generation de credentials aleatoires (user, password, dbname)
-- [ ] Substitution des templates `inject` avec les `provides` du provider
+- [x] Registry local de providers (dossier `~/.hamac/providers/` ou `./providers/`)
+- [x] Provider PostgreSQL (manifest provider de reference)
+- [x] Provider Redis
+- [x] Resolution : pour chaque `consumes`, trouver le provider correspondant
+- [x] Generation de credentials aleatoires (user, password, dbname)
+- [x] Substitution des templates `inject` avec les `provides` du provider
+- [x] Commande `hamac resolve <files...>` avec affichage du cablage
+- [x] Support des overrides de providers via stack manifest
 
 ## Milestone 3 — Deploiement docker-compose
 

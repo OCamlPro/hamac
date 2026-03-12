@@ -316,16 +316,39 @@ let parse_list name fields path parse_fn =
 (* Parse service manifest                                        *)
 (* ============================================================ *)
 
+let parse_readiness path (v : Yaml.value) : readiness result =
+  let* fields = as_obj path v in
+  let* command = (let* v = require path "command" fields in
+    let* items = as_list (path @ ["command"]) v in
+    let rec aux = function
+      | [] -> Ok []
+      | x :: rest ->
+        let* s = as_string (path @ ["command"]) x in
+        let* tl = aux rest in
+        Ok (s :: tl)
+    in
+    aux items)
+  in
+  let* readiness_interval = int_or path "interval" fields ~default:5 in
+  let* readiness_timeout = int_or path "timeout" fields ~default:30 in
+  Ok { command; readiness_interval; readiness_timeout }
+
 let parse_service_manifest path (fields : (string * Yaml.value) list) : service_manifest result =
   let* manifest_version = req_string path "manifest_version" fields in
   let* name = req_string path "name" fields in
   let* runtime = req_string path "runtime" fields in
   let* artifact = parse_opt "artifact" fields path parse_artifact in
+  let* capability = opt_string "capability" fields in
+  let* inputs = match field_opt "inputs" fields with
+    | None | Some `Null -> Ok []
+    | Some v -> string_map (path @ ["inputs"]) v
+  in
   let* consumes = parse_list "consumes" fields path parse_consumption in
   let* provides = match field_opt "provides" fields with
     | None | Some `Null -> Ok []
     | Some v -> string_map (path @ ["provides"]) v
   in
+  let* readiness = parse_opt "readiness" fields path parse_readiness in
   let* security = parse_opt "security" fields path parse_security in
   let* ports = parse_list "ports" fields path parse_port in
   let* volumes = parse_list "volumes" fields path parse_volume in
@@ -340,8 +363,8 @@ let parse_service_manifest path (fields : (string * Yaml.value) list) : service_
   let* metrics = parse_opt "metrics" fields path parse_metrics in
   let* logging = parse_opt "logging" fields path parse_logging in
   Ok {
-    manifest_version; name; runtime; artifact;
-    consumes; provides; security; ports; volumes;
+    manifest_version; name; runtime; artifact; capability; inputs;
+    consumes; provides; readiness; security; ports; volumes;
     environment; resources; replicas; autoscaling;
     health_check; metrics; logging;
   }

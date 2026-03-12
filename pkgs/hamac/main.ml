@@ -8,7 +8,7 @@ open Ocamlpro_codec
 let manifest_files = ref []
 
 (* ============================================================ *)
-(* Commands                                                      *)
+(* Helpers                                                       *)
 (* ============================================================ *)
 
 let kind_label = function
@@ -18,6 +18,47 @@ let kind_label = function
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
   | MInfrastructure i ->
     Printf.sprintf "infrastructure (name=%s, backend=%s)" i.name i.backend
+
+(** Load a registry from default search paths *)
+let load_registry () =
+  let registry = Provider_registry.create () in
+  Provider_registry.load_defaults registry;
+  registry
+
+(** Load services and stack overrides from file arguments *)
+let load_services_and_overrides () =
+  let services = ref [] in
+  let overrides = ref [] in
+  List.iter (fun path ->
+    let fpath = Fpath.v path in
+    match Manifest_parser.load_file fpath with
+    | Error msg ->
+      Logs.err (fun m -> m "%s" msg);
+      exit 1
+    | Ok (Manifest_types.MService svc, _) ->
+      services := svc :: !services
+    | Ok (Manifest_types.MStack stk, _) ->
+      (* Extract overrides from stack manifest *)
+      List.iter (fun (sref : Manifest_types.stack_service_ref) ->
+        let svc_overrides = List.map (fun (o : Manifest_types.stack_consume_override) ->
+          (o.consume_name, o.provider)
+        ) sref.consumes_override in
+        if svc_overrides <> [] then begin
+          (* Use ref_path basename without extension as service name *)
+          let base = Filename.basename sref.ref_path in
+          let name = try Filename.chop_extension base with _ -> base in
+          overrides := (name, svc_overrides) :: !overrides
+        end
+      ) stk.services
+    | Ok (other, _) ->
+      Logs.warn (fun m -> m "%a: got %s (skipping)"
+        Fpath.pp fpath (kind_label other))
+  ) !manifest_files;
+  (List.rev !services, !overrides)
+
+(* ============================================================ *)
+(* Commands                                                      *)
+(* ============================================================ *)
 
 let run_validate () =
   let ok = ref true in
@@ -36,20 +77,7 @@ let run_validate () =
   if not !ok then exit 1
 
 let run_plan () =
-  let services = ref [] in
-  List.iter (fun path ->
-    let fpath = Fpath.v path in
-    match Manifest_parser.load_file fpath with
-    | Error msg ->
-      Logs.err (fun m -> m "%s" msg);
-      exit 1
-    | Ok (Manifest_types.MService svc, _warnings) ->
-      services := svc :: !services
-    | Ok (other, _) ->
-      Logs.warn (fun m -> m "%a: expected service manifest, got %s (skipping)"
-        Fpath.pp fpath (kind_label other))
-  ) !manifest_files;
-  let services = List.rev !services in
+  let services, _overrides = load_services_and_overrides () in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
@@ -82,6 +110,51 @@ let run_plan () =
   ) services;
   Logs.app (fun m -> m "");
   Logs.app (fun m -> m "(constraint solver not yet implemented)")
+
+let run_resolve () =
+  let registry = load_registry () in
+  let services, overrides = load_services_and_overrides () in
+  if services = [] then begin
+    Logs.err (fun m -> m "No service manifests provided.");
+    exit 1
+  end;
+
+  let resolution = Resolver.resolve_all ~registry ~services ~overrides in
+
+  (* Report errors *)
+  List.iter (fun err ->
+    Logs.err (fun m -> m "%s" err)
+  ) resolution.errors;
+
+  (* Report providers to instantiate *)
+  if resolution.providers <> [] then begin
+    Logs.app (fun m -> m "Providers to instantiate:");
+    List.iter (fun (rp : Resolver.resolved_provider) ->
+      let image = match rp.provider.Manifest_types.artifact with
+        | Some a -> a.Manifest_types.path
+        | None -> "?"
+      in
+      Logs.app (fun m -> m "  %s (%s)" rp.instance_name image);
+      List.iter (fun (k, v) ->
+        Logs.app (fun m -> m "    env: %s=%s" k v)
+      ) rp.resolved_env
+    ) resolution.providers
+  end;
+
+  (* Report wiring *)
+  if resolution.wires <> [] then begin
+    Logs.app (fun m -> m "");
+    Logs.app (fun m -> m "Wiring:");
+    List.iter (fun (w : Resolver.resolved_wire) ->
+      Logs.app (fun m -> m "  %s.%s -> %s"
+        w.consumer_name w.consume_name w.provider_name);
+      List.iter (fun (k, v) ->
+        Logs.app (fun m -> m "    inject: %s=%s" k v)
+      ) w.injected_env
+    ) resolution.wires
+  end;
+
+  if resolution.errors <> [] then exit 1
 
 let run_status () =
   Logs.app (fun m -> m "No active stack.")
@@ -126,6 +199,15 @@ let plan_cmd =
   Cli.Command.add_argument cmd debug;
   cmd
 
+let resolve_cmd =
+  let cmd = Cli.Command.make
+    ~doc:"Resolve service dependencies to concrete providers."
+    "resolve"
+    run_resolve in
+  Cli.Command.add_argument cmd file_arg;
+  Cli.Command.add_argument cmd debug;
+  cmd
+
 let status_cmd =
   let cmd = Cli.Command.make
     ~doc:"Show stack status."
@@ -141,6 +223,7 @@ let root_cmd =
     (fun () -> ()) in
   Cli.Command.add_command ~default:true cmd validate_cmd;
   Cli.Command.add_command cmd plan_cmd;
+  Cli.Command.add_command cmd resolve_cmd;
   Cli.Command.add_command cmd status_cmd;
   cmd
 
