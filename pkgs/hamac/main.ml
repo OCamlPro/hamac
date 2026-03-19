@@ -82,34 +82,8 @@ let run_plan () =
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
   end;
-  Logs.app (fun m -> m "Planning for %d service(s):" (List.length services));
-  List.iter (fun (svc : Manifest_types.service_manifest) ->
-    Logs.app (fun m -> m "  - %s (%s)" svc.name svc.runtime);
-    List.iter (fun (c : Manifest_types.consumption) ->
-      let target = match c.capability with
-        | Some cap -> Printf.sprintf "capability=%s" cap
-        | None -> match c.service with
-          | Some s -> Printf.sprintf "service=%s" s
-          | None -> "???"
-      in
-      Logs.app (fun m -> m "      consumes: %s (%s)" c.name target)
-    ) svc.consumes;
-    (match svc.security with
-     | Some sec -> Logs.app (fun m -> m "      zone: %s" sec.zone)
-     | None -> ());
-    (match svc.resources with
-     | Some r ->
-       (match r.memory_limit with
-        | Some ml -> Logs.app (fun m -> m "      memory: %s" ml)
-        | None -> ());
-       (match r.cpu_limit with
-        | Some cl -> Logs.app (fun m -> m "      cpu: %s" cl)
-        | None -> ())
-     | None -> ());
-    Logs.app (fun m -> m "      replicas: %d" svc.replicas);
-  ) services;
-  Logs.app (fun m -> m "");
-  Logs.app (fun m -> m "(constraint solver not yet implemented)")
+  let plan = Planner.plan ~name:"stack" services in
+  Planner.display_plan plan
 
 let run_resolve () =
   let registry = load_registry () in
@@ -155,6 +129,54 @@ let run_resolve () =
   end;
 
   if resolution.errors <> [] then exit 1
+
+let run_simulate () =
+  let registry = load_registry () in
+  let services, overrides = load_services_and_overrides () in
+  if services = [] then begin
+    Logs.err (fun m -> m "No service manifests provided.");
+    exit 1
+  end;
+
+  (* Plan infrastructure *)
+  let plan = Planner.plan ~name:"stack" services in
+  Planner.display_plan plan;
+
+  (* Resolve providers *)
+  let resolution = Resolver.resolve_all ~registry ~services ~overrides in
+  List.iter (fun err -> Logs.err (fun m -> m "%s" err)) resolution.errors;
+  if resolution.errors <> [] then exit 1;
+
+  (* Generate simulation compose *)
+  let compose, scripts = Infra_sim.generate ~plan ~services resolution in
+
+  (* Write init scripts *)
+  (try Unix.mkdir ".hamac" 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  List.iter (fun (path, content) ->
+    let dir = Filename.dirname path in
+    (try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+    let oc = open_out path in
+    output_string oc content;
+    close_out oc;
+    Unix.chmod path 0o755
+  ) scripts;
+
+  (* Write compose file *)
+  let output_path = "docker-compose.yml" in
+  let oc = open_out output_path in
+  output_string oc compose;
+  close_out oc;
+
+  (* Display placement *)
+  let placements = Infra_sim.place_services ~plan ~resolution services in
+  Logs.app (fun m -> m "");
+  Infra_sim.display_placement placements;
+
+  Logs.app (fun m -> m "");
+  Logs.app (fun m -> m "Generated %s (%d nodes, %d providers, %d scripts)"
+    output_path (List.length placements)
+    (List.length resolution.providers) (List.length scripts));
+  Logs.app (fun m -> m "Run: docker compose up -d")
 
 let run_deploy () =
   let registry = load_registry () in
@@ -233,9 +255,18 @@ let resolve_cmd =
   Cli.Command.add_argument cmd debug;
   cmd
 
+let simulate_cmd =
+  let cmd = Cli.Command.make
+    ~doc:"Simulate infrastructure with DinD nodes and zone isolation."
+    "simulate"
+    run_simulate in
+  Cli.Command.add_argument cmd file_arg;
+  Cli.Command.add_argument cmd debug;
+  cmd
+
 let deploy_cmd =
   let cmd = Cli.Command.make
-    ~doc:"Generate docker-compose.yml from resolved stack."
+    ~doc:"Generate flat docker-compose.yml from resolved stack."
     "deploy"
     run_deploy in
   Cli.Command.add_argument cmd file_arg;
@@ -258,6 +289,7 @@ let root_cmd =
   Cli.Command.add_command ~default:true cmd validate_cmd;
   Cli.Command.add_command cmd plan_cmd;
   Cli.Command.add_command cmd resolve_cmd;
+  Cli.Command.add_command cmd simulate_cmd;
   Cli.Command.add_command cmd deploy_cmd;
   Cli.Command.add_command cmd status_cmd;
   cmd
