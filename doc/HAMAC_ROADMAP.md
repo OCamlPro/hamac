@@ -27,16 +27,27 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 - [x] Commande `hamac resolve <files...>` avec affichage du cablage
 - [x] Support des overrides de providers via stack manifest
 
-## Milestone 3 — Deploiement docker-compose
+## Milestone 3 — Deploiement docker-compose (compose plat) ✅
 
-**Objectif** : Deployer une stack localement via docker-compose (backend le plus simple pour iterer).
+**Objectif** : Deployer une stack localement via docker-compose. Tremplin pour valider le cablage — le vrai objectif est la simulation d'infra (milestone 3b).
 
-- [ ] Generer un `docker-compose.yml` a partir d'un stack manifest resolu
-- [ ] Cablage automatique : networks, env vars injectees, depends_on
-- [ ] Commande `hamac deploy <stack.sieste.yml>`
-- [ ] Commande `hamac status` (via `docker compose ps`)
-- [ ] Commande `hamac destroy` (via `docker compose down`)
-- [ ] Verification du hash artifact avant deploiement
+- [x] Generer un `docker-compose.yml` a partir de services resolus
+- [x] Cablage automatique : networks, env vars injectees, depends_on
+- [x] Healthchecks avec credentials resolus (readiness → healthcheck)
+- [x] Limites de ressources (memory, cpu)
+- [x] Commande `hamac deploy <services.sieste.yml>`
+- [ ] Commande `hamac status` (via `docker compose ps`) — differe
+- [ ] Commande `hamac destroy` (via `docker compose down`) — differe
+
+## Milestone 3b — Simulation d'infrastructure
+
+**Objectif** : Simuler des machines avec conteneurs (DinD/Sysbox), deployer les services a l'interieur, valider le placement et l'isolation reseau.
+
+- [ ] Un conteneur par noeud d'infra (DinD ou Sysbox)
+- [ ] Deploiement des services dans les noeuds (docker-in-docker)
+- [ ] Reseaux docker isoles par zone de securite
+- [ ] Placement des services sur les noeuds selon les contraintes
+- [ ] Validation du firewall inter-zones
 
 ## Milestone 4 — Planner (inference d'infrastructure)
 

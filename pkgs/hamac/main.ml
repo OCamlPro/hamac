@@ -156,6 +156,31 @@ let run_resolve () =
 
   if resolution.errors <> [] then exit 1
 
+let run_deploy () =
+  let registry = load_registry () in
+  let services, overrides = load_services_and_overrides () in
+  if services = [] then begin
+    Logs.err (fun m -> m "No service manifests provided.");
+    exit 1
+  end;
+
+  let resolution = Resolver.resolve_all ~registry ~services ~overrides in
+
+  (* Report errors *)
+  List.iter (fun err ->
+    Logs.err (fun m -> m "%s" err)
+  ) resolution.errors;
+  if resolution.errors <> [] then exit 1;
+
+  (* Generate docker-compose.yml *)
+  let compose = Compose_gen.generate ~services resolution in
+  let output_path = "docker-compose.yml" in
+  let oc = open_out output_path in
+  output_string oc compose;
+  close_out oc;
+  Logs.app (fun m -> m "Generated %s (%d services, %d providers)"
+    output_path (List.length services) (List.length resolution.providers))
+
 let run_status () =
   Logs.app (fun m -> m "No active stack.")
 
@@ -208,6 +233,15 @@ let resolve_cmd =
   Cli.Command.add_argument cmd debug;
   cmd
 
+let deploy_cmd =
+  let cmd = Cli.Command.make
+    ~doc:"Generate docker-compose.yml from resolved stack."
+    "deploy"
+    run_deploy in
+  Cli.Command.add_argument cmd file_arg;
+  Cli.Command.add_argument cmd debug;
+  cmd
+
 let status_cmd =
   let cmd = Cli.Command.make
     ~doc:"Show stack status."
@@ -224,6 +258,7 @@ let root_cmd =
   Cli.Command.add_command ~default:true cmd validate_cmd;
   Cli.Command.add_command cmd plan_cmd;
   Cli.Command.add_command cmd resolve_cmd;
+  Cli.Command.add_command cmd deploy_cmd;
   Cli.Command.add_command cmd status_cmd;
   cmd
 
