@@ -53,36 +53,45 @@ let generate_node_init_script
     let container_name = Printf.sprintf "%s-%d" svc.name idx in
     Buffer.add_string buf (Printf.sprintf "# Deploy %s (replica %d)\n" svc.name idx);
 
+    (* Idempotent: skip if container already exists and is running *)
+    Buffer.add_string buf (Printf.sprintf
+      "if docker inspect %s >/dev/null 2>&1; then\n" container_name);
+    Buffer.add_string buf (Printf.sprintf
+      "  echo '%s already exists, starting if stopped'\n" container_name);
+    Buffer.add_string buf (Printf.sprintf
+      "  docker start %s 2>/dev/null || true\n" container_name);
+    Buffer.add_string buf "else\n";
+
     (* Build env flags *)
     let env_flags = List.map (fun (k, v) ->
       Printf.sprintf "-e %s='%s'" k v
     ) env_vars |> String.concat " " in
 
-    (* Port flags *)
+    (* Port flags — offset host port by replica index to avoid conflicts *)
     let port_flags = List.map (fun (p : port) ->
-      Printf.sprintf "-p %d:%d" p.host p.container
+      Printf.sprintf "-p %d:%d" (p.host + idx) p.container
     ) svc.ports |> String.concat " " in
 
     (match svc.artifact with
      | Some a when a.format = "oci-image" ->
-       Buffer.add_string buf (Printf.sprintf "docker pull %s\n" a.path);
-       Buffer.add_string buf (Printf.sprintf "docker run -d --name %s %s %s %s\n"
+       Buffer.add_string buf (Printf.sprintf "  docker pull %s\n" a.path);
+       Buffer.add_string buf (Printf.sprintf "  docker run -d --name %s %s %s %s\n"
          container_name env_flags port_flags a.path)
      | _ ->
        (* For native binaries, use a minimal image and copy binary *)
        Buffer.add_string buf (Printf.sprintf
-         "docker run -d --name %s %s %s debian:bookworm-slim sleep infinity\n"
+         "  docker run -d --name %s %s %s debian:bookworm-slim sleep infinity\n"
          container_name env_flags port_flags);
        (match svc.artifact with
         | Some a ->
           Buffer.add_string buf (Printf.sprintf
-            "docker cp %s %s:/app/service\n" a.path container_name);
+            "  docker cp %s %s:/app/service\n" a.path container_name);
           Buffer.add_string buf (Printf.sprintf
-            "docker exec %s chmod +x /app/service\n" container_name);
+            "  docker exec %s chmod +x /app/service\n" container_name);
           Buffer.add_string buf (Printf.sprintf
-            "docker exec -d %s /app/service\n" container_name)
+            "  docker exec -d %s /app/service\n" container_name)
         | None -> ()));
-    Buffer.add_string buf "\n"
+    Buffer.add_string buf "fi\n\n"
   ) services;
 
   Buffer.add_string buf "echo 'All services deployed'\n";

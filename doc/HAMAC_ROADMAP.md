@@ -29,7 +29,7 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 
 ## Milestone 3 — Deploiement docker-compose (compose plat) ✅
 
-**Objectif** : Deployer une stack localement via docker-compose. Tremplin pour valider le cablage — le vrai objectif est la simulation d'infra (milestone 3b).
+**Objectif** : Deployer une stack localement via docker-compose. Tremplin pour valider le cablage — le vrai objectif est la simulation d'infra (milestone 4).
 
 - [x] Generer un `docker-compose.yml` a partir de services resolus
 - [x] Cablage automatique : networks, env vars injectees, depends_on
@@ -39,28 +39,42 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 - [ ] Commande `hamac status` (via `docker compose ps`) — differe
 - [ ] Commande `hamac destroy` (via `docker compose down`) — differe
 
-## Milestone 3b — Simulation d'infrastructure
+## Milestone 4 — Planner et simulation d'infrastructure ✅
 
-**Objectif** : Simuler des machines avec conteneurs (DinD/Sysbox), deployer les services a l'interieur, valider le placement et l'isolation reseau.
+**Objectif** : Inferer l'infrastructure necessaire a partir des services, puis simuler le deploiement avec des conteneurs DinD isolés par zone.
 
-- [ ] Un conteneur par noeud d'infra (DinD ou Sysbox)
-- [ ] Deploiement des services dans les noeuds (docker-in-docker)
-- [ ] Reseaux docker isoles par zone de securite
-- [ ] Placement des services sur les noeuds selon les contraintes
-- [ ] Validation du firewall inter-zones
+### Planner (inference d'infrastructure)
 
-## Milestone 4 — Planner (inference d'infrastructure)
+- [x] Extraction des contraintes depuis les services (RAM, CPU, zones, repliques)
+- [x] Parsing des unites de ressources (Mi/Gi, millicores)
+- [x] Calcul du nombre de noeuds par zone selon les ressources
+- [x] Inference de la topologie reseau : un segment par zone avec CIDR et VLAN
+- [x] Regles firewall automatiques Bell-LaPadula (deny higher → lower)
+- [x] Generation d'un `infrastructure_manifest` proposal
+- [x] Commande `hamac plan <services...>` avec affichage complet
+- [x] Prise en compte de l'autoscaling (max_replicas) pour le dimensionnement
 
-**Objectif** : A partir de service manifests, inferer les besoins en infrastructure.
+### Simulation d'infrastructure (DinD)
 
-- [ ] Extraction des contraintes depuis les services (RAM, CPU, zones, repliques)
-- [ ] Regles de placement : anti-affinite entre zones de securite
-- [ ] Inference de la topologie reseau depuis les labels Bell-LaPadula
-- [ ] Regles firewall automatiques depuis les zones et route_labels
-- [ ] Calcul du nombre de noeuds et du dimensionnement
-- [ ] Generation d'un `kind: infrastructure` proposal
-- [ ] Commande `hamac plan <services...>` → proposal YAML
-- [ ] Warnings si l'infra fournie est sous-dimensionnee
+- [x] Un conteneur DinD (`docker:27-dind`) par noeud d'infra
+- [x] Scripts d'init par noeud (wait Docker daemon, deploy replicas)
+- [x] Noms de replicas uniques par noeud (service-0, service-1, ...)
+- [x] Placement round-robin des replicas sur les noeuds de la zone
+- [x] Reseaux docker isoles par zone de securite (subnets distincts)
+- [x] Zone `secure` marquee `internal: true` (pas d'acces externe)
+- [x] Providers dans la zone de leur consommateur
+- [x] Commande `hamac simulate <services.sieste.yml>` avec affichage du placement
+- [x] Scripts d'init idempotents (restart sans conflit de noms)
+- [ ] Validation du firewall inter-zones (iptables/nftables dans les noeuds)
+- [x] Tests d'integration avec `docker compose up`
+  - Isolation DNS inter-zones validee (noms non resolus entre zones)
+  - Isolation IP inter-zones validee (subnets distincts, 100% packet loss)
+  - Credentials injectees correctement (DATABASE_URL, REDIS_URL)
+  - Restart idempotent valide
+
+### Demo
+
+- [x] `demo/enterprise-stack/` : 3 services multi-zones (web_api/public, analytics/internal, payroll/secure)
 
 ## Milestone 5 — Discovery server integration
 
