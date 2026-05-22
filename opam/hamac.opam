@@ -5,6 +5,7 @@ depends: [
   "bos" {build}
   "fmt" {build}
   "fpath" {build}
+  "jingoo" {build}
   "logs" {build}
   "ocamlpro-cli" {build}
   "ocamlpro-codec" {build}

@@ -183,6 +183,7 @@ let plan ~(name : string) (services : service_manifest list) : plan =
       os_image = Some "debian:bookworm-slim";
       os_sha256 = None;
       isolated = z.zone_name = "secure";
+      provisioning_profile = None;
     }
   ) zones in
 

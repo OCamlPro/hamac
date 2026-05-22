@@ -420,7 +420,8 @@ let parse_infra_node path (v : Yaml.value) : infra_node result =
     | None | Some `Null -> Ok false
     | Some v -> as_bool (path @ ["isolated"]) v
   in
-  Ok { role; count; ram; cpu; boot; os_image; os_sha256; isolated }
+  let* provisioning_profile = opt_string "provisioning_profile" fields in
+  Ok { role; count; ram; cpu; boot; os_image; os_sha256; isolated; provisioning_profile }
 
 let parse_network_segment path (v : Yaml.value) : network_segment result =
   let* fields = as_obj path v in
@@ -479,6 +480,101 @@ let parse_infrastructure_manifest path (fields : (string * Yaml.value) list) : i
   Ok { manifest_version; name; backend; minimum_requirements; proposed_topology; warnings }
 
 (* ============================================================ *)
+(* Parse provisioning_profile manifest                           *)
+(* ============================================================ *)
+
+let parse_os_image_spec path (v : Yaml.value) : os_image_spec result =
+  let* fields = as_obj path v in
+  let* os_image_name = req_string path "image" fields in
+  let* os_url = req_string path "url" fields in
+  let* os_sha256 = req_string path "sha256" fields in
+  let* os_format = req_string path "format" fields in
+  Ok { os_image_name; os_url; os_sha256; os_format }
+
+(** Parse un bundle_ref : name + params (params bruts, transmis tels quels
+    au générateur Jinja2). *)
+let parse_bundle_ref path (v : Yaml.value) : bundle_ref result =
+  let* fields = as_obj path v in
+  let* bundle_name = req_string path "name" fields in
+  let bundle_params = match field_opt "params" fields with
+    | None | Some `Null -> []
+    | Some (`O kv) -> kv
+    | Some _ -> []  (* Tolérant : type non-objet => params vides *)
+  in
+  Ok { bundle_name; bundle_params }
+
+let parse_provisioning_profile_manifest path (fields : (string * Yaml.value) list)
+    : provisioning_profile_manifest result =
+  let* pp_manifest_version = req_string path "manifest_version" fields in
+  let* pp_name = req_string path "name" fields in
+  let* pp_os = (let* v = require path "os" fields in
+                parse_os_image_spec (path @ ["os"]) v) in
+  let* pp_bundles = parse_list "bundles" fields path parse_bundle_ref in
+  let pp_cloud_init_extra = field_opt "cloud_init_extra" fields in
+  Ok { pp_manifest_version; pp_name; pp_os; pp_bundles; pp_cloud_init_extra }
+
+(* ============================================================ *)
+(* Parse bundle manifest                                         *)
+(* ============================================================ *)
+
+let parse_bundle_param_spec path ((name, v) : string * Yaml.value)
+    : bundle_param_spec result =
+  let* fields = as_obj (path @ [name]) v in
+  let* param_type = req_string (path @ [name]) "type" fields in
+  let* param_required = match field_opt "required" fields with
+    | None | Some `Null -> Ok false
+    | Some v -> as_bool (path @ [name; "required"]) v
+  in
+  Ok { param_name = name; param_type; param_required }
+
+let parse_bundle_manifest path (fields : (string * Yaml.value) list)
+    : bundle_manifest result =
+  let* bdl_manifest_version = req_string path "manifest_version" fields in
+  let* bdl_name = req_string path "name" fields in
+  let* bdl_version = match opt_string "version" fields with
+    | Ok (Some v) -> Ok v
+    | Ok None -> Ok "0.1.0"
+    | Error e -> Error e
+  in
+  let* bdl_description = match opt_string "description" fields with
+    | Ok (Some v) -> Ok v
+    | Ok None -> Ok ""
+    | Error e -> Error e
+  in
+  let* bdl_params = match field_opt "params" fields with
+    | None | Some `Null -> Ok []
+    | Some (`O kv) ->
+      let rec aux = function
+        | [] -> Ok []
+        | entry :: rest ->
+          let* spec = parse_bundle_param_spec (path @ ["params"]) entry in
+          let* tl = aux rest in
+          Ok (spec :: tl)
+      in
+      aux kv
+    | Some _ -> error (path @ ["params"]) "expected an object mapping name → spec"
+  in
+  let parse_string_list field_name =
+    match field_opt field_name fields with
+    | None | Some `Null -> Ok []
+    | Some v ->
+      let* items = as_list (path @ [field_name]) v in
+      let rec aux i = function
+        | [] -> Ok []
+        | x :: rest ->
+          let* s = as_string (path @ [field_name; string_of_int i]) x in
+          let* tl = aux (i + 1) rest in
+          Ok (s :: tl)
+      in
+      aux 0 items
+  in
+  let* bdl_packages = parse_string_list "packages" in
+  let* bdl_depends_on = parse_string_list "depends_on" in
+  let* bdl_post_install = parse_string_list "post_install" in
+  Ok { bdl_manifest_version; bdl_name; bdl_version; bdl_description;
+       bdl_params; bdl_packages; bdl_depends_on; bdl_post_install }
+
+(* ============================================================ *)
 (* Top-level parser                                              *)
 (* ============================================================ *)
 
@@ -500,8 +596,14 @@ let parse_manifest (yaml : Yaml.value) : manifest result =
   | Some "infrastructure" ->
     let* m = parse_infrastructure_manifest path fields in
     Ok (MInfrastructure m)
+  | Some "provisioning_profile" ->
+    let* m = parse_provisioning_profile_manifest path fields in
+    Ok (MProvisioningProfile m)
+  | Some "bundle" ->
+    let* m = parse_bundle_manifest path fields in
+    Ok (MBundle m)
   | Some other ->
-    error ["kind"] (Printf.sprintf "unknown manifest kind '%s' (expected: service, stack, infrastructure)" other)
+    error ["kind"] (Printf.sprintf "unknown manifest kind '%s' (expected: service, stack, infrastructure, provisioning_profile, bundle)" other)
 
 (* ============================================================ *)
 (* Validation                                                    *)
@@ -536,6 +638,26 @@ let validate (m : manifest) : string list =
     if stk.services = [] then
       warn "stack has no services";
   | MInfrastructure _ -> ()
+  | MProvisioningProfile pp ->
+    if String.length pp.pp_os.os_sha256 < 64 then
+      warn (Printf.sprintf "os.sha256 looks too short (%d chars, expected 64)"
+              (String.length pp.pp_os.os_sha256));
+    if pp.pp_bundles = [] && pp.pp_cloud_init_extra = None then
+      warn "provisioning_profile has no bundles and no cloud_init_extra: nothing will happen at provision time";
+    (* MAC formats des params (sanity check minimal : pas de doublon de bundles) *)
+    let names = List.map (fun b -> b.bundle_name) pp.pp_bundles in
+    let unique = List.sort_uniq compare names in
+    if List.length names <> List.length unique then
+      warn "bundle list contains duplicates";
+  | MBundle b ->
+    if b.bdl_name = "" then warn "bundle has empty name";
+    (* Validation des types de params : on tolère un set fini *)
+    List.iter (fun p ->
+      let known = ["string"; "int"; "bool"; "list[string]"; "list[int]"; "object"] in
+      if not (List.mem p.param_type known) then
+        warn (Printf.sprintf "param '%s': unknown type '%s' (known: %s)"
+                p.param_name p.param_type (String.concat ", " known))
+    ) b.bdl_params
   end;
   List.rev !warnings
 

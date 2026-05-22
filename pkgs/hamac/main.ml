@@ -18,6 +18,12 @@ let kind_label = function
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
   | MInfrastructure i ->
     Printf.sprintf "infrastructure (name=%s, backend=%s)" i.name i.backend
+  | MProvisioningProfile p ->
+    Printf.sprintf "provisioning_profile (name=%s, os=%s, %d bundles)"
+      p.pp_name p.pp_os.os_image_name (List.length p.pp_bundles)
+  | MBundle b ->
+    Printf.sprintf "bundle (name=%s, version=%s, %d params)"
+      b.bdl_name b.bdl_version (List.length b.bdl_params)
 
 (** Load a registry from default search paths *)
 let load_registry () =
@@ -207,6 +213,96 @@ let run_status () =
   Logs.app (fun m -> m "No active stack.")
 
 (* ============================================================ *)
+(* provision-dryrun : génère cloud-init + iPXE pour un profil    *)
+(* ============================================================ *)
+
+let provision_bundles_dir = ref ""
+let provision_mac = ref ""
+let provision_discovery_url = ref "http://localhost:8877"
+
+let run_provision_dryrun () =
+  match !manifest_files with
+  | [] ->
+    Logs.err (fun m -> m "Provide a provisioning_profile manifest as argument.");
+    exit 1
+  | path :: _ ->
+    let fpath = Fpath.v path in
+    match Manifest_parser.load_file fpath with
+    | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
+    | Ok (Manifest_types.MProvisioningProfile profile, _) ->
+      let extra = if !provision_bundles_dir = ""
+        then []
+        else [Fpath.v !provision_bundles_dir]
+      in
+      (match Provisioning_gen.render ~extra_search_paths:extra profile with
+       | Error e ->
+         Logs.err (fun m -> m "%a" Provisioning_gen.pp_error e);
+         exit 1
+       | Ok r ->
+         print_endline "=== cloud-init ===";
+         print_string r.cloud_init;
+         print_endline "";
+         print_endline "=== iPXE ===";
+         print_string r.ipxe_script;
+         print_endline "";
+         Printf.printf "=== OS ===\nurl: %s\nsha256: %s\nformat: %s\n"
+           r.os_image_url r.os_image_sha256 r.os_format)
+    | Ok (other, _) ->
+      Logs.err (fun m -> m "Expected a provisioning_profile, got %s"
+                  (kind_label other));
+      exit 1
+
+let run_provision_push () =
+  if !provision_mac = "" then begin
+    Logs.err (fun m -> m "Missing --mac argument.");
+    exit 1
+  end;
+  match !manifest_files with
+  | [] ->
+    Logs.err (fun m -> m "Provide a provisioning_profile manifest as argument.");
+    exit 1
+  | path :: _ ->
+    let fpath = Fpath.v path in
+    match Manifest_parser.load_file fpath with
+    | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
+    | Ok (Manifest_types.MProvisioningProfile profile, _) ->
+      let extra = if !provision_bundles_dir = ""
+        then [] else [Fpath.v !provision_bundles_dir]
+      in
+      (match Provisioning_gen.render ~extra_search_paths:extra profile with
+       | Error e ->
+         Logs.err (fun m -> m "%a" Provisioning_gen.pp_error e);
+         exit 1
+       | Ok r ->
+         match Provisioning_client.push
+                 ~discovery_url:!provision_discovery_url
+                 ~mac:!provision_mac r with
+         | Ok () ->
+           Logs.app (fun m -> m "Pushed profile '%s' for MAC %s to %s"
+                       r.profile_name !provision_mac !provision_discovery_url)
+         | Error e ->
+           Logs.err (fun m -> m "%a" Provisioning_client.pp_push_error e);
+           exit 1)
+    | Ok (other, _) ->
+      Logs.err (fun m -> m "Expected a provisioning_profile, got %s"
+                  (kind_label other));
+      exit 1
+
+let run_provision_clear () =
+  if !provision_mac = "" then begin
+    Logs.err (fun m -> m "Missing --mac argument.");
+    exit 1
+  end;
+  match Provisioning_client.delete
+          ~discovery_url:!provision_discovery_url ~mac:!provision_mac with
+  | Ok () ->
+    Logs.app (fun m -> m "Cleared profile for MAC %s on %s"
+                !provision_mac !provision_discovery_url)
+  | Error e ->
+    Logs.err (fun m -> m "%a" Provisioning_client.pp_push_error e);
+    exit 1
+
+(* ============================================================ *)
 (* CLI Arguments                                                 *)
 (* ============================================================ *)
 
@@ -281,6 +377,70 @@ let status_cmd =
   Cli.Command.add_argument cmd debug;
   cmd
 
+let provision_bundles_dir_arg = Cli.Argument.optional
+  ~docv:"DIR"
+  ~doc:"Extra directory to search for bundles (prepended to default search path)."
+  ["bundles-dir"]
+  Codec.string_codec
+  ~default:""
+  (fun s -> provision_bundles_dir := s)
+
+let provision_profile_file_arg = Cli.Argument.optional
+  ~docv:"FILE"
+  ~doc:"Provisioning profile manifest (.yaml). Required."
+  ["profile"]
+  Codec.string_codec
+  ~default:""
+  (fun s -> if s <> "" then manifest_files := [s])
+
+let provision_dryrun_cmd =
+  let cmd = Cli.Command.make
+    ~doc:"Render cloud-init + iPXE for a provisioning_profile without pushing it."
+    "provision-dryrun"
+    run_provision_dryrun in
+  Cli.Command.add_argument cmd provision_profile_file_arg;
+  Cli.Command.add_argument cmd provision_bundles_dir_arg;
+  Cli.Command.add_argument cmd debug;
+  cmd
+
+let provision_mac_arg = Cli.Argument.optional
+  ~docv:"MAC"
+  ~doc:"Target MAC address (lowercased automatically). Required."
+  ["mac"]
+  Codec.string_codec
+  ~default:""
+  (fun s -> provision_mac := s)
+
+let provision_discovery_url_arg = Cli.Argument.optional
+  ~docv:"URL"
+  ~doc:"Discovery server base URL (no trailing slash)."
+  ["discovery"]
+  Codec.string_codec
+  ~default:"http://localhost:8877"
+  (fun s -> provision_discovery_url := s)
+
+let provision_push_cmd =
+  let cmd = Cli.Command.make
+    ~doc:"Render and push a provisioning_profile to the discovery server for a MAC."
+    "provision-push"
+    run_provision_push in
+  Cli.Command.add_argument cmd provision_profile_file_arg;
+  Cli.Command.add_argument cmd provision_bundles_dir_arg;
+  Cli.Command.add_argument cmd provision_mac_arg;
+  Cli.Command.add_argument cmd provision_discovery_url_arg;
+  Cli.Command.add_argument cmd debug;
+  cmd
+
+let provision_clear_cmd =
+  let cmd = Cli.Command.make
+    ~doc:"Remove the provisioning record for a MAC on the discovery server."
+    "provision-clear"
+    run_provision_clear in
+  Cli.Command.add_argument cmd provision_mac_arg;
+  Cli.Command.add_argument cmd provision_discovery_url_arg;
+  Cli.Command.add_argument cmd debug;
+  cmd
+
 let root_cmd =
   let cmd = Cli.Command.make
     ~doc:"Hamac - stack manager for SIESTE manifests."
@@ -292,6 +452,9 @@ let root_cmd =
   Cli.Command.add_command cmd simulate_cmd;
   Cli.Command.add_command cmd deploy_cmd;
   Cli.Command.add_command cmd status_cmd;
+  Cli.Command.add_command cmd provision_dryrun_cmd;
+  Cli.Command.add_command cmd provision_push_cmd;
+  Cli.Command.add_command cmd provision_clear_cmd;
   cmd
 
 let () =

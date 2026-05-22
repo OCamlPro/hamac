@@ -31,10 +31,17 @@ let node_name (zone : string) (index : int) : string =
 (* Init script generation                                        *)
 (* ============================================================ *)
 
+(** A firewall directive for the init script *)
+type fw_directive =
+  | FwDenyNode of string * string   (* deny traffic to node name, reason *)
+  | FwAllow of string * string      (* allow traffic to subnet, reason *)
+
 (** Generate the init script that runs inside a DinD node.
-    This script waits for Docker daemon, then pulls/runs services. *)
+    This script waits for Docker daemon, applies firewall rules,
+    then pulls/runs services. *)
 let generate_node_init_script
     ~(services : (service_manifest * (string * string) list) list)
+    ~(firewall : fw_directive list)
   : string =
   let buf = Buffer.create 512 in
   Buffer.add_string buf "#!/bin/sh\n";
@@ -43,6 +50,28 @@ let generate_node_init_script
   Buffer.add_string buf "echo 'Waiting for Docker daemon...'\n";
   Buffer.add_string buf "while ! docker info >/dev/null 2>&1; do sleep 1; done\n";
   Buffer.add_string buf "echo 'Docker daemon ready'\n\n";
+
+  (* Enable inter-zone routing: disable reverse path filtering *)
+  Buffer.add_string buf "# Enable backbone routing\n";
+  Buffer.add_string buf "for iface in /proc/sys/net/ipv4/conf/*/rp_filter; do\n";
+  Buffer.add_string buf "  echo 0 > \"$iface\" 2>/dev/null || true\n";
+  Buffer.add_string buf "done\n\n";
+
+  (* Apply firewall rules *)
+  if firewall <> [] then begin
+    Buffer.add_string buf "# Firewall rules (Bell-LaPadula)\n";
+    Buffer.add_string buf "echo 'Applying firewall rules...'\n";
+    List.iter (fun dir ->
+      match dir with
+      | FwDenyNode (subnet, reason) ->
+        Buffer.add_string buf (Printf.sprintf
+          "iptables -A OUTPUT -d %s -j DROP # %s\n" subnet reason)
+      | FwAllow (subnet, reason) ->
+        Buffer.add_string buf (Printf.sprintf
+          "# ALLOW -> %s (%s)\n" subnet reason)
+    ) firewall;
+    Buffer.add_string buf "echo 'Firewall rules applied'\n\n"
+  end;
 
   (* Track replica index per service for unique container names *)
   let replica_counters : (string, int) Hashtbl.t = Hashtbl.create 8 in
@@ -226,10 +255,42 @@ let generate
     Buffer.add_char buf '\n'
   ) resolution.providers;
 
+  (* Build zone→subnet mapping for firewall rules *)
+  let zone_subnets = List.mapi (fun i (z : Planner.zone_info) ->
+    (z.zone_name, Planner.zone_cidr i)
+  ) plan.zones in
+
+
   (* DinD node containers *)
   List.iter (fun (p : placement) ->
     let script_name = Printf.sprintf ".hamac/init-%s.sh" p.node in
-    let script_content = generate_node_init_script ~services:p.services in
+
+    (* Build firewall directives for this node's zone *)
+    let fw_rules = match plan.infrastructure.proposed_topology with
+      | Some topo ->
+        List.concat_map (fun (r : firewall_rule) ->
+          (* Parse "DENY src -> dst (reason)" or "ALLOW src -> dst" *)
+          if String.length r.rule > 5 then
+            let parts = String.split_on_char ' ' r.rule in
+            match parts with
+            | "DENY" :: src :: "->" :: dst :: rest when src = p.zone ->
+              let reason = String.concat " " rest in
+              (match List.assoc_opt dst zone_subnets with
+               | Some subnet -> [FwDenyNode (subnet, reason)]
+               | None -> [])
+            | "ALLOW" :: src :: "->" :: dst :: rest when src = p.zone ->
+              let reason = String.concat " " rest in
+              (match List.assoc_opt dst zone_subnets with
+               | Some subnet -> [FwAllow (subnet, reason)]
+               | None -> [])
+            | _ -> []
+          else []
+        ) topo.firewall
+      | None -> []
+    in
+
+    let script_content = generate_node_init_script ~services:p.services
+        ~firewall:fw_rules in
     scripts := (script_name, script_content) :: !scripts;
 
     emit_line buf 1 "%s:" p.node;
@@ -265,13 +326,28 @@ let generate
       ) deps
     end;
 
+    (* Networks: own zone + zones this node is allowed to reach *)
+    let allowed_zones = match plan.infrastructure.proposed_topology with
+      | Some topo ->
+        List.filter_map (fun (r : firewall_rule) ->
+          let parts = String.split_on_char ' ' r.rule in
+          match parts with
+          | "ALLOW" :: src :: "->" :: dst :: _ when src = p.zone ->
+            Some dst
+          | _ -> None
+        ) topo.firewall
+      | None -> []
+    in
+    let all_zones = p.zone :: allowed_zones |> List.sort_uniq String.compare in
     emit_line buf 2 "networks:";
-    emit_line buf 3 "- zone_%s" p.zone;
+    List.iter (fun z ->
+      emit_line buf 3 "- zone_%s" z
+    ) all_zones;
     emit_line buf 2 "restart: unless-stopped";
     Buffer.add_char buf '\n'
   ) placements;
 
-  (* Networks — one per zone *)
+  (* Networks — one per zone + backbone for inter-zone *)
   emit_line buf 0 "networks:";
   List.iteri (fun idx (z : Planner.zone_info) ->
     emit_line buf 1 "zone_%s:" z.zone_name;

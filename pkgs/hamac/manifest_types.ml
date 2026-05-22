@@ -148,6 +148,7 @@ type infra_node = {
   os_image: string option;
   os_sha256: string option;
   isolated: bool;
+  provisioning_profile: string option;  (** Nom d'un kind: provisioning_profile à appliquer *)
 } [@@deriving show]
 
 type network_segment = {
@@ -182,6 +183,60 @@ type infrastructure_manifest = {
 } [@@deriving show]
 
 (* ============================================================ *)
+(* kind: provisioning_profile (+ kind: bundle)                   *)
+(* ============================================================ *)
+(* Cf. doc/PROVISIONING_SPEC.md                                  *)
+
+(** YAML value brut (params bundle, cloud_init_extra, etc.). *)
+type yaml_value = Yaml.value
+let pp_yaml_value fmt v =
+  match Yaml.to_string v with
+  | Ok s -> Format.fprintf fmt "%s" (String.trim s)
+  | Error (`Msg m) -> Format.fprintf fmt "<invalid yaml: %s>" m
+
+type os_image_spec = {
+  os_image_name: string;    (** Identifiant logique ex. "debian-12-amd64" *)
+  os_url: string;           (** URL téléchargeable de l'image *)
+  os_sha256: string;        (** Hash pour vérification *)
+  os_format: string;        (** qcow2 | raw | iso | netinstall *)
+} [@@deriving show]
+
+(** Référence à un bundle depuis un provisioning_profile, avec les valeurs
+    des paramètres à passer au template Jinja2 du bundle. *)
+type bundle_ref = {
+  bundle_name: string;
+  bundle_params: (string * yaml_value) list;
+} [@@deriving show]
+
+type provisioning_profile_manifest = {
+  pp_manifest_version: string;
+  pp_name: string;
+  pp_os: os_image_spec;
+  pp_bundles: bundle_ref list;
+  pp_cloud_init_extra: yaml_value option;
+} [@@deriving show]
+
+(** Spécification d'un paramètre déclaré côté bundle.
+    [param_type] est conservé en string brut pour rester extensible
+    ("string", "int", "bool", "list[string]"). *)
+type bundle_param_spec = {
+  param_name: string;
+  param_type: string;
+  param_required: bool;
+} [@@deriving show]
+
+type bundle_manifest = {
+  bdl_manifest_version: string;
+  bdl_name: string;
+  bdl_version: string;
+  bdl_description: string;
+  bdl_params: bundle_param_spec list;
+  bdl_packages: string list;
+  bdl_depends_on: string list;
+  bdl_post_install: string list;
+} [@@deriving show]
+
+(* ============================================================ *)
 (* Top-level manifest                                            *)
 (* ============================================================ *)
 
@@ -189,4 +244,6 @@ type manifest =
   | MService of service_manifest
   | MStack of stack_manifest
   | MInfrastructure of infrastructure_manifest
+  | MProvisioningProfile of provisioning_profile_manifest
+  | MBundle of bundle_manifest
   [@@deriving show]

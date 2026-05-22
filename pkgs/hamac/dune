@@ -21,12 +21,16 @@
   ;; The executable's dependencies
   (libraries
     bos
+    cohttp-lwt-unix
     fmt
     fpath
+    jingoo
     logs.fmt
+    lwt
     ocamlpro-cli
     ocamlpro-codec
     yaml
+    yojson
     build_info)
 
   ;; The executable's source file preprocessors
