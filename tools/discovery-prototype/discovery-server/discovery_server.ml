@@ -68,10 +68,21 @@ type provisioning_record = {
   pr_created_at: float;
 }
 
+(** MAC adresse autorisée à recevoir une réponse PXE.
+    Géré par l'admin via l'UI web ou l'API REST. Mirroré sur dnsmasq via
+    /api/allowed-macs/dnsmasq-hostsfile (polling sidecar dans hamac-pxe). *)
+type allowed_mac_entry = {
+  am_mac: string;          (* MAC normalisée lowercase *)
+  am_label: string;        (* description humaine, ex: "Thinkpad d'Amenah" *)
+  am_added_by: string;     (* utilisateur OIDC qui a ajouté (vide si pas d'auth) *)
+  am_added_at: float;      (* timestamp Unix *)
+}
+
 (** Global state - in production, use a database *)
 let nodes : (string, node) Hashtbl.t = Hashtbl.create 16
 let services : (string, service) Hashtbl.t = Hashtbl.create 16
 let provisioning : (string, provisioning_record) Hashtbl.t = Hashtbl.create 16
+let allowed_macs : (string, allowed_mac_entry) Hashtbl.t = Hashtbl.create 16
 let node_counter = ref 0
 
 (** Répertoire de persistance des profils de provisioning.
@@ -81,6 +92,7 @@ let state_dir =
   with Not_found -> "/var/lib/hamac-discovery"
 
 let provisioning_dir () = Filename.concat state_dir "provisioning"
+let allowed_macs_file () = Filename.concat state_dir "allowed-macs.json"
 
 (** Normalise une MAC : lowercase, supprime les espaces.
     Conserve les ":" pour rester lisible côté disque. *)
@@ -1507,6 +1519,143 @@ let handle_provisioning_list () =
   ) provisioning [] in
   respond_json ~status:`OK (`Assoc ["provisioning", `List entries])
 
+(* ============================================================ *)
+(* Allowed MACs (administrés via API/UI, propagés à dnsmasq)     *)
+(* ============================================================ *)
+
+let allowed_mac_entry_to_json (e : allowed_mac_entry) : Yojson.Safe.t =
+  `Assoc [
+    "mac", `String e.am_mac;
+    "label", `String e.am_label;
+    "added_by", `String e.am_added_by;
+    "added_at", `Float e.am_added_at;
+  ]
+
+let allowed_mac_entry_of_json (j : Yojson.Safe.t)
+  : (allowed_mac_entry, string) Stdlib.result =
+  match j with
+  | `Assoc fields ->
+    let get_str ?(default="") k = match List.assoc_opt k fields with
+      | Some (`String s) -> Ok s
+      | None -> Ok default
+      | _ -> Error (Printf.sprintf "field '%s' must be a string" k)
+    in
+    (match get_str "mac" with
+     | Error e -> Error e
+     | Ok mac when mac = "" -> Error "field 'mac' is required and must be non-empty"
+     | Ok mac ->
+       match get_str ~default:"" "label" with
+       | Error e -> Error e
+       | Ok label ->
+         match get_str ~default:"unknown" "added_by" with
+         | Error e -> Error e
+         | Ok added_by ->
+           let added_at = match List.assoc_opt "added_at" fields with
+             | Some (`Float f) -> f
+             | Some (`Int i) -> float_of_int i
+             | _ -> Unix.gettimeofday ()
+           in
+           Ok {
+             am_mac = normalize_mac mac;
+             am_label = label;
+             am_added_by = added_by;
+             am_added_at = added_at;
+           })
+  | _ -> Error "expected a JSON object"
+
+let save_allowed_macs_to_disk () : unit =
+  (try Unix.mkdir state_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let entries = Hashtbl.fold (fun _ e acc -> allowed_mac_entry_to_json e :: acc)
+                  allowed_macs [] in
+  let json : Yojson.Safe.t = `List entries in
+  let path = allowed_macs_file () in
+  let tmp = path ^ ".tmp" in
+  let oc = open_out tmp in
+  output_string oc (Yojson.Safe.to_string json);
+  close_out oc;
+  Sys.rename tmp path
+
+let load_allowed_macs_from_disk () : unit =
+  let path = allowed_macs_file () in
+  if Sys.file_exists path then
+    try
+      let ic = open_in path in
+      let n = in_channel_length ic in
+      let s = really_input_string ic n in
+      close_in ic;
+      match Yojson.Safe.from_string s with
+      | `List items ->
+        List.iter (fun j ->
+          match allowed_mac_entry_of_json j with
+          | Ok e -> Hashtbl.replace allowed_macs e.am_mac e
+          | Error msg ->
+            Printf.eprintf "[allowed-macs] skip invalid entry: %s\n" msg
+        ) items
+      | _ ->
+        Printf.eprintf "[allowed-macs] %s : expected a JSON list, ignored\n" path
+    with e ->
+      Printf.eprintf "[allowed-macs] error loading %s: %s\n"
+        path (Printexc.to_string e)
+
+let handle_allowed_macs_list () =
+  let entries = Hashtbl.fold (fun _ e acc -> allowed_mac_entry_to_json e :: acc)
+                  allowed_macs [] in
+  respond_json ~status:`OK (`Assoc ["allowed_macs", `List entries])
+
+let handle_allowed_macs_add ?(added_by="unknown") body_str =
+  match (try Ok (Yojson.Safe.from_string body_str)
+         with e -> Error (Printexc.to_string e)) with
+  | Error e -> respond_error 400 ("Invalid JSON: " ^ e)
+  | Ok j ->
+    (* Force added_by + added_at à des valeurs serveur, ignorer celles du client. *)
+    let j_normalized = match j with
+      | `Assoc fields ->
+        let cleaned = List.filter (fun (k, _) ->
+          k <> "added_by" && k <> "added_at") fields in
+        `Assoc (("added_by", `String added_by) ::
+                ("added_at", `Float (Unix.gettimeofday ())) ::
+                cleaned)
+      | _ -> j
+    in
+    match allowed_mac_entry_of_json j_normalized with
+    | Error msg -> respond_error 400 msg
+    | Ok e ->
+      let was_present = Hashtbl.mem allowed_macs e.am_mac in
+      Hashtbl.replace allowed_macs e.am_mac e;
+      save_allowed_macs_to_disk ();
+      Lwt.async (fun () ->
+        broadcast_event "allowed-mac-updated"
+          (`Assoc ["mac", `String e.am_mac;
+                   "label", `String e.am_label;
+                   "added_by", `String e.am_added_by]));
+      let status = if was_present then `OK else `Created in
+      respond_json ~status (allowed_mac_entry_to_json e)
+
+let handle_allowed_macs_delete mac =
+  let mac = normalize_mac mac in
+  if Hashtbl.mem allowed_macs mac then begin
+    Hashtbl.remove allowed_macs mac;
+    save_allowed_macs_to_disk ();
+    Lwt.async (fun () ->
+      broadcast_event "allowed-mac-deleted"
+        (`Assoc ["mac", `String mac]));
+    respond_json ~status:`OK
+      (`Assoc ["status", `String "deleted"; "mac", `String mac])
+  end else
+    respond_error 404 ("No allowed MAC entry for " ^ mac)
+
+(** Format dnsmasq dhcp-hostsfile : une ligne par MAC autorisée.
+    dnsmasq lit ce fichier au démarrage et le relit sur SIGHUP. *)
+let handle_allowed_macs_dnsmasq_hostsfile () =
+  let lines = Hashtbl.fold (fun mac _ acc ->
+    Printf.sprintf "%s,set:hamac-pxe" mac :: acc
+  ) allowed_macs [] in
+  let body = String.concat "\n" lines ^ (if lines = [] then "" else "\n") in
+  let headers = Cohttp.Header.of_list [
+    ("Content-Type", "text/plain; charset=utf-8")
+  ] in
+  Cohttp_lwt_unix.Server.respond_string ~status:`OK ~headers ~body ()
+
 let get_client_ip _conn =
   (* In production, parse X-Forwarded-For or connection info *)
   "unknown"
@@ -1625,6 +1774,20 @@ let http_handler conn req body =
   | `DELETE, ["provisioning"; mac] ->
       handle_provisioning_delete mac
 
+  (* Allowed MACs (whitelist gérée via UI, propagée à dnsmasq) *)
+  | `GET, ["api"; "allowed-macs"] ->
+      handle_allowed_macs_list ()
+  | `POST, ["api"; "allowed-macs"] ->
+      Cohttp_lwt.Body.to_string body >>= fun body_str ->
+      handle_allowed_macs_add body_str
+  | `DELETE, ["api"; "allowed-macs"; mac] ->
+      handle_allowed_macs_delete mac
+  (* Endpoint consommé par le sidecar dnsmasq dans le container hamac-pxe.
+     Renvoie le contenu du fichier dnsmasq dhcp-hostsfile, qui sera
+     rechargé via SIGHUP. *)
+  | `GET, ["api"; "allowed-macs"; "dnsmasq-hostsfile"] ->
+      handle_allowed_macs_dnsmasq_hostsfile ()
+
   (* Dashboard - real-time visualization *)
   | `GET, ["dashboard"] ->
       handle_dashboard ()
@@ -1673,6 +1836,10 @@ let () =
   Printf.printf "  GET    /provisioning/<mac>/cloud-init - Cloud-init YAML\n";
   Printf.printf "  GET    /provisioning/<mac>/ipxe        - iPXE script\n";
   Printf.printf "  DELETE /provisioning/<mac>    - Remove profile\n";
+  Printf.printf "  GET    /api/allowed-macs      - List allowed MAC entries\n";
+  Printf.printf "  POST   /api/allowed-macs      - Add a MAC ({mac,label})\n";
+  Printf.printf "  DELETE /api/allowed-macs/<mac> - Remove a MAC\n";
+  Printf.printf "  GET    /api/allowed-macs/dnsmasq-hostsfile - dnsmasq dhcp-hostsfile body\n";
   Printf.printf "  GET    /health                - Health check\n";
   Printf.printf "\n";
   Printf.printf "Dashboard & Real-time:\n";
@@ -1695,6 +1862,12 @@ let () =
   if Hashtbl.length provisioning > 0 then
     Printf.printf "Loaded %d provisioning profile(s) from %s\n%!"
       (Hashtbl.length provisioning) (provisioning_dir ());
+
+  (* Charger la whitelist des MACs autorisées *)
+  load_allowed_macs_from_disk ();
+  if Hashtbl.length allowed_macs > 0 then
+    Printf.printf "Loaded %d allowed MAC(s) from %s\n%!"
+      (Hashtbl.length allowed_macs) (allowed_macs_file ());
   Printf.printf "Example registration:\n";
   Printf.printf "  curl -X POST http://localhost:%d/register \\\n" port;
   Printf.printf "       -H 'Content-Type: application/json' \\\n";
