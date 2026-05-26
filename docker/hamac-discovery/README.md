@@ -3,13 +3,13 @@
 Image runtime pour le serveur de découverte de hamac (REST API pour
 l'enregistrement des nodes et le service des profils de provisioning).
 
-Tag canonique : `registry.ocamlpro.com/OCamlPro/sieste/hamac-discovery:0.1.0` + `latest`.
+Tag canonique : `registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:0.1.0` + `latest`.
 
 ## Build
 
 ```sh
 ./build.sh                                  # tag par défaut
-./build.sh registry.ocamlpro.com/OCamlPro/sieste/hamac-discovery:dev   # tag custom
+./build.sh registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:dev   # tag custom
 ```
 
 Le `build.sh` :
@@ -29,7 +29,7 @@ seulement), donc une image runtime `debian:bookworm-slim` suffit.
 ```sh
 docker run --rm -p 8877:8877 \
   -v /var/lib/hamac-discovery:/var/lib/hamac-discovery \
-  registry.ocamlpro.com/OCamlPro/sieste/hamac-discovery:0.1.0
+  registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:0.1.0
 ```
 
 Variables d'environnement :
@@ -52,8 +52,8 @@ Healthcheck : `curl http://localhost:8877/health` doit renvoyer
 
 ```sh
 docker login registry.ocamlpro.com    # creds via ansible vault chez OCP-SI
-docker push registry.ocamlpro.com/OCamlPro/sieste/hamac-discovery:0.1.0
-docker push registry.ocamlpro.com/OCamlPro/sieste/hamac-discovery:latest
+docker push registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:0.1.0
+docker push registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:latest
 ```
 
 ## Voir aussi

@@ -4,7 +4,7 @@ Image PXE pour hamac-provisioning. Combine dnsmasq (mode proxy DHCP +
 TFTP) avec un TFTP root pré-populé contenant `pxelinux.0`, le kernel
 Alpine et l'initramfs hybride avec le init hamac.
 
-Tag canonique : `registry.ocamlpro.com/OCamlPro/sieste/hamac-pxe:0.1.0` + `latest`.
+Tag canonique : `registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0` + `latest`.
 
 ## Mode proxy DHCP
 
@@ -27,7 +27,7 @@ overlay/bridge ne sert pas le broadcast L2). C'est imposé par le
 
 ```sh
 ./build.sh                                    # tag par défaut
-./build.sh registry.ocamlpro.com/OCamlPro/sieste/hamac-pxe:dev   # tag custom
+./build.sh registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:dev   # tag custom
 ```
 
 Le `build.sh` :
@@ -51,7 +51,7 @@ docker run --rm \
   -e INTERFACE=lo \
   -e LISTEN_ADDRESS=127.0.0.1 \
   -e DISCOVERY_URL=http://example:8877 \
-  registry.ocamlpro.com/OCamlPro/sieste/hamac-pxe:0.1.0
+  registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0
 ```
 
 Sur le LAN OCP (production, network host) :
@@ -60,7 +60,7 @@ docker run --network host --cap-add NET_ADMIN \
   -e INTERFACE=eth0 \
   -e DISCOVERY_URL=http://socrates.ocp.local:8877 \
   -e ALLOWED_MACS=aa:bb:cc:dd:ee:ff,11:22:33:44:55:66 \
-  registry.ocamlpro.com/OCamlPro/sieste/hamac-pxe:0.1.0
+  registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0
 ```
 
 Variables d'environnement :
@@ -87,8 +87,8 @@ Le container a besoin de `cap_add: NET_ADMIN` pour binder sur :67/UDP.
 
 ```sh
 docker login registry.ocamlpro.com    # creds via ansible vault chez OCP-SI
-docker push registry.ocamlpro.com/OCamlPro/sieste/hamac-pxe:0.1.0
-docker push registry.ocamlpro.com/OCamlPro/sieste/hamac-pxe:latest
+docker push registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0
+docker push registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:latest
 ```
 
 ## Voir aussi
