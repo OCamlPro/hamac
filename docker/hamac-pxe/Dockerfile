@@ -31,6 +31,7 @@ RUN apt-get update \
       pxelinux \
       syslinux-common \
       ca-certificates \
+      curl \
       tzdata \
  && rm -rf /var/lib/apt/lists/*
 
