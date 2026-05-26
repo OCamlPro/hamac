@@ -3,14 +3,17 @@ opam-version: "2.0"
 depends: [
   "dune" {>= "3.14"}
   "bos" {build}
+  "cohttp-lwt-unix" {build}
   "fmt" {build}
   "fpath" {build}
   "jingoo" {build}
   "logs" {build}
+  "lwt" {build}
   "ocamlpro-cli" {build}
   "ocamlpro-codec" {build}
   "opam-marmiton" {>= "0.1.0" & with-dev-setup}
   "yaml" {build}
+  "yojson" {build}
   "ppx_deriving" {build}
   "odoc" {with-doc}
 ]
