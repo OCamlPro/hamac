@@ -6,8 +6,16 @@
 #
 # Tag défaut: registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:0.1.0
 #
-# Le binaire OCaml est compilé localement (besoin d'opam + ocamlpro-cli pinned)
-# puis copié dans le contexte Docker. Le Dockerfile ne fait que packager.
+# Le binaire OCaml est compilé localement (besoin d'opam) puis copié dans le
+# contexte Docker. Le Dockerfile ne fait que packager.
+#
+# IMPORTANT (glibc) : le binaire est lié dynamiquement à la glibc de la
+# machine de build. L'image runtime est debian:bookworm-slim (glibc 2.36).
+# Si tu builds sur une distro plus récente (glibc > 2.36), le binaire ne
+# tournera PAS dans l'image ("GLIBC_2.xx not found"). En CI ce n'est pas un
+# souci : le job binary tourne dans ocaml/opam:debian-12 (bookworm, 2.36).
+# Pour un test local d'image fidèle, compiler le binaire dans un conteneur
+# debian:bookworm, ou tester le binaire natif directement (hors Docker).
 
 set -euo pipefail
 
@@ -29,9 +37,15 @@ fi
 
 echo "==> Binary: $BIN ($(du -h "$BIN" | cut -f1))"
 
-# Copie dans le contexte Docker (le Dockerfile fait COPY discovery_server.exe)
+# Copie dans le contexte Docker (le Dockerfile fait COPY) :
+#  - le binaire
+#  - les bundles (templates cloud-init + schémas de params)
+#  - les profils built-in (seed du catalogue)
 cp "$BIN" "$SCRIPT_DIR/discovery_server.exe"
-trap 'rm -f "$SCRIPT_DIR/discovery_server.exe"' EXIT
+rm -rf "$SCRIPT_DIR/bundles" "$SCRIPT_DIR/profiles"
+cp -r "$PROJECT_ROOT/templates/bundles"        "$SCRIPT_DIR/bundles"
+cp -r "$PROJECT_ROOT/provisioning-profiles"    "$SCRIPT_DIR/profiles"
+trap 'rm -rf "$SCRIPT_DIR/discovery_server.exe" "$SCRIPT_DIR/bundles" "$SCRIPT_DIR/profiles"' EXIT
 
 echo "==> docker build $TAG ..."
 docker build -t "$TAG" -t "$LATEST_TAG" "$SCRIPT_DIR"
