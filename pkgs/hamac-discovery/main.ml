@@ -78,11 +78,25 @@ type allowed_mac_entry = {
   am_added_at: float;      (* timestamp Unix *)
 }
 
+(** Machine = une MAC + un profil du catalogue + des params par-machine.
+    Couche "haute" (mode b, IT) : le discovery rend lui-meme le cloud-init
+    a partir de (profil catalogue + params), produit un provisioning_record
+    et whiteliste la MAC. Cf. doc/DECISIONS.md (2026-05-26). *)
+type machine = {
+  mc_mac: string;                          (* MAC normalisee *)
+  mc_profile_name: string;                 (* reference au catalogue *)
+  mc_params: (string * Yojson.Safe.t) list;(* params par-machine (username, ssh...) *)
+  mc_status: string;                       (* pending | installed *)
+  mc_created_at: float;
+  mc_updated_at: float;
+}
+
 (** Global state - in production, use a database *)
 let nodes : (string, node) Hashtbl.t = Hashtbl.create 16
 let services : (string, service) Hashtbl.t = Hashtbl.create 16
 let provisioning : (string, provisioning_record) Hashtbl.t = Hashtbl.create 16
 let allowed_macs : (string, allowed_mac_entry) Hashtbl.t = Hashtbl.create 16
+let machines : (string, machine) Hashtbl.t = Hashtbl.create 16
 let node_counter = ref 0
 
 (** Répertoire de persistance des profils de provisioning.
@@ -93,6 +107,20 @@ let state_dir =
 
 let provisioning_dir () = Filename.concat state_dir "provisioning"
 let allowed_macs_file () = Filename.concat state_dir "allowed-macs.json"
+let machines_dir () = Filename.concat state_dir "machines"
+let custom_profiles_dir () = Filename.concat state_dir "profiles"
+
+(** Profils "built-in" embarques dans l'image (seed du catalogue).
+    Override via $HAMAC_PROFILES_DIR. *)
+let builtin_profiles_dir =
+  try Sys.getenv "HAMAC_PROFILES_DIR"
+  with Not_found -> "/usr/share/hamac/profiles"
+
+(** Repertoire des bundles (pour lire les schemas de params). Override via
+    $HAMAC_BUNDLES_DIR (lu aussi par provisioning_gen). *)
+let bundles_dir =
+  try Sys.getenv "HAMAC_BUNDLES_DIR"
+  with Not_found -> "/usr/share/hamac/bundles"
 
 (** Normalise une MAC : lowercase, supprime les espaces.
     Conserve les ":" pour rester lisible côté disque. *)
@@ -1656,6 +1684,252 @@ let handle_allowed_macs_dnsmasq_hostsfile () =
   ] in
   Cohttp_lwt_unix.Server.respond_string ~status:`OK ~headers ~body ()
 
+(* ============================================================ *)
+(* Catalogue de profils + modèle Machine (mode b, IT)           *)
+(* ============================================================ *)
+
+module MT = Hamac_provisioning.Manifest_types
+
+(** Conversion Yojson (params venant de l'API REST) → Yaml.value
+    (format attendu par provisioning_gen). *)
+let rec yojson_to_yaml (j : Yojson.Safe.t) : Yaml.value =
+  match j with
+  | `Null -> `Null
+  | `Bool b -> `Bool b
+  | `Int i -> `Float (float_of_int i)
+  | `Intlit s -> `String s
+  | `Float f -> `Float f
+  | `String s -> `String s
+  | `List l | `Tuple l -> `A (List.map yojson_to_yaml l)
+  | `Assoc a -> `O (List.map (fun (k, v) -> (k, yojson_to_yaml v)) a)
+  | `Variant (n, _) -> `String n
+
+(** Charge les profils d'un répertoire : les .yaml → provisioning_profile_manifest. *)
+let load_profiles_from_dir (dir : string)
+  : (string * MT.provisioning_profile_manifest) list =
+  if Sys.file_exists dir && Sys.is_directory dir then
+    Sys.readdir dir |> Array.to_list
+    |> List.filter (fun f ->
+         Filename.check_suffix f ".yaml" || Filename.check_suffix f ".yml")
+    |> List.filter_map (fun f ->
+         let path = Fpath.v (Filename.concat dir f) in
+         match Hamac_provisioning.Manifest_parser.load_file path with
+         | Ok (MT.MProvisioningProfile p, _) -> Some (p.MT.pp_name, p)
+         | _ -> None)
+  else []
+
+(** Catalogue effectif : built-in ∪ custom (custom prioritaire à nom égal). *)
+let catalog () : (string * MT.provisioning_profile_manifest) list =
+  let tbl : (string, MT.provisioning_profile_manifest) Hashtbl.t = Hashtbl.create 16 in
+  List.iter (fun (n, p) -> Hashtbl.replace tbl n p)
+    (load_profiles_from_dir builtin_profiles_dir);
+  List.iter (fun (n, p) -> Hashtbl.replace tbl n p)
+    (load_profiles_from_dir (custom_profiles_dir ()));
+  Hashtbl.fold (fun n p acc -> (n, p) :: acc) tbl []
+
+let find_profile (name : string) : MT.provisioning_profile_manifest option =
+  List.assoc_opt name (catalog ())
+
+(** Params requis agrégés d'un profil = union (par nom) des params de ses
+    bundles, lus depuis leur bundle.yaml. *)
+let profile_required_params (p : MT.provisioning_profile_manifest)
+  : MT.bundle_param_spec list =
+  List.concat_map (fun (br : MT.bundle_ref) ->
+    let bpath = Fpath.v
+      (Filename.concat (Filename.concat bundles_dir br.MT.bundle_name) "bundle.yaml") in
+    match Hamac_provisioning.Manifest_parser.load_file bpath with
+    | Ok (MT.MBundle b, _) -> b.MT.bdl_params
+    | _ -> []
+  ) p.MT.pp_bundles
+  |> List.fold_left (fun acc (s : MT.bundle_param_spec) ->
+       if List.exists (fun (x : MT.bundle_param_spec) ->
+            x.MT.param_name = s.MT.param_name) acc
+       then acc else acc @ [s]) []
+
+let profile_to_json (name : string) (p : MT.provisioning_profile_manifest)
+  : Yojson.Safe.t =
+  let params = profile_required_params p
+    |> List.map (fun (s : MT.bundle_param_spec) ->
+         `Assoc [
+           "name", `String s.MT.param_name;
+           "type", `String s.MT.param_type;
+           "required", `Bool s.MT.param_required;
+         ]) in
+  `Assoc [
+    "name", `String name;
+    "os_image", `String p.MT.pp_os.MT.os_image_name;
+    "os_family", `String p.MT.pp_os.MT.os_family;
+    "bundles", `List (List.map (fun (br : MT.bundle_ref) ->
+                        `String br.MT.bundle_name) p.MT.pp_bundles);
+    "required_params", `List params;
+  ]
+
+(* ---- Machines : JSON + persistance ---- *)
+
+let machine_to_json (m : machine) : Yojson.Safe.t =
+  `Assoc [
+    "mac", `String m.mc_mac;
+    "profile_name", `String m.mc_profile_name;
+    "params", `Assoc m.mc_params;
+    "status", `String m.mc_status;
+    "created_at", `Float m.mc_created_at;
+    "updated_at", `Float m.mc_updated_at;
+  ]
+
+let machine_of_json (j : Yojson.Safe.t) : (machine, string) Stdlib.result =
+  match j with
+  | `Assoc fields ->
+    let get k = List.assoc_opt k fields in
+    (match get "mac", get "profile_name" with
+     | Some (`String mac), Some (`String profile_name) when mac <> "" ->
+       let mc_params = match get "params" with
+         | Some (`Assoc kv) -> kv
+         | _ -> [] in
+       let fnum k d = match get k with
+         | Some (`Float f) -> f | Some (`Int i) -> float_of_int i | _ -> d in
+       let now = Unix.gettimeofday () in
+       Ok {
+         mc_mac = normalize_mac mac;
+         mc_profile_name = profile_name;
+         mc_params;
+         mc_status = (match get "status" with Some (`String s) -> s | _ -> "pending");
+         mc_created_at = fnum "created_at" now;
+         mc_updated_at = fnum "updated_at" now;
+       }
+     | _ -> Error "fields 'mac' and 'profile_name' are required")
+  | _ -> Error "expected a JSON object"
+
+let save_machine_to_disk (m : machine) : unit =
+  let dir = machines_dir () in
+  (try Unix.mkdir state_dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  (try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  let path = Filename.concat dir (m.mc_mac ^ ".json") in
+  let oc = open_out path in
+  output_string oc (Yojson.Safe.to_string (machine_to_json m));
+  close_out oc
+
+let delete_machine_from_disk (mac : string) : unit =
+  (try Unix.unlink (Filename.concat (machines_dir ()) (mac ^ ".json"))
+   with Unix.Unix_error (Unix.ENOENT, _, _) -> ())
+
+let load_machines_from_disk () : unit =
+  let dir = machines_dir () in
+  if Sys.file_exists dir && Sys.is_directory dir then
+    Array.iter (fun fname ->
+      if Filename.check_suffix fname ".json" then
+        let path = Filename.concat dir fname in
+        try
+          let ic = open_in path in
+          let s = really_input_string ic (in_channel_length ic) in
+          close_in ic;
+          match machine_of_json (Yojson.Safe.from_string s) with
+          | Ok m -> Hashtbl.replace machines m.mc_mac m
+          | Error e -> Printf.eprintf "[machines] skip %s: %s\n" path e
+        with e ->
+          Printf.eprintf "[machines] error loading %s: %s\n" path (Printexc.to_string e)
+    ) (Sys.readdir dir)
+
+(** Construit le provisioning_profile_manifest effectif pour une machine :
+    profil catalogue + params machine injectés dans chaque bundle_ref
+    (les params machine surchargent ceux du profil). *)
+let build_manifest_for_machine
+    (profile : MT.provisioning_profile_manifest) (m : machine)
+  : MT.provisioning_profile_manifest =
+  let machine_params = List.map (fun (k, v) -> (k, yojson_to_yaml v)) m.mc_params in
+  let merged_bundles = List.map (fun (br : MT.bundle_ref) ->
+    let from_profile = List.filter (fun (k, _) ->
+      not (List.mem_assoc k machine_params)) br.MT.bundle_params in
+    { br with MT.bundle_params = machine_params @ from_profile }
+  ) profile.MT.pp_bundles in
+  { profile with MT.pp_bundles = merged_bundles }
+
+(** Rend une machine : génère le cloud-init, stocke comme provisioning_record
+    et whiteliste la MAC. Retourne Ok () ou Error msg. *)
+let render_and_store_machine (m : machine) : (unit, string) Stdlib.result =
+  match find_profile m.mc_profile_name with
+  | None -> Error (Printf.sprintf "unknown profile '%s'" m.mc_profile_name)
+  | Some profile ->
+    let manifest = build_manifest_for_machine profile m in
+    let extra = [Fpath.v bundles_dir] in
+    match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra manifest with
+    | Error e ->
+      Error (Format.asprintf "%a" Hamac_provisioning.Provisioning_gen.pp_error e)
+    | Ok r ->
+      let record = {
+        pr_profile_name = r.Hamac_provisioning.Provisioning_gen.profile_name;
+        pr_cloud_init = r.Hamac_provisioning.Provisioning_gen.cloud_init;
+        pr_ipxe_script = r.Hamac_provisioning.Provisioning_gen.ipxe_script;
+        pr_os_image_url = r.Hamac_provisioning.Provisioning_gen.os_image_url;
+        pr_os_image_sha256 = r.Hamac_provisioning.Provisioning_gen.os_image_sha256;
+        pr_os_format = r.Hamac_provisioning.Provisioning_gen.os_format;
+        pr_created_at = Unix.gettimeofday ();
+      } in
+      Hashtbl.replace provisioning m.mc_mac record;
+      save_provisioning_to_disk m.mc_mac record;
+      (* Whiteliste la MAC (entrée allowed_mac dérivée de la machine) *)
+      let am = {
+        am_mac = m.mc_mac;
+        am_label = Printf.sprintf "machine:%s" m.mc_profile_name;
+        am_added_by = "hamac-machine";
+        am_added_at = Unix.gettimeofday ();
+      } in
+      Hashtbl.replace allowed_macs m.mc_mac am;
+      save_allowed_macs_to_disk ();
+      Ok ()
+
+(* ---- Handlers ---- *)
+
+let handle_profiles_list () =
+  let entries = List.map (fun (n, p) -> profile_to_json n p) (catalog ()) in
+  respond_json ~status:`OK (`Assoc ["profiles", `List entries])
+
+let handle_machines_list () =
+  let entries = Hashtbl.fold (fun _ m acc -> machine_to_json m :: acc) machines [] in
+  respond_json ~status:`OK (`Assoc ["machines", `List entries])
+
+let handle_machine_get mac =
+  let mac = normalize_mac mac in
+  match Hashtbl.find_opt machines mac with
+  | None -> respond_error 404 ("No machine for " ^ mac)
+  | Some m -> respond_json ~status:`OK (machine_to_json m)
+
+let handle_machine_create body_str =
+  match (try Ok (Yojson.Safe.from_string body_str)
+         with e -> Error (Printexc.to_string e)) with
+  | Error e -> respond_error 400 ("Invalid JSON: " ^ e)
+  | Ok j ->
+    match machine_of_json j with
+    | Error msg -> respond_error 400 msg
+    | Ok m0 ->
+      let m = { m0 with mc_status = "pending";
+                        mc_updated_at = Unix.gettimeofday () } in
+      (match render_and_store_machine m with
+       | Error msg -> respond_error 400 msg
+       | Ok () ->
+         Hashtbl.replace machines m.mc_mac m;
+         save_machine_to_disk m;
+         Lwt.async (fun () ->
+           broadcast_event "machine-updated"
+             (`Assoc ["mac", `String m.mc_mac;
+                      "profile", `String m.mc_profile_name]));
+         respond_json ~status:`Created (machine_to_json m))
+
+let handle_machine_delete mac =
+  let mac = normalize_mac mac in
+  if Hashtbl.mem machines mac then begin
+    Hashtbl.remove machines mac;
+    delete_machine_from_disk mac;
+    (* Retire aussi le provisioning record + la whitelist dérivés *)
+    Hashtbl.remove provisioning mac;
+    delete_provisioning_from_disk mac;
+    Hashtbl.remove allowed_macs mac;
+    save_allowed_macs_to_disk ();
+    Lwt.async (fun () ->
+      broadcast_event "machine-deleted" (`Assoc ["mac", `String mac]));
+    respond_json ~status:`OK (`Assoc ["status", `String "deleted"; "mac", `String mac])
+  end else
+    respond_error 404 ("No machine for " ^ mac)
+
 let get_client_ip _conn =
   (* In production, parse X-Forwarded-For or connection info *)
   "unknown"
@@ -1788,6 +2062,21 @@ let http_handler conn req body =
   | `GET, ["api"; "allowed-macs"; "dnsmasq-hostsfile"] ->
       handle_allowed_macs_dnsmasq_hostsfile ()
 
+  (* Catalogue de profils (mode b, UI) *)
+  | `GET, ["api"; "profiles"] ->
+      handle_profiles_list ()
+
+  (* Machines (mode b : mac + profil + params, rendu auto par le discovery) *)
+  | `GET, ["api"; "machines"] ->
+      handle_machines_list ()
+  | `POST, ["api"; "machines"] ->
+      Cohttp_lwt.Body.to_string body >>= fun body_str ->
+      handle_machine_create body_str
+  | `GET, ["api"; "machines"; mac] ->
+      handle_machine_get mac
+  | `DELETE, ["api"; "machines"; mac] ->
+      handle_machine_delete mac
+
   (* Dashboard - real-time visualization *)
   | `GET, ["dashboard"] ->
       handle_dashboard ()
@@ -1868,6 +2157,14 @@ let () =
   if Hashtbl.length allowed_macs > 0 then
     Printf.printf "Loaded %d allowed MAC(s) from %s\n%!"
       (Hashtbl.length allowed_macs) (allowed_macs_file ());
+
+  (* Charger les machines (mode b) et afficher la taille du catalogue *)
+  load_machines_from_disk ();
+  if Hashtbl.length machines > 0 then
+    Printf.printf "Loaded %d machine(s) from %s\n%!"
+      (Hashtbl.length machines) (machines_dir ());
+  Printf.printf "Profile catalog: %d profile(s) (builtin=%s, custom=%s)\n%!"
+    (List.length (catalog ())) builtin_profiles_dir (custom_profiles_dir ());
   Printf.printf "Example registration:\n";
   Printf.printf "  curl -X POST http://localhost:%d/register \\\n" port;
   Printf.printf "       -H 'Content-Type: application/json' \\\n";
