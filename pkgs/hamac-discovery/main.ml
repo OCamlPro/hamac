@@ -1693,16 +1693,20 @@ module MT = Hamac_provisioning.Manifest_types
 (** Conversion Yojson (params venant de l'API REST) → Yaml.value
     (format attendu par provisioning_gen). *)
 let rec yojson_to_yaml (j : Yojson.Safe.t) : Yaml.value =
+  (* On ne matche que les constructeurs communs à toutes les versions de
+     Yojson.Safe.t. Le catch-all couvre `Intlit (toujours présent → garantit
+     que le cas est utilisé) ainsi que `Tuple/`Variant qui ne sont pas dans
+     toutes les versions. Nos params (username, ssh_keys, password...) ne
+     contiennent jamais ces formes exotiques. *)
   match j with
   | `Null -> `Null
   | `Bool b -> `Bool b
   | `Int i -> `Float (float_of_int i)
-  | `Intlit s -> `String s
   | `Float f -> `Float f
   | `String s -> `String s
-  | `List l | `Tuple l -> `A (List.map yojson_to_yaml l)
+  | `List l -> `A (List.map yojson_to_yaml l)
   | `Assoc a -> `O (List.map (fun (k, v) -> (k, yojson_to_yaml v)) a)
-  | `Variant (n, _) -> `String n
+  | _ -> `Null
 
 (** Charge les profils d'un répertoire : les .yaml → provisioning_profile_manifest. *)
 let load_profiles_from_dir (dir : string)
