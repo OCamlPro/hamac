@@ -19,9 +19,9 @@ LATEST_TAG="${TAG%:*}:latest"
 
 echo "==> Building discovery_server binary (release mode)..."
 cd "$PROJECT_ROOT"
-opam exec -- dune build --profile=release tools/discovery-prototype/discovery-server
+opam exec -- dune build --profile=release pkgs/hamac-discovery
 
-BIN="$PROJECT_ROOT/_build/default/tools/discovery-prototype/discovery-server/discovery_server.exe"
+BIN="$PROJECT_ROOT/_build/default/pkgs/hamac-discovery/main.exe"
 if [ ! -f "$BIN" ]; then
     echo "ERROR: binary not found at $BIN" >&2
     exit 1
