@@ -25,7 +25,6 @@
     hamac-provisioning
     logs
     lwt.unix
-    unix
     yojson
     build_info)
 )

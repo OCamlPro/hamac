@@ -8,7 +8,6 @@ depends: [
   "logs" {build}
   "lwt" {build}
   "opam-marmiton" {>= "0.1.0" & with-dev-setup}
-  "unix" {build}
   "yojson" {build}
   "odoc" {with-doc}
 ]
