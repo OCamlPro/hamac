@@ -489,7 +489,12 @@ let parse_os_image_spec path (v : Yaml.value) : os_image_spec result =
   let* os_url = req_string path "url" fields in
   let* os_sha256 = req_string path "sha256" fields in
   let* os_format = req_string path "format" fields in
-  Ok { os_image_name; os_url; os_sha256; os_format }
+  let* os_family = match opt_string "family" fields with
+    | Ok (Some f) -> Ok f
+    | Ok None -> Ok "debian"   (* défaut : famille apt (debian/ubuntu) *)
+    | Error e -> Error e
+  in
+  Ok { os_image_name; os_url; os_sha256; os_format; os_family }
 
 (** Parse un bundle_ref : name + params (params bruts, transmis tels quels
     au générateur Jinja2). *)
@@ -568,11 +573,9 @@ let parse_bundle_manifest path (fields : (string * Yaml.value) list)
       in
       aux 0 items
   in
-  let* bdl_packages = parse_string_list "packages" in
   let* bdl_depends_on = parse_string_list "depends_on" in
-  let* bdl_post_install = parse_string_list "post_install" in
   Ok { bdl_manifest_version; bdl_name; bdl_version; bdl_description;
-       bdl_params; bdl_packages; bdl_depends_on; bdl_post_install }
+       bdl_params; bdl_depends_on }
 
 (* ============================================================ *)
 (* Top-level parser                                              *)

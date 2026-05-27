@@ -236,8 +236,11 @@ let render
   let ( let* ) = Stdlib.Result.bind in
   let search_paths = extra_search_paths @ default_search_paths () in
 
-  (* Pour chaque bundle_ref, produire un Yaml.value mergé incluant snippet
-     + write_files des scripts post_install + runcmd. *)
+  let os_family = profile.pp_os.os_family in
+
+  (* Pour chaque bundle_ref, sélectionner le template cloud-init de la
+     bonne famille d'OS, le rendre avec les params, et retourner le
+     Yaml.value (le merge inter-bundles se fait après). *)
   let process_bundle_ref (br : bundle_ref) : (Yaml.value, error) Stdlib.result =
     (* 1. Trouver le bundle *)
     let bundle_dir = match find_bundle_dir ~search_paths br.bundle_name with
@@ -256,61 +259,29 @@ let render
     (* 3. Vérifier params requis *)
     let* () = check_required_params b br.bundle_params in
 
-    (* 4. Rendre le snippet principal *)
-    let snippet_path = Fpath.(bundle_dir / "cloud-init.snippet.yaml.j2") in
-    let* snippet_str = render_file ~file:snippet_path ~params:br.bundle_params in
-    let* snippet_yaml = (match parse_snippet snippet_str with
-                        | Ok v -> Ok v
-                        | Error m -> Error (Template_render_error
-                                              (Fpath.to_string snippet_path, m))) in
-
-    (* 5. Rendre chaque post_install et préparer write_files + runcmd *)
-    let render_post_install (rel_path : string)
-      : ((string * string), error) Stdlib.result =
-      (* rel_path est relatif au bundle_dir, ex: "post-install/10-foo.sh" *)
-      let abs = Fpath.(bundle_dir // v rel_path) in
-      if not (Sys.file_exists (Fpath.to_string abs)) then
-        Error (Script_not_found (br.bundle_name, rel_path))
+    (* 4. Sélection du template cloud-init selon la famille d'OS :
+          cloud-init.<family>.yaml.j2 en priorité, sinon le portable
+          cloud-init.yaml.j2. Erreur si aucun ne convient. *)
+    let family_tpl = Fpath.(bundle_dir / Printf.sprintf "cloud-init.%s.yaml.j2" os_family) in
+    let default_tpl = Fpath.(bundle_dir / "cloud-init.yaml.j2") in
+    let exists p = Sys.file_exists (Fpath.to_string p) in
+    let* tpl_path =
+      if exists family_tpl then Ok family_tpl
+      else if exists default_tpl then Ok default_tpl
       else
-        let* rendered = render_file ~file:abs ~params:br.bundle_params in
-        (* Chemin cible dans le système installé *)
-        let basename = Filename.basename rel_path in
-        let target =
-          Printf.sprintf "/etc/sieste/post-install/%s/%s" br.bundle_name basename
-        in
-        Ok (target, rendered)
-    in
-    let rec render_all acc = function
-      | [] -> Ok (List.rev acc)
-      | p :: rest ->
-        let* r = render_post_install p in
-        render_all (r :: acc) rest
-    in
-    let* post_install_rendered = render_all [] b.bdl_post_install in
-
-    (* 6. Construire write_files et runcmd pour les post-install *)
-    let post_install_writes = List.map (fun (target, content) ->
-      `O [
-        "path", `String target;
-        "permissions", `String "0755";
-        "content", `String content;
-      ]
-    ) post_install_rendered in
-    let post_install_runs = List.map (fun (target, _) -> `String target)
-                              post_install_rendered in
-
-    (* 7. packages du bundle *)
-    let packages_yaml =
-      if b.bdl_packages = [] then `O []
-      else `O ["packages", `A (List.map (fun p -> `String p) b.bdl_packages)]
+        Error (Bundle_parse_error
+                 (br.bundle_name,
+                  Printf.sprintf
+                    "no cloud-init template for family '%s' (looked for %s and %s)"
+                    os_family
+                    (Fpath.to_string family_tpl) (Fpath.to_string default_tpl)))
     in
 
-    (* 8. Bundle d'extension cloud-init = snippet + write_files + runcmd + packages *)
-    let extension = `O [
-      "write_files", `A post_install_writes;
-      "runcmd", `A post_install_runs;
-    ] in
-    Ok (merge_many [snippet_yaml; extension; packages_yaml])
+    (* 5. Rendre le template avec les params, puis parser en Yaml.value *)
+    let* tpl_str = render_file ~file:tpl_path ~params:br.bundle_params in
+    (match parse_snippet tpl_str with
+     | Ok v -> Ok v
+     | Error m -> Error (Template_render_error (Fpath.to_string tpl_path, m)))
   in
 
   let rec process_all acc = function

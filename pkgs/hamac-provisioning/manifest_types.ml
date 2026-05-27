@@ -199,6 +199,8 @@ type os_image_spec = {
   os_url: string;           (** URL téléchargeable de l'image *)
   os_sha256: string;        (** Hash pour vérification *)
   os_format: string;        (** qcow2 | raw | iso | netinstall *)
+  os_family: string;        (** debian | ubuntu | fedora | ... — sélectionne
+                                la variante de template cloud-init du bundle *)
 } [@@deriving show]
 
 (** Référence à un bundle depuis un provisioning_profile, avec les valeurs
@@ -231,9 +233,10 @@ type bundle_manifest = {
   bdl_version: string;
   bdl_description: string;
   bdl_params: bundle_param_spec list;
-  bdl_packages: string list;
   bdl_depends_on: string list;
-  bdl_post_install: string list;
+  (* Le contenu (packages, users, runcmd...) vit désormais dans le(s)
+     template(s) cloud-init du bundle (cloud-init[.<family>].yaml.j2),
+     plus dans des champs packages/post_install séparés. *)
 } [@@deriving show]
 
 (* ============================================================ *)
