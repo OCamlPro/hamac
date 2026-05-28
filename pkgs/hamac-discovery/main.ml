@@ -1934,6 +1934,43 @@ let handle_machine_delete mac =
   end else
     respond_error 404 ("No machine for " ^ mac)
 
+(** PUT /api/machines/:mac — met à jour profile_name et/ou params, garde la
+    même MAC + created_at, déclenche un re-render du provisioning_record.
+    Body : { "profile_name"?: string, "params"?: object }. Champs absents
+    = inchangés. *)
+let handle_machine_update mac body_str =
+  let mac = normalize_mac mac in
+  match Hashtbl.find_opt machines mac with
+  | None -> respond_error 404 ("No machine for " ^ mac)
+  | Some existing ->
+    (match (try Ok (Yojson.Safe.from_string body_str)
+            with e -> Error (Printexc.to_string e)) with
+     | Error e -> respond_error 400 ("Invalid JSON: " ^ e)
+     | Ok (`Assoc fields) ->
+       let get k = List.assoc_opt k fields in
+       let profile_name = match get "profile_name" with
+         | Some (`String s) when s <> "" -> s
+         | _ -> existing.mc_profile_name in
+       let params = match get "params" with
+         | Some (`Assoc kv) -> kv
+         | _ -> existing.mc_params in
+       let m = { existing with
+                 mc_profile_name = profile_name;
+                 mc_params = params;
+                 mc_status = "pending";
+                 mc_updated_at = Unix.gettimeofday () } in
+       (match render_and_store_machine m with
+        | Error msg -> respond_error 400 msg
+        | Ok () ->
+          Hashtbl.replace machines m.mc_mac m;
+          save_machine_to_disk m;
+          Lwt.async (fun () ->
+            broadcast_event "machine-updated"
+              (`Assoc ["mac", `String m.mc_mac;
+                       "profile", `String m.mc_profile_name]));
+          respond_json ~status:`OK (machine_to_json m))
+     | Ok _ -> respond_error 400 "expected a JSON object")
+
 let get_client_ip _conn =
   (* In production, parse X-Forwarded-For or connection info *)
   "unknown"
@@ -2078,6 +2115,9 @@ let http_handler conn req body =
       handle_machine_create body_str
   | `GET, ["api"; "machines"; mac] ->
       handle_machine_get mac
+  | `PUT, ["api"; "machines"; mac] ->
+      Cohttp_lwt.Body.to_string body >>= fun body_str ->
+      handle_machine_update mac body_str
   | `DELETE, ["api"; "machines"; mac] ->
       handle_machine_delete mac
 
