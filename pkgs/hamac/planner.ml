@@ -5,7 +5,7 @@
     This is the "zero touch" core — the user defines services,
     the planner figures out what infrastructure is needed. *)
 
-open Manifest_types
+open Hamac_provisioning.Manifest_types
 
 (* ============================================================ *)
 (* Resource parsing helpers                                      *)

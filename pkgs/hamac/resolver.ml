@@ -3,7 +3,7 @@
     Resolves service consumes to concrete providers, generates credentials,
     and substitutes injection templates. *)
 
-open Manifest_types
+open Hamac_provisioning.Manifest_types
 
 (* ============================================================ *)
 (* Credential generation                                         *)

@@ -3,7 +3,7 @@
     Loads provider manifests from a search path and indexes them
     by name and capability for resolution. *)
 
-open Manifest_types
+open Hamac_provisioning.Manifest_types
 
 type t = {
   by_name: (string, service_manifest) Hashtbl.t;
@@ -57,7 +57,7 @@ let load_dir (registry : t) (dir : Fpath.t) : (int, string) result =
       List.iter (fun path ->
         let ext = Fpath.get_ext path in
         if ext = ".yml" || ext = ".yaml" then begin
-          match Manifest_parser.load_file path with
+          match Hamac_provisioning.Manifest_parser.load_file path with
           | Ok (MService svc, _warnings) when svc.capability <> None ->
             register registry svc;
             incr count;

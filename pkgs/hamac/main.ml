@@ -12,7 +12,7 @@ let manifest_files = ref []
 (* ============================================================ *)
 
 let kind_label = function
-  | Manifest_types.MService s ->
+  | Hamac_provisioning.Manifest_types.MService s ->
     Printf.sprintf "service (name=%s, runtime=%s)" s.name s.runtime
   | MStack s ->
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
@@ -37,16 +37,16 @@ let load_services_and_overrides () =
   let overrides = ref [] in
   List.iter (fun path ->
     let fpath = Fpath.v path in
-    match Manifest_parser.load_file fpath with
+    match Hamac_provisioning.Manifest_parser.load_file fpath with
     | Error msg ->
       Logs.err (fun m -> m "%s" msg);
       exit 1
-    | Ok (Manifest_types.MService svc, _) ->
+    | Ok (Hamac_provisioning.Manifest_types.MService svc, _) ->
       services := svc :: !services
-    | Ok (Manifest_types.MStack stk, _) ->
+    | Ok (Hamac_provisioning.Manifest_types.MStack stk, _) ->
       (* Extract overrides from stack manifest *)
-      List.iter (fun (sref : Manifest_types.stack_service_ref) ->
-        let svc_overrides = List.map (fun (o : Manifest_types.stack_consume_override) ->
+      List.iter (fun (sref : Hamac_provisioning.Manifest_types.stack_service_ref) ->
+        let svc_overrides = List.map (fun (o : Hamac_provisioning.Manifest_types.stack_consume_override) ->
           (o.consume_name, o.provider)
         ) sref.consumes_override in
         if svc_overrides <> [] then begin
@@ -70,7 +70,7 @@ let run_validate () =
   let ok = ref true in
   List.iter (fun path ->
     let fpath = Fpath.v path in
-    match Manifest_parser.load_file fpath with
+    match Hamac_provisioning.Manifest_parser.load_file fpath with
     | Error msg ->
       Logs.err (fun m -> m "%s" msg);
       ok := false
@@ -110,8 +110,8 @@ let run_resolve () =
   if resolution.providers <> [] then begin
     Logs.app (fun m -> m "Providers to instantiate:");
     List.iter (fun (rp : Resolver.resolved_provider) ->
-      let image = match rp.provider.Manifest_types.artifact with
-        | Some a -> a.Manifest_types.path
+      let image = match rp.provider.Hamac_provisioning.Manifest_types.artifact with
+        | Some a -> a.Hamac_provisioning.Manifest_types.path
         | None -> "?"
       in
       Logs.app (fun m -> m "  %s (%s)" rp.instance_name image);
@@ -227,16 +227,16 @@ let run_provision_dryrun () =
     exit 1
   | path :: _ ->
     let fpath = Fpath.v path in
-    match Manifest_parser.load_file fpath with
+    match Hamac_provisioning.Manifest_parser.load_file fpath with
     | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-    | Ok (Manifest_types.MProvisioningProfile profile, _) ->
+    | Ok (Hamac_provisioning.Manifest_types.MProvisioningProfile profile, _) ->
       let extra = if !provision_bundles_dir = ""
         then []
         else [Fpath.v !provision_bundles_dir]
       in
-      (match Provisioning_gen.render ~extra_search_paths:extra profile with
+      (match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra profile with
        | Error e ->
-         Logs.err (fun m -> m "%a" Provisioning_gen.pp_error e);
+         Logs.err (fun m -> m "%a" Hamac_provisioning.Provisioning_gen.pp_error e);
          exit 1
        | Ok r ->
          print_endline "=== cloud-init ===";
@@ -263,15 +263,15 @@ let run_provision_push () =
     exit 1
   | path :: _ ->
     let fpath = Fpath.v path in
-    match Manifest_parser.load_file fpath with
+    match Hamac_provisioning.Manifest_parser.load_file fpath with
     | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-    | Ok (Manifest_types.MProvisioningProfile profile, _) ->
+    | Ok (Hamac_provisioning.Manifest_types.MProvisioningProfile profile, _) ->
       let extra = if !provision_bundles_dir = ""
         then [] else [Fpath.v !provision_bundles_dir]
       in
-      (match Provisioning_gen.render ~extra_search_paths:extra profile with
+      (match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra profile with
        | Error e ->
-         Logs.err (fun m -> m "%a" Provisioning_gen.pp_error e);
+         Logs.err (fun m -> m "%a" Hamac_provisioning.Provisioning_gen.pp_error e);
          exit 1
        | Ok r ->
          match Provisioning_client.push

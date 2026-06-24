@@ -4,7 +4,7 @@
     This is intentionally minimal — a stepping stone to validate
     wiring before implementing infrastructure simulation. *)
 
-open Manifest_types
+open Hamac_provisioning.Manifest_types
 open Resolver
 
 (* ============================================================ *)

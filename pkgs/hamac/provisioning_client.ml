@@ -17,7 +17,7 @@ let pp_push_error fmt = function
 
 (** Sérialise un [rendered_profile] au format attendu par
     POST /provisioning/<mac>. *)
-let render_to_json (r : Provisioning_gen.rendered_profile) : Yojson.Safe.t =
+let render_to_json (r : Hamac_provisioning.Provisioning_gen.rendered_profile) : Yojson.Safe.t =
   `Assoc [
     "profile_name", `String r.profile_name;
     "cloud_init", `String r.cloud_init;
@@ -32,7 +32,7 @@ let render_to_json (r : Provisioning_gen.rendered_profile) : Yojson.Safe.t =
 let push_lwt
     ~(discovery_url : string)
     ~(mac : string)
-    (r : Provisioning_gen.rendered_profile)
+    (r : Hamac_provisioning.Provisioning_gen.rendered_profile)
   : (unit, push_error) Stdlib.result Lwt.t =
   let uri = Uri.of_string
     (Printf.sprintf "%s/provisioning/%s" discovery_url (Uri.pct_encode mac))

@@ -6,6 +6,7 @@ depends: [
   "cohttp-lwt-unix" {build}
   "fmt" {build}
   "fpath" {build}
+  "hamac-provisioning" {build}
   "jingoo" {build}
   "logs" {build}
   "lwt" {build}
