@@ -4,7 +4,8 @@
 #   - dnsmasq en mode proxy DHCP (cohabite avec le DHCP existant du LAN ;
 #     ne répond que pour PXE)
 #   - TFTP server intégré dnsmasq, sert /tftp/
-#   - pxelinux.0 + modules syslinux pour le chainload
+#   - iPXE NBP : ipxe.efi (UEFI x86-64) + undionly.kpxe (BIOS legacy),
+#     sélectionnés par architecture client (dnsmasq dhcp-match)
 #   - kernel Alpine + initramfs-hybrid avec init hamac (copiés au build)
 #
 # Configuration au runtime via env vars (entrypoint.sh) :
@@ -19,7 +20,7 @@
 FROM debian:bookworm-slim
 
 LABEL org.opencontainers.image.title="hamac-pxe" \
-      org.opencontainers.image.description="PXE proxy DHCP + TFTP for hamac provisioning : serves kernel + initramfs + pxelinux to bare-metal hosts" \
+      org.opencontainers.image.description="PXE proxy DHCP + TFTP for hamac provisioning : serves iPXE (UEFI+BIOS) + kernel + initramfs to bare-metal hosts" \
       org.opencontainers.image.source="https://gitlab.ocamlpro.com/OCamlPro/sieste" \
       org.opencontainers.image.licenses="proprietary" \
       org.opencontainers.image.authors="OCamlPro <contact@ocamlpro.com>" \
@@ -28,20 +29,18 @@ LABEL org.opencontainers.image.title="hamac-pxe" \
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       dnsmasq \
-      pxelinux \
-      syslinux-common \
+      ipxe \
+      iproute2 \
       ca-certificates \
       curl \
       tzdata \
  && rm -rf /var/lib/apt/lists/*
 
-# Préparer le tftp-root avec pxelinux.0 + modules
-RUN mkdir -p /tftp/pxelinux.cfg \
- && cp /usr/lib/PXELINUX/pxelinux.0 /tftp/ \
- && cp /usr/lib/syslinux/modules/bios/ldlinux.c32 /tftp/ \
- && cp /usr/lib/syslinux/modules/bios/libutil.c32 /tftp/ 2>/dev/null || true \
- && cp /usr/lib/syslinux/modules/bios/menu.c32 /tftp/ 2>/dev/null || true \
- && cp /usr/lib/syslinux/modules/bios/libcom32.c32 /tftp/ 2>/dev/null || true
+# Préparer le tftp-root avec les NBP iPXE (UEFI + BIOS).
+# Le paquet Debian `ipxe` fournit /usr/lib/ipxe/{ipxe.efi,undionly.kpxe}.
+RUN mkdir -p /tftp \
+ && cp /usr/lib/ipxe/ipxe.efi      /tftp/ \
+ && cp /usr/lib/ipxe/undionly.kpxe /tftp/
 
 # Kernel et initramfs copiés depuis le contexte de build
 # (générés par les scripts tools/discovery-prototype/)

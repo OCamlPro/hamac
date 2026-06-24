@@ -1,0 +1,8 @@
+# OS images - download or build locally
+*.img
+*.img.gz
+*.qcow2
+*.raw
+
+# Keep directory
+!.gitignore
