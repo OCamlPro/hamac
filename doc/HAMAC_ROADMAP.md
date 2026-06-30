@@ -130,3 +130,29 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 - [ ] Signature Ed25519 des manifestes
 - [ ] Verification des signatures avant deploiement
 - [ ] Chain of trust : compilateur → manifest → stack manager
+
+## Milestone 11 — Haute disponibilité des services à état (PostgreSQL) — état de l'art
+
+**Objectif** : que les stacks générées par Hamac fournissent une **HA PostgreSQL
+sans split-brain**, là où l'assemblage actuel (pgpool + repmgr, 2 nœuds) ne le
+garantit pas.
+
+**Motivation** : la stack SI OCP a subi des incidents récurrents de désync pgpool
+puis un **split-brain** repmgr (2 nœuds sans quorum → un standby s'auto-promeut sur
+un simple blip ; cf. `ocp-si`/`si` `DECISIONS.md` D4 + D5). L'**intérim** y est
+`REPMGR_FAILOVER=manual` + une alerte Zulip `adminsys` ; la **HA définitive** a été
+explicitement **déléguée à Hamac** plutôt que hand-rollée deux fois.
+
+**Cible état de l'art** :
+- [ ] Provider PostgreSQL HA générant **Patroni + DCS (etcd, ≥3 membres) + HAProxy**
+      (routage via l'API REST Patroni `/primary` que le proxy health-check) →
+      **fencing par DCS, split-brain impossible**.
+- [ ] Alternative sur backend Kubernetes (Milestone 8) : opérateur **CloudNativePG**
+      (gold standard k8s) au lieu de l'assemblage Patroni maison.
+- [ ] Quorum réel (≥3 votants) : plus de promotion solitaire sur perte de contact.
+- [ ] Reprise automatique d'un nœud divergé (`pg_rewind`/clone) sans intervention.
+- [ ] Observabilité/alerting de l'état du cluster **dans la stack générée**
+      (remplace la sonde intérimaire embarquée dans l'app ocp-si).
+
+**À retirer côté SI une fois livré** : l'intérim D5 (`failover=manual` + sonde
+`clusterHealthService` → Zulip `adminsys`).
