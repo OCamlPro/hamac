@@ -8,6 +8,22 @@
 #     sélectionnés par architecture client (dnsmasq dhcp-match)
 #   - kernel Alpine + initramfs-hybrid avec init hamac (copiés au build)
 #
+# Base paramétrable via PXE_BASE_IMAGE (build arg) : le paquet `ipxe` de
+# Debian bookworm (12, oldstable) est figé sur un snapshot de janvier 2019
+# (1.0.0+git-20190125.36a4c85-5.1), antérieur au support mature de
+# LoadFile2 (chargement de l'initrd en mémoire pour l'EFI stub, requis par
+# le boot UEFI réseau — cf. entrypoint.sh) — suspect principal d'un freeze
+# silencieux constaté au boot UEFI sur un Framework Laptop 13 : `boot`
+# s'exécute sans erreur côté iPXE, puis la machine se fige totalement
+# (aucune sortie, aucune interaction).
+#
+# Debian trixie (13, stable depuis août 2025) fournit
+# 1.21.1+git20250501.dad20602+dfsg-1 — snapshot de mai 2025, très en avance
+# sur le support UEFI/LoadFile2. C'est la valeur par défaut ci-dessous.
+# Pour tester une autre base (ex. retour à bookworm-slim en cas de
+# régression) : `docker build --build-arg PXE_BASE_IMAGE=debian:bookworm-slim ...`
+# (ou via `PXE_BASE_IMAGE=... ./build.sh`).
+#
 # Configuration au runtime via env vars (entrypoint.sh) :
 #   INTERFACE         (ex: eth0) — interface LAN sur le host
 #   DISCOVERY_URL     (ex: http://socrates.ocp.local:8877)
@@ -17,7 +33,8 @@
 # Le service doit tourner en network_mode: host sur le Swarm pour
 # broadcaster en L2 (DHCP).
 
-FROM debian:bookworm-slim
+ARG PXE_BASE_IMAGE=debian:trixie-slim
+FROM ${PXE_BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="hamac-pxe" \
       org.opencontainers.image.description="PXE proxy DHCP + TFTP for hamac provisioning : serves iPXE (UEFI+BIOS) + kernel + initramfs to bare-metal hosts" \

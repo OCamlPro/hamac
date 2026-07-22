@@ -8,6 +8,9 @@
 #
 # Usage:
 #   ./build.sh [tag]
+#   PXE_BASE_IMAGE=debian:bookworm-slim ./build.sh   # override la base
+#                                                     # (défaut : debian:trixie-slim,
+#                                                     #  cf. Dockerfile)
 #
 # Tag par défaut : registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0
 
@@ -19,6 +22,8 @@ SRC_TFTP="$PROJECT_ROOT/tools/discovery-prototype/tftp"
 
 TAG="${1:-registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0}"
 LATEST_TAG="${TAG%:*}:latest"
+BUILD_ARGS=()
+[ -n "${PXE_BASE_IMAGE:-}" ] && BUILD_ARGS+=(--build-arg "PXE_BASE_IMAGE=${PXE_BASE_IMAGE}")
 
 # ---- 1. Vérification des prérequis -----------------------------------------
 missing=""
@@ -49,7 +54,7 @@ trap 'rm -f "$SCRIPT_DIR/tftp/vmlinuz" "$SCRIPT_DIR/tftp/initramfs-hybrid.gz"' E
 
 # ---- 3. Build de l'image ---------------------------------------------------
 echo "==> docker build $TAG ..."
-docker build -t "$TAG" -t "$LATEST_TAG" "$SCRIPT_DIR"
+docker build "${BUILD_ARGS[@]}" -t "$TAG" -t "$LATEST_TAG" "$SCRIPT_DIR"
 
 SIZE_BYTES=$(docker image inspect "$TAG" --format '{{.Size}}')
 SIZE_MB=$(( SIZE_BYTES / 1024 / 1024 ))
