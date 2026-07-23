@@ -33,7 +33,17 @@
 # Le service doit tourner en network_mode: host sur le Swarm pour
 # broadcaster en L2 (DHCP).
 
-ARG PXE_BASE_IMAGE=debian:trixie-slim
+# TEMPORAIRE — A/B test dnsmasq 2.90 (bookworm) vs 2.91 (trixie) :
+# sur le trixie actuellement en prod, dnsmasq reconnaît bien les requêtes
+# PXEClient:Arch:00007 (vu en tcpdump + logs), mais ne répond JAMAIS —
+# aucun paquet de 10.42.0.201 n'est jamais émis, alors que le
+# dnsmasq.conf généré est strictement identique à ce qui marchait sous
+# bookworm/2.90. Repasser temporairement sur bookworm pour confirmer (ou
+# infirmer) que c'est une régression de dnsmasq 2.91 elle-même. Si le
+# test est concluant : soit on reste sur bookworm-slim en attendant un
+# fix upstream, soit on identifie le bon réglage pour trixie. À revert
+# vers debian:trixie-slim une fois le test fait, dans un sens ou l'autre.
+ARG PXE_BASE_IMAGE=debian:bookworm-slim
 FROM ${PXE_BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="hamac-pxe" \
