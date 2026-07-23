@@ -10,20 +10,30 @@ Tag canonique : `registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0` + `lates
 ## Base image
 
 La distro de base est paramétrable via le build arg `PXE_BASE_IMAGE`
-(cf. `Dockerfile`), par défaut **`debian:trixie-slim`**.
+(cf. `Dockerfile`).
 
 Le paquet `ipxe` de Debian bookworm (12, oldstable) est figé sur un
 snapshot de janvier 2019 (`1.0.0+git-20190125.36a4c85-5.1`), antérieur au
 support mature de `LoadFile2` (chargement réseau de l'initrd pour l'EFI
 stub, requis par le boot UEFI via le `boot.ipxe` généré par
-`entrypoint.sh`) — suspect principal derrière un freeze silencieux
-observé sur un Framework Laptop 13 (`boot` s'exécute sans erreur côté
-iPXE, puis la machine se fige totalement, sans sortie console ni
-interaction clavier). Debian trixie (13, stable depuis août 2025) fournit
-`1.21.1+git20250501.dad20602+dfsg-1` — un snapshot de mai 2025, largement
-suffisant pour un support UEFI/LoadFile2 correct.
+`entrypoint.sh`) — suspect initial derrière un freeze silencieux observé
+sur un Framework Laptop 13 (`boot` s'exécute sans erreur côté iPXE, puis
+la machine se fige totalement, sans sortie console ni interaction
+clavier). Debian trixie (13, stable depuis août 2025) fournit
+`1.21.1+git20250501.dad20602+dfsg-1` — un snapshot de mai 2025.
 
-Pour tester une autre base (ex. retour à bookworm en cas de régression) :
+**État actuel (temporaire) : `PXE_BASE_IMAGE` est repassé sur
+`debian:bookworm-slim`** pour un test A/B. Sur trixie/dnsmasq 2.91,
+tcpdump + `log-dhcp` montrent que dnsmasq reconnaît bien les requêtes
+`PXEClient:Arch:00007` mais n'émet jamais de réponse — alors que le
+`dnsmasq.conf` généré est strictement identique à celui qui fonctionnait
+sous bookworm/2.90. Ce build sert à confirmer (ou infirmer) une
+régression dans dnsmasq 2.91 lui-même, avant de décider soit de rester
+sur bookworm en attendant un fix upstream, soit d'identifier le bon
+réglage pour trixie. À revert vers `debian:trixie-slim` une fois le test
+concluant.
+
+Pour tester une autre base :
 ```sh
 docker build --build-arg PXE_BASE_IMAGE=debian:bookworm-slim -t hamac-pxe:test .
 # ou via build.sh :
