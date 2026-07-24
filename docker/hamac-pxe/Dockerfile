@@ -41,7 +41,15 @@
 # comme documenté plus haut : rien ne justifie plus de rester sur
 # bookworm, dont le paquet ipxe est celui qu'on cherche justement à
 # éviter (cf. lignes 11-18 ci-dessus).
-ARG PXE_BASE_IMAGE=debian:trixie-slim
+#
+# TEMPORAIRE (nouveau test A/B) : repassé sur bookworm-slim pour vérifier
+# si le hang CPU 100% de dnsmasq (constaté après un échange PXE port 4011
+# sans réponse, cf. entrypoint.sh et son historique git) est spécifique à
+# dnsmasq 2.91 (trixie) ou présent aussi sur 2.90 (bookworm) — auquel cas
+# ce ne serait pas une régression de version mais un bug jamais déclenché
+# avant l'ajout de pxe-service. À revert vers trixie-slim une fois ce test
+# concluant ; ne pas merger cet état sur master.
+ARG PXE_BASE_IMAGE=debian:bookworm-slim
 FROM ${PXE_BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="hamac-pxe" \
