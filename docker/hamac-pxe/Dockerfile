@@ -8,21 +8,39 @@
 #     sélectionnés par architecture client (dnsmasq dhcp-match)
 #   - kernel Alpine + initramfs-hybrid avec init hamac (copiés au build)
 #
-# Base paramétrable via PXE_BASE_IMAGE (build arg) : le paquet `ipxe` de
-# Debian bookworm (12, oldstable) est figé sur un snapshot de janvier 2019
-# (1.0.0+git-20190125.36a4c85-5.1), antérieur au support mature de
-# LoadFile2 (chargement de l'initrd en mémoire pour l'EFI stub, requis par
-# le boot UEFI réseau — cf. entrypoint.sh) — suspect principal d'un freeze
-# silencieux constaté au boot UEFI sur un Framework Laptop 13 : `boot`
-# s'exécute sans erreur côté iPXE, puis la machine se fige totalement
-# (aucune sortie, aucune interaction).
+# Base paramétrable via PXE_BASE_IMAGE (build arg). Historique de cette
+# valeur (voir aussi entrypoint.sh et son historique git) :
 #
-# Debian trixie (13, stable depuis août 2025) fournit
-# 1.21.1+git20250501.dad20602+dfsg-1 — snapshot de mai 2025, très en avance
-# sur le support UEFI/LoadFile2. C'est la valeur par défaut ci-dessous.
-# Pour tester une autre base (ex. retour à bookworm-slim en cas de
-# régression) : `docker build --build-arg PXE_BASE_IMAGE=debian:bookworm-slim ...`
-# (ou via `PXE_BASE_IMAGE=... ./build.sh`).
+#   - Debian bookworm (12) : paquet `ipxe` figé sur un snapshot de janvier
+#     2019 (1.0.0+git-20190125.36a4c85-5.1), antérieur au support mature
+#     de LoadFile2 (chargement de l'initrd en mémoire pour l'EFI stub,
+#     requis par le boot UEFI réseau) — cause confirmée d'un freeze
+#     silencieux après le chargement de l'initramfs sur un Framework
+#     Laptop 13. En revanche dnsmasq 2.90 (bookworm) gère correctement
+#     l'échange PXE port 4011 (proxy-DHCP boot server discovery).
+#
+#   - Debian trixie (13) : paquet `ipxe` très à jour
+#     (1.21.1+git20250501.dad20602+dfsg-1, mai 2025), qui corrige le
+#     freeze ci-dessus. Mais dnsmasq 2.91 (trixie) a un bug confirmé sur
+#     ce même échange port 4011 : recvmsg() de la requête du client, puis
+#     dnsmasq part en boucle infinie (100% CPU, `docker stats`) sans
+#     jamais répondre ni redevenir responsive — un seul client atteignant
+#     ce stade bloque le service pour toute machine suivante jusqu'à
+#     redémarrage manuel. Confirmé absent sur dnsmasq 2.90 via A/B test
+#     (strace + docker stats, mêmes entrypoint.sh/pxe-service des deux
+#     côtés).
+#
+#   - Aucune des deux versions de Debian ne fournit donc à la fois un
+#     ipxe récent ET un dnsmasq sans ce bug. Ubuntu noble (24.04 LTS)
+#     fournit dnsmasq 2.90-2ubuntu0.4 (même version que bookworm, donc
+#     sans le bug port 4011) ET ipxe 1.21.1+git-20220113.fbbdc3926
+#     (janvier 2022, largement postérieur au support LoadFile2/UEFI) —
+#     les deux problèmes évités sans build iPXE from-source. C'est la
+#     valeur par défaut ci-dessous.
+#
+# Pour tester une autre base : `docker build --build-arg
+# PXE_BASE_IMAGE=debian:bookworm-slim ...` (ou via `PXE_BASE_IMAGE=...
+# ./build.sh`).
 #
 # Configuration au runtime via env vars (entrypoint.sh) :
 #   INTERFACE         (ex: eth0) — interface LAN sur le host
@@ -32,24 +50,7 @@
 #
 # Le service doit tourner en network_mode: host sur le Swarm pour
 # broadcaster en L2 (DHCP).
-
-# Résolu : le test A/B ci-dessus a conclu que dnsmasq 2.90 (bookworm) et
-# 2.91 (trixie) se comportaient IDENTIQUEMENT (silence total sur
-# PXEClient:Arch:00007) — la version de dnsmasq n'y était pour rien. La
-# vraie cause était l'absence de directives `pxe-service` dans
-# entrypoint.sh (cf. son historique git). Retour à trixie par défaut,
-# comme documenté plus haut : rien ne justifie plus de rester sur
-# bookworm, dont le paquet ipxe est celui qu'on cherche justement à
-# éviter (cf. lignes 11-18 ci-dessus).
-#
-# TEMPORAIRE (nouveau test A/B) : repassé sur bookworm-slim pour vérifier
-# si le hang CPU 100% de dnsmasq (constaté après un échange PXE port 4011
-# sans réponse, cf. entrypoint.sh et son historique git) est spécifique à
-# dnsmasq 2.91 (trixie) ou présent aussi sur 2.90 (bookworm) — auquel cas
-# ce ne serait pas une régression de version mais un bug jamais déclenché
-# avant l'ajout de pxe-service. À revert vers trixie-slim une fois ce test
-# concluant ; ne pas merger cet état sur master.
-ARG PXE_BASE_IMAGE=debian:bookworm-slim
+ARG PXE_BASE_IMAGE=ubuntu:noble
 FROM ${PXE_BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="hamac-pxe" \
