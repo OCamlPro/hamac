@@ -9,7 +9,7 @@
 # Usage:
 #   ./build.sh [tag]
 #   PXE_BASE_IMAGE=debian:bookworm-slim ./build.sh   # override la base
-#                                                     # (défaut : debian:trixie-slim,
+#                                                     # (défaut : ubuntu:noble,
 #                                                     #  cf. Dockerfile)
 #
 # Tag par défaut : registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0
@@ -35,7 +35,7 @@ if [ -n "$missing" ]; then
 ERROR: fichier(s) manquant(s) dans $SRC_TFTP :$missing
 
 Pour les régénérer :
-  - vmlinuz : voir $SRC_TFTP/README.md (Alpine netboot kernel)
+  - vmlinuz : voir $SRC_TFTP/README.md (noyau du netboot installer Debian)
   - initramfs-hybrid.gz : ./tools/discovery-prototype/e2e-hamac-test.sh
     (regénère l'initramfs avec le init courant au début du smoke test)
 EOF

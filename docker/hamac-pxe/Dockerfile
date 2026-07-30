@@ -6,7 +6,11 @@
 #   - TFTP server intégré dnsmasq, sert /tftp/
 #   - iPXE NBP : ipxe.efi (UEFI x86-64) + undionly.kpxe (BIOS legacy),
 #     sélectionnés par architecture client (dnsmasq dhcp-match)
-#   - kernel Alpine + initramfs-hybrid avec init hamac (copiés au build)
+#   - kernel Debian (netboot installer) + initramfs-hybrid avec init hamac
+#     (copiés au build — cf. .gitlab-ci.yml pour l'origine de ces fichiers ;
+#     anciennement noyau Alpine `lts`, abandonné car ne produit aucune
+#     sortie console sur un Framework Laptop 13/Meteor Lake, cf.
+#     HAMAC_PXE_FREEZE_INVESTIGATION.md §8.8-8.11)
 #
 # Base paramétrable via PXE_BASE_IMAGE (build arg). Historique de cette
 # valeur (voir aussi entrypoint.sh et son historique git) :

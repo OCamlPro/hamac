@@ -4,34 +4,51 @@ This directory contains the boot files for PXE network boot infrastructure disco
 
 ## Files (not in git - download/build locally)
 
-- `vmlinuz` - Alpine Linux kernel
+- `vmlinuz` - Debian netboot installer kernel
 - `initramfs-hybrid.gz` - Hybrid initramfs with kernel modules and SIESTE registration
 
 ## Setup Instructions
 
-### 1. Download Alpine Linux kernel and initramfs
+### 1. Download Debian netboot installer kernel and initrd
 
 ```bash
-# Download Alpine netboot files
-ALPINE_VERSION="3.21"
-ALPINE_RELEASE="3.21.2"
-wget https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/netboot/vmlinuz-lts
-wget https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/netboot/initramfs-lts
-
-mv vmlinuz-lts vmlinuz
+URL="https://deb.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/debian-installer/amd64"
+wget -O vmlinuz "${URL}/linux"
+wget -O initrd.gz "${URL}/initrd.gz"
 ```
+
+(Previously Alpine Linux's `lts` netboot kernel — abandoned after
+investigation showed it produces zero console output on a Framework
+Laptop 13 (Intel Core Ultra Series 1 / Meteor Lake), a total silent
+freeze right at kernel handoff, independent of the PXE/dnsmasq/iPXE
+config. Debian's netboot installer kernel boots normally on the same
+hardware. See `HAMAC_PXE_FREEZE_INVESTIGATION.md` at the repo root,
+§8.8-8.11, for the full investigation.)
 
 ### 2. Build hybrid initramfs
 
-The hybrid initramfs combines Alpine's kernel modules with SIESTE's custom init script:
+The hybrid initramfs combines Debian's kernel modules (bundled in its
+netboot `initrd.gz`, already matched to this exact kernel) with SIESTE's
+custom init script — **plus a static busybox swapped in** (see note below).
 
 ```bash
 # Create build directory
 mkdir -p /tmp/hybrid-initramfs
 cd /tmp/hybrid-initramfs
 
-# Extract Alpine initramfs (contains kernel modules)
-zcat /path/to/initramfs-lts | cpio -idmv
+# Extract Debian's netboot initrd (contains kernel modules)
+zcat /path/to/initrd.gz | cpio -idmv
+
+# Replace busybox with busybox-static (Debian's installer busybox does NOT
+# implement `--install`, which our init script uses to symlink applets
+# into /bin and /sbin — under `set -e` this aborted init immediately with
+# "Kernel panic - not syncing: Attempted to kill init!". Confirmed and
+# fixed via local QEMU testing before this went anywhere near production —
+# see HAMAC_PXE_FREEZE_INVESTIGATION.md §8.12.)
+wget -O /tmp/busybox-static.deb "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.38.0-1_amd64.deb"
+dpkg-deb -x /tmp/busybox-static.deb /tmp/busybox-extract
+cp /tmp/busybox-extract/usr/bin/busybox bin/busybox
+chmod +x bin/busybox
 
 # Replace init with SIESTE's version
 cp /path/to/sieste/tools/discovery-prototype/pxe-build/init ./init
@@ -61,7 +78,8 @@ qemu-system-x86_64 \
 
 ## Technical Details
 
-- **Kernel**: Alpine Linux 6.6.x LTS (required for kernel modules)
+- **Kernel**: Debian stable's netboot installer kernel (6.12.x as of this
+  writing) — general-purpose distro kernel, broad real-hardware support
 - **NIC Driver**: e1000 (Intel PRO/1000) - best compatibility
 - **Network**: QEMU SLIRP user-mode (10.0.2.0/24, gateway 10.0.2.2)
 - **Init**: Custom busybox init script for node registration
@@ -75,30 +93,34 @@ qemu-system-x86_64 \
 4. Sends registration request to discovery server
 5. Halts after registration
 
-## CI builds (sha256-pinned Alpine)
+## CI builds (sha256-pinned Debian netboot files)
 
 The GitLab CI (`.gitlab-ci.yml` at the repo root) rebuilds these files from
 scratch on every relevant push :
-- `vmlinuz` is downloaded from the Alpine netboot URL (pinned via
-  `ALPINE_VERSION`) and its sha256 is verified against `ALPINE_VMLINUZ_SHA256`.
-- `initramfs-hybrid.gz` is reconstructed by extracting Alpine's
-  `initramfs-lts` (also sha256-verified), replacing its `/init` by our
-  custom one (`pxe-build/init`), and re-packing.
+- `vmlinuz` is downloaded from `DEBIAN_NETBOOT_URL` and its sha256 is
+  verified against `DEBIAN_LINUX_SHA256`.
+- `initramfs-hybrid.gz` is reconstructed by extracting Debian's netboot
+  `initrd.gz` (also sha256-verified against `DEBIAN_INITRD_SHA256`),
+  replacing its `busybox` with `busybox-static` (sha256-verified against
+  `BUSYBOX_STATIC_SHA256` — see the fix note above), replacing its `/init`
+  by our custom one (`pxe-build/init`), and re-packing.
 
-**When to bump the Alpine version** :
-- Alpine pushes a new LTS minor (e.g. 3.21 → 3.22) — bump `ALPINE_VERSION`
-- Alpine repushes its netboot files with security fixes (same URL but new
-  sha) — CI fails on the sha256 check ; you bump
-  `ALPINE_VMLINUZ_SHA256` / `ALPINE_INITRAMFS_SHA256` after manually
-  validating that the new initramfs still boots in QEMU
-  (`./tools/discovery-prototype/e2e-hamac-test.sh`).
+**When to bump the pinned Debian files** :
+- `DEBIAN_NETBOOT_URL` points at Debian's `dists/stable/.../current/`
+  path, which tracks the latest stable point release — it **will**
+  change content over time (expected, not a bug). CI fails loudly on the
+  sha256 check when that happens ; bump `DEBIAN_LINUX_SHA256` /
+  `DEBIAN_INITRD_SHA256` after manually validating that the new
+  kernel/initrd combination still boots correctly
+  (`./tools/discovery-prototype/e2e-hamac-test.sh`, and ideally a real
+  PXE boot test on representative hardware given this project's history
+  with silent kernel-level freezes).
 
 To get the current shas :
 ```bash
-ALPINE_VERSION=3.21
-URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/x86_64/netboot"
-curl -sL "${URL}/vmlinuz-lts"   | sha256sum
-curl -sL "${URL}/initramfs-lts" | sha256sum
+URL="https://deb.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/debian-installer/amd64"
+curl -sL "${URL}/linux"     | sha256sum
+curl -sL "${URL}/initrd.gz" | sha256sum
 ```
 
 The `initramfs-hybrid.gz` itself is *not* committed (.gitignore'd) since it
