@@ -4,13 +4,32 @@
 #   - dnsmasq en mode proxy DHCP (cohabite avec le DHCP existant du LAN ;
 #     ne répond que pour PXE)
 #   - TFTP server intégré dnsmasq, sert /tftp/
-#   - iPXE NBP : ipxe.efi (UEFI x86-64) + undionly.kpxe (BIOS legacy),
+#   - iPXE NBP : ipxe.efi (UEFI x86-64, buildé from-source — voir bloc
+#     ci-dessous) + undionly.kpxe (BIOS legacy, paquet apt `ipxe`),
 #     sélectionnés par architecture client (dnsmasq dhcp-match)
 #   - kernel Debian (netboot installer) + initramfs-hybrid avec init hamac
 #     (copiés au build — cf. .gitlab-ci.yml pour l'origine de ces fichiers ;
 #     anciennement noyau Alpine `lts`, abandonné car ne produit aucune
 #     sortie console sur un Framework Laptop 13/Meteor Lake, cf.
 #     HAMAC_PXE_FREEZE_INVESTIGATION.md §8.8-8.11)
+#
+# iPXE UEFI x86-64 : buildé from-source (snp.efi), pas le paquet apt `ipxe`.
+# Historique (cf. HAMAC_PXE_FREEZE_INVESTIGATION.md §8.12-8.15) : le paquet
+# apt `ipxe` (1.21.1, janv. 2022) ne reconnaît jamais l'initrd sur ce
+# Framework Laptop 13/Meteor Lake (bug confirmé LoadFile2/EFI, jamais de
+# ligne "Loaded initrd..."). Une version plus récente d'iPXE (2.0.0)
+# corrige bien ce point, mais tombe alors sur un bug amont différent,
+# toujours ouvert : https://github.com/ipxe/ipxe/issues/1372 ("iPXE hangs
+# at EFI:Stub Measured initrd data into PCR 9") — freeze total (avec OU
+# sans initrd) juste après le handoff EFI stub, reproductible avec `ipxe.efi`
+# ET `snponly.efi`. Un contributeur du ticket amont a trouvé que `snp.efi`
+# (différent de `snponly.efi` : `snp.efi` s'attache à TOUS les devices SNP
+# disponibles, `snponly.efi` seulement à celui depuis lequel il a été
+# chainloadé — pertinent ici car la carte Ethernet Framework est un
+# périphérique USB) contourne le problème. `snp.efi` n'est distribué nul
+# part en binaire précompilé (ni paquet Debian, ni boot.ipxe.org) — d'où
+# le build from-source ci-dessous, plutôt que de builder à la main sur
+# `socrates` (production).
 #
 # Base paramétrable via PXE_BASE_IMAGE (build arg). Historique de cette
 # valeur (voir aussi entrypoint.sh et son historique git) :
@@ -55,6 +74,34 @@
 # Le service doit tourner en network_mode: host sur le Swarm pour
 # broadcaster en L2 (DHCP).
 ARG PXE_BASE_IMAGE=ubuntu:noble
+
+# ---- Stage 1 : build from-source de snp.efi (iPXE) --------------------------
+# Commit pinné pour reproductibilité (même logique que les fichiers Alpine/
+# Debian/busybox-static pinnés par sha256 dans .gitlab-ci.yml) — testé et
+# validé manuellement (build local + smoke test) avant de pinner cette
+# valeur ici. À bumper volontairement si besoin (nouveau bugfix amont à
+# récupérer, etc.), pas de mécanisme de dérive automatique comme pour les
+# URLs "current" de Debian.
+FROM ${PXE_BASE_IMAGE} AS ipxe-builder
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      git \
+      build-essential \
+      perl \
+      ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+ARG IPXE_GIT_COMMIT=404588d5f7c84815dfbf6c34912467b86a4376f4
+RUN git clone https://github.com/ipxe/ipxe.git /usr/src/ipxe \
+ && cd /usr/src/ipxe \
+ && git checkout "${IPXE_GIT_COMMIT}" \
+ && cd src \
+ && make NO_WERROR=1 bin-x86_64-efi/snp.efi
+# NO_WERROR=1 : le binutils moderne de l'image de build est plus strict que
+# ce que le -Werror historique d'iPXE tolère (avertissements sur du code de
+# prefix BIOS legacy non utilisé par notre cible EFI) — sans ça le build
+# casse sur des warnings sans rapport avec snp.efi lui-même.
+
+# ---- Stage 2 : image finale --------------------------------------------------
 FROM ${PXE_BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="hamac-pxe" \
@@ -75,10 +122,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Préparer le tftp-root avec les NBP iPXE (UEFI + BIOS).
-# Le paquet Debian `ipxe` fournit /usr/lib/ipxe/{ipxe.efi,undionly.kpxe}.
+# undionly.kpxe (BIOS legacy) vient toujours du paquet apt `ipxe` — aucun
+# problème constaté sur ce chemin, pas de raison de le builder from-source
+# aussi. ipxe.efi (UEFI x86-64) vient du stage `ipxe-builder` ci-dessus
+# (snp.efi renommé — voir le commentaire en tête de fichier).
 RUN mkdir -p /tftp \
- && cp /usr/lib/ipxe/ipxe.efi      /tftp/ \
  && cp /usr/lib/ipxe/undionly.kpxe /tftp/
+COPY --from=ipxe-builder /usr/src/ipxe/src/bin-x86_64-efi/snp.efi /tftp/ipxe.efi
 
 # Kernel et initramfs copiés depuis le contexte de build
 # (générés par les scripts tools/discovery-prototype/)
