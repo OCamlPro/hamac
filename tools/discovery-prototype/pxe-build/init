@@ -69,29 +69,20 @@ echo "[*] Loading network and block drivers..."
 KERNEL_VER=$(uname -r)
 MODULES_DIR="/lib/modules/$KERNEL_VER"
 
-# Charge les modules virtio dans l'ordre des dépendances : base d'abord,
-# transports ensuite, drivers finaux. Sans ça, virtio_blk/virtio_net
-# échouent avec "Unknown symbol register_virtio_driver".
+# On charge via modprobe plutôt qu'insmod : busybox modprobe résout les
+# dépendances lui-même via le champ modinfo "depends=" de chaque .ko (pas
+# besoin de depmod/modules.dep), donc plus besoin de lister un ordre précis.
+# insmod ne résout rien, ce qui faisait échouer virtio_net ("Unknown symbol
+# net_failover_create/destroy", dépend de failover.ko) et surtout igb/ixgbe
+# sur le matériel réel ("Unknown symbol dca_*/mdiobus_*/i2c_bit_add_bus/...",
+# dépendent de dca.ko, mdio_bus/libphy.ko, i2c-algo-bit.ko, xfrm_algo.ko) :
+# aucune interface n'apparaissait jamais sous /sys/class/net.
 for mod in \
-    virtio virtio_ring \
-    virtio_pci_legacy_dev virtio_pci_modern_dev virtio_pci \
-    virtio_blk virtio_net; do
-    find "$MODULES_DIR" -name "${mod}.ko*" -exec insmod {} \; 2>/dev/null && \
+    virtio virtio_ring virtio_pci virtio_blk virtio_net \
+    loop ata_piix \
+    e1000 e1000e igb ixgbe; do
+    modprobe -d "$MODULES_DIR" "$mod" 2>/dev/null && \
         echo "[*] Loaded: $mod" || true
-done
-
-# Block drivers additionnels (IDE legacy, loop)
-for mod in loop ata_piix; do
-    find "$MODULES_DIR" -name "${mod}.ko*" -exec insmod {} \; 2>/dev/null && \
-        echo "[*] Loaded: $mod" || true
-done
-sleep 1
-
-for mod in e1000 e1000e igb ixgbe; do
-    modpath=$(find "$MODULES_DIR" -name "${mod}.ko*" 2>/dev/null | head -1)
-    if [ -n "$modpath" ]; then
-        insmod "$modpath" 2>/dev/null && echo "  Loaded $mod"
-    fi
 done
 
 sleep 2
