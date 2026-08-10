@@ -90,7 +90,12 @@ RUN apt-get update \
       perl \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-ARG IPXE_GIT_COMMIT=404588d5f7c84815dfbf6c34912467b86a4376f4
+# BISECT EN COURS (HAMAC_PXE_FREEZE_INVESTIGATION.md §5.3) : valeur
+# temporaire, changera à chaque étape du bisect real-hardware entre
+# fbbdc3926 (2022-01-13, connu bon) et 404588d (master, connu mauvais),
+# ~10 étapes. Remettre à 404588d5f7c84815dfbf6c34912467b86a4376f4 (ou au
+# commit trouvé) une fois le bisect terminé.
+ARG IPXE_GIT_COMMIT=0edbc4c0824e54e3fe52d266c0dff50cfff59e8a
 RUN git clone https://github.com/ipxe/ipxe.git /usr/src/ipxe \
  && cd /usr/src/ipxe \
  && git checkout "${IPXE_GIT_COMMIT}" \
