@@ -44,11 +44,24 @@ zcat /path/to/initrd.gz | cpio -idmv
 # into /bin and /sbin — under `set -e` this aborted init immediately with
 # "Kernel panic - not syncing: Attempted to kill init!". Confirmed and
 # fixed via local QEMU testing before this went anywhere near production —
-# see HAMAC_PXE_FREEZE_INVESTIGATION.md §8.12.)
+# see HAMAC_PXE_FREEZE_INVESTIGATION.md.)
 wget -O /tmp/busybox-static.deb "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.38.0-1_amd64.deb"
 dpkg-deb -x /tmp/busybox-static.deb /tmp/busybox-extract
 cp /tmp/busybox-extract/usr/bin/busybox bin/busybox
 chmod +x bin/busybox
+
+# Add NVMe modules (missing from Debian's netboot initrd entirely — not a
+# module, not builtin, and not even offered as a debian-installer udeb;
+# see .gitlab-ci.yml LINUX_IMAGE_URL comment and
+# HAMAC_PXE_FREEZE_INVESTIGATION.md). Pulled from the regular linux-image
+# package for the EXACT SAME kernel version (vermagic must match).
+wget -O /tmp/linux-image.deb "https://snapshot.debian.org/file/0402b2e2587e557ca9df501c4f627f7a8bc7080f"
+dpkg-deb -x /tmp/linux-image.deb /tmp/linux-image-extract
+KVER=$(ls lib/modules)
+SRC="/tmp/linux-image-extract/usr/lib/modules/${KVER}/kernel/drivers/nvme"
+mkdir -p "lib/modules/${KVER}/kernel/drivers/nvme/host" "lib/modules/${KVER}/kernel/drivers/nvme/common"
+cp "${SRC}/host/nvme.ko.xz" "${SRC}/host/nvme-core.ko.xz" "lib/modules/${KVER}/kernel/drivers/nvme/host/"
+cp "${SRC}/common/nvme-auth.ko.xz" "lib/modules/${KVER}/kernel/drivers/nvme/common/"
 
 # Replace init with SIESTE's version
 cp /path/to/sieste/tools/discovery-prototype/pxe-build/init ./init

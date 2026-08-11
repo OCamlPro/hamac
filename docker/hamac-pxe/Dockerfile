@@ -11,25 +11,23 @@
 #     (copiés au build — cf. .gitlab-ci.yml pour l'origine de ces fichiers ;
 #     anciennement noyau Alpine `lts`, abandonné car ne produit aucune
 #     sortie console sur un Framework Laptop 13/Meteor Lake, cf.
-#     HAMAC_PXE_FREEZE_INVESTIGATION.md §8.8-8.11)
+#     HAMAC_PXE_FREEZE_INVESTIGATION.md)
 #
-# iPXE UEFI x86-64 : buildé from-source (snp.efi), pas le paquet apt `ipxe`.
-# Historique (cf. HAMAC_PXE_FREEZE_INVESTIGATION.md §8.12-8.15) : le paquet
-# apt `ipxe` (1.21.1, janv. 2022) ne reconnaît jamais l'initrd sur ce
-# Framework Laptop 13/Meteor Lake (bug confirmé LoadFile2/EFI, jamais de
-# ligne "Loaded initrd..."). Une version plus récente d'iPXE (2.0.0)
-# corrige bien ce point, mais tombe alors sur un bug amont différent,
-# toujours ouvert : https://github.com/ipxe/ipxe/issues/1372 ("iPXE hangs
-# at EFI:Stub Measured initrd data into PCR 9") — freeze total (avec OU
-# sans initrd) juste après le handoff EFI stub, reproductible avec `ipxe.efi`
-# ET `snponly.efi`. Un contributeur du ticket amont a trouvé que `snp.efi`
-# (différent de `snponly.efi` : `snp.efi` s'attache à TOUS les devices SNP
-# disponibles, `snponly.efi` seulement à celui depuis lequel il a été
-# chainloadé — pertinent ici car la carte Ethernet Framework est un
-# périphérique USB) contourne le problème. `snp.efi` n'est distribué nul
-# part en binaire précompilé (ni paquet Debian, ni boot.ipxe.org) — d'où
-# le build from-source ci-dessous, plutôt que de builder à la main sur
-# `socrates` (production).
+# iPXE UEFI x86-64 : buildé from-source (snp.efi) à un commit pinné précis,
+# pas le paquet apt `ipxe`. Historique (cf. HAMAC_PXE_FREEZE_INVESTIGATION.md
+# §3) : le paquet apt `ipxe` (1.21.1, janv. 2022) ne reconnaît jamais
+# l'initrd sur ce Framework Laptop 13/Meteor Lake (bug LoadFile2/EFI, jamais
+# de ligne "Loaded initrd..."). Une iPXE plus récente corrige ce point mais
+# tombe sur un bug amont différent, toujours ouvert :
+# https://github.com/ipxe/ipxe/issues/1372 ("iPXE hangs at EFI:Stub Measured
+# initrd data into PCR 9") — freeze après le handoff EFI stub, identique
+# avec `ipxe.efi`, `snponly.efi` ET `snp.efi` (contrairement à ce qu'un
+# rapporteur amont affirmait, `snp.efi` ne corrige RIEN sur ce matériel,
+# testé et confirmé). La vraie résolution : bisect real-hardware entre un
+# commit ancien confirmé bon et master confirmé mauvais — voir
+# `IPXE_GIT_COMMIT` ci-dessous et §3/§4 du doc. On continue à builder
+# `snp.efi` (pas `ipxe.efi`) simplement parce que c'est déjà le variant en
+# place, pas parce qu'il aurait un effet sur ce bug précis.
 #
 # Base paramétrable via PXE_BASE_IMAGE (build arg). Historique de cette
 # valeur (voir aussi entrypoint.sh et son historique git) :
@@ -90,11 +88,13 @@ RUN apt-get update \
       perl \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-# BISECT EN COURS (HAMAC_PXE_FREEZE_INVESTIGATION.md §5.3) : valeur
-# temporaire, changera à chaque étape du bisect real-hardware entre
-# fbbdc3926 (2022-01-13, connu bon) et 404588d (master, connu mauvais),
-# ~10 étapes. Remettre à 404588d5f7c84815dfbf6c34912467b86a4376f4 (ou au
-# commit trouvé) une fois le bisect terminé.
+# Résultat du bisect real-hardware (HAMAC_PXE_FREEZE_INVESTIGATION.md §3) :
+# premier commit testé entre fbbdc3926 (2022-01-13, connu bon) et 404588d
+# (master, connu mauvais / ipxe/ipxe#1372) — boote proprement jusqu'au
+# shell réel sur le Framework, retenu tel quel plutôt que de continuer à
+# resserrer le bisect. À bumper volontairement si besoin (nouveau bugfix
+# amont à récupérer, etc.), pas de mécanisme de dérive automatique comme
+# pour les URLs "current" de Debian.
 ARG IPXE_GIT_COMMIT=0edbc4c0824e54e3fe52d266c0dff50cfff59e8a
 RUN git clone https://github.com/ipxe/ipxe.git /usr/src/ipxe \
  && cd /usr/src/ipxe \

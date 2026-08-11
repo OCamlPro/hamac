@@ -64,12 +64,13 @@ echo "[hamac-pxe] poll_interval=${POLL_INTERVAL}s"
 # line option". On utilise UNIQUEMENT la directive `initrd` d'iPXE, qui le
 # charge en mémoire (protocole LoadFile2 repris par l'EFI stub).
 # console=tty0 en dernier => /dev/console = écran physique.
-# `imgfree` et `imgstat` ci-dessous : temporaire, pour le test en cours de
-# HAMAC_PXE_FREEZE_INVESTIGATION.md §5.3 (retours upstream sur
-# ipxe/ipxe#1372) — `imgfree` est le contournement documenté dans
-# ipxe/ipxe#1390 pour un bug différent mais voisin (chain-boot sans libérer
-# les images précédentes) ; `imgstat` sert juste à logger l'état des images
-# avant `boot`, pour le rapport upstream. À retirer si ça ne change rien.
+# `imgfree` et `imgstat` ci-dessous : ajoutés pendant le diagnostic de bug
+# #4 (HAMAC_PXE_FREEZE_INVESTIGATION.md §3-4, retours upstream sur
+# ipxe/ipxe#1372, depuis résolu par bisect) — `imgfree` est le
+# contournement documenté dans ipxe/ipxe#1390 pour un bug différent mais
+# voisin (chain-boot sans libérer les images précédentes) ; `imgstat` sert
+# juste à logger l'état des images avant `boot`. Sans effet néfaste connu,
+# laissés en place ; à retirer si jamais gênants.
 cat > /tftp/boot.ipxe <<EOF
 #!ipxe
 echo hamac-pxe : chargement du live installer...
