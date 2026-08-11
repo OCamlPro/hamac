@@ -87,13 +87,23 @@ MODULES_DIR="/lib/modules/$KERNEL_VER"
 # une famille de drivers USB NIC différente et non utilisée ici) et listées
 # ici dans l'ordre malgré la résolution auto de modprobe, par cohérence
 # avec le reste de cette liste.
+# DEBUG TEMPORAIRE (HAMAC_PXE_FREEZE_INVESTIGATION.md) : on affiche le
+# stderr de modprobe au lieu de l'avaler, pour voir POURQUOI usb_common/
+# usbcore/xhci_hcd/xhci_pci/mii/libphy/r8152 ne se chargent pas malgré leur
+# présence confirmée dans le module set Debian. À revenir à l'ancien
+# comportement silencieux (`2>/dev/null && echo ... || true`) une fois la
+# cause identifiée.
 for mod in \
     virtio virtio_ring virtio_pci virtio_blk virtio_net \
     loop ata_piix \
     e1000 e1000e igb ixgbe \
     usb_common usbcore xhci_hcd xhci_pci mii libphy r8152; do
-    modprobe -d "$MODULES_DIR" "$mod" 2>/dev/null && \
-        echo "[*] Loaded: $mod" || true
+    MODPROBE_ERR=$(modprobe -d "$MODULES_DIR" "$mod" 2>&1)
+    if [ $? -eq 0 ]; then
+        echo "[*] Loaded: $mod"
+    else
+        echo "[!] Failed to load $mod: $MODPROBE_ERR"
+    fi
 done
 
 sleep 2
