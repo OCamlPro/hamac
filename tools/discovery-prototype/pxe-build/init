@@ -66,8 +66,6 @@ echo ""
 
 # Load network drivers
 echo "[*] Loading network and block drivers..."
-KERNEL_VER=$(uname -r)
-MODULES_DIR="/lib/modules/$KERNEL_VER"
 
 # On charge via modprobe plutôt qu'insmod : busybox modprobe résout les
 # dépendances lui-même via le champ modinfo "depends=" de chaque .ko (pas
@@ -88,11 +86,16 @@ MODULES_DIR="/lib/modules/$KERNEL_VER"
 # ici dans l'ordre malgré la résolution auto de modprobe, par cohérence
 # avec le reste de cette liste.
 # DEBUG TEMPORAIRE (HAMAC_PXE_FREEZE_INVESTIGATION.md) : on affiche le
-# stderr de modprobe au lieu de l'avaler, pour voir POURQUOI usb_common/
-# usbcore/xhci_hcd/xhci_pci/mii/libphy/r8152 ne se chargent pas malgré leur
-# présence confirmée dans le module set Debian. À revenir à l'ancien
-# comportement silencieux (`2>/dev/null && echo ... || true`) une fois la
-# cause identifiée.
+# stderr de modprobe au lieu de l'avaler. Ça a déjà payé une fois : la
+# busybox modprobe de cette image ne supporte PAS `-d <dir>` du tout
+# ("invalid option -d"), ce qui a fait échouer silencieusement CE for-loop
+# en entier depuis le début — tout module qui semblait "charger" (ex.
+# e1000e) le faisait via l'autoload PCI du noyau lui-même, pas via ce
+# script. `-d` retiré ci-dessous (MODULES_DIR de toute façon identique au
+# chemin par défaut de modprobe pour le noyau courant). On garde le
+# stderr visible un tour de plus pour attraper d'éventuelles autres
+# surprises sur usb_common/usbcore/xhci_hcd/xhci_pci/mii/libphy/r8152,
+# puis on pourra revenir au silencieux (`2>/dev/null && echo ... || true`).
 for mod in \
     virtio virtio_ring virtio_pci virtio_blk virtio_net \
     loop ata_piix \
@@ -105,7 +108,7 @@ for mod in \
     # d'un if/while/until, seul cas exempté par POSIX. Bug vécu : la
     # version précédente séparait `VAR=$(...)` et `if [ $? -eq 0 ]` sur
     # deux lignes, ce qui tuait le script au premier modprobe en échec.
-    if MODPROBE_ERR=$(modprobe -d "$MODULES_DIR" "$mod" 2>&1); then
+    if MODPROBE_ERR=$(modprobe "$mod" 2>&1); then
         echo "[*] Loaded: $mod"
     else
         echo "[!] Failed to load $mod: $MODPROBE_ERR"
