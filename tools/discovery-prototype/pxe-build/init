@@ -98,8 +98,14 @@ for mod in \
     loop ata_piix \
     e1000 e1000e igb ixgbe \
     usb_common usbcore xhci_hcd xhci_pci mii libphy r8152; do
-    MODPROBE_ERR=$(modprobe -d "$MODULES_DIR" "$mod" 2>&1)
-    if [ $? -eq 0 ]; then
+    # Assignation directement dans la condition du if : sous `set -e`, une
+    # assignation VAR=$(cmd) qui échoue est elle-même traitée comme une
+    # commande simple qui échoue, et tue le shell (donc PID 1, donc panic
+    # "Attempted to kill init!") — SAUF si elle apparaît comme condition
+    # d'un if/while/until, seul cas exempté par POSIX. Bug vécu : la
+    # version précédente séparait `VAR=$(...)` et `if [ $? -eq 0 ]` sur
+    # deux lignes, ce qui tuait le script au premier modprobe en échec.
+    if MODPROBE_ERR=$(modprobe -d "$MODULES_DIR" "$mod" 2>&1); then
         echo "[*] Loaded: $mod"
     else
         echo "[!] Failed to load $mod: $MODPROBE_ERR"
