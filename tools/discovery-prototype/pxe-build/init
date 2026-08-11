@@ -77,10 +77,21 @@ MODULES_DIR="/lib/modules/$KERNEL_VER"
 # sur le matériel réel ("Unknown symbol dca_*/mdiobus_*/i2c_bit_add_bus/...",
 # dépendent de dca.ko, mdio_bus/libphy.ko, i2c-algo-bit.ko, xfrm_algo.ko) :
 # aucune interface n'apparaissait jamais sous /sys/class/net.
+# usb_common/usbcore/xhci_hcd/xhci_pci/mii/libphy/r8152 : requis pour le
+# Framework Laptop 13, dont l'unique NIC est la Ethernet Expansion Card
+# (USB, chipset Realtek RTL8156B, cf. HAMAC_PXE_FREEZE_INVESTIGATION.md) —
+# ni virtio_net ni e1000/e1000e/igb/ixgbe (tous PCI) ne peuvent la piloter,
+# d'où "No network interface found" malgré un bisect iPXE par ailleurs
+# réussi. r8152.ko couvre toute la famille RTL8152/8153/8156 ; dépendances
+# vérifiées via modinfo (depends=usbcore,mii,libphy — PAS usbnet, qui est
+# une famille de drivers USB NIC différente et non utilisée ici) et listées
+# ici dans l'ordre malgré la résolution auto de modprobe, par cohérence
+# avec le reste de cette liste.
 for mod in \
     virtio virtio_ring virtio_pci virtio_blk virtio_net \
     loop ata_piix \
-    e1000 e1000e igb ixgbe; do
+    e1000 e1000e igb ixgbe \
+    usb_common usbcore xhci_hcd xhci_pci mii libphy r8152; do
     modprobe -d "$MODULES_DIR" "$mod" 2>/dev/null && \
         echo "[*] Loaded: $mod" || true
 done
