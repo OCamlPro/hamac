@@ -67,9 +67,19 @@ echo ""
 # Load network drivers
 echo "[*] Loading network and block drivers..."
 
-# On charge via modprobe plutôt qu'insmod : busybox modprobe résout les
-# dépendances lui-même via le champ modinfo "depends=" de chaque .ko (pas
-# besoin de depmod/modules.dep), donc plus besoin de lister un ordre précis.
+# depmod d'abord : busybox modprobe a besoin d'un modules.dep texte pour
+# résoudre quoi que ce soit (contrairement à ce qu'affirmait le commentaire
+# précédent). L'initrd Debian officiel n'en fournit PAS — il ne ship que
+# modules.dep.bin, le format binaire de l'outillage kmod complet, illisible
+# par les applets busybox. D'où "modprobe: can't open 'modules.dep'" sur
+# absolument tout module dès qu'on a retiré le `-d` invalide (cf. commit
+# précédent) : busybox essayait enfin de vraiment chercher le fichier.
+# `depmod` seul (sans arguments) suffit : BASE défaut à `/`, VERSION défaut
+# à `uname -r`, exactement notre cas ici.
+depmod 2>&1 || echo "[!] depmod failed (ignoré, voir logs ci-dessus)"
+
+# On charge via modprobe plutôt qu'insmod : cf. depmod juste au-dessus pour
+# la résolution des dépendances (modinfo "depends=" + modules.dep généré).
 # insmod ne résout rien, ce qui faisait échouer virtio_net ("Unknown symbol
 # net_failover_create/destroy", dépend de failover.ko) et surtout igb/ixgbe
 # sur le matériel réel ("Unknown symbol dca_*/mdiobus_*/i2c_bit_add_bus/...",
