@@ -263,6 +263,11 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
     OS_URL=$(extract_str os_image_url)
     OS_SHA256=$(extract_str os_image_sha256)
     OS_FORMAT=$(extract_str os_format)
+    # Assets dérivés pour install physique via bmaptool (cf.
+    # PROVISIONING_SPEC.md §3.1) : "" si le profil ne les fournit pas.
+    OS_RAW_ZST_URL=$(extract_str os_raw_zst_url)
+    OS_RAW_ZST_SHA256=$(extract_str os_raw_zst_sha256)
+    OS_BMAP_URL=$(extract_str os_bmap_url)
 
     # Pour le cloud-init, on récupère le YAML brut depuis l'endpoint dédié
     # (le JSON.escape rend la chaîne difficile à parser avec grep/sed).
@@ -279,51 +284,103 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         exec /bin/sh
     fi
 
-    # Téléchargement de l'image OS
-    echo "[*] Downloading OS image..."
-    case "$OS_FORMAT" in
-        raw)
-            IMG_PATH="$PROV_DIR/disk.img"
-            wget -O "$IMG_PATH" "$OS_URL" || { echo "[!] Download failed"; exec /bin/sh; }
-            ;;
-        qcow2)
-            IMG_PATH="$PROV_DIR/disk.qcow2"
-            wget -O "$IMG_PATH" "$OS_URL" || { echo "[!] Download failed"; exec /bin/sh; }
-            ;;
-        *)
-            echo "[!] Unsupported os_format '$OS_FORMAT' (supported: raw, qcow2)"
-            exec /bin/sh
-            ;;
-    esac
+    # Décidé une fois, avant tout téléchargement, pour ne jamais tirer les
+    # deux formats d'image en parallèle. bmaptool est préféré s'il est
+    # disponible dans cette initrd ET que le profil fournit les deux URLs
+    # ; sinon fallback silencieux sur le chemin qcow2/raw historique
+    # (initrd pas encore reconstruite avec bmaptool, ou profil pas encore
+    # migré) — cf. PROVISIONING_SPEC.md §3.1.
+    USE_BMAP=0
+    if [ -n "$OS_RAW_ZST_URL" ] && [ -n "$OS_BMAP_URL" ] && command -v bmaptool >/dev/null 2>&1; then
+        USE_BMAP=1
+    fi
 
-    # Vérification sha256 (sha256sum dispo dans busybox)
-    if [ -n "$OS_SHA256" ] && [ "$OS_SHA256" != "" ]; then
-        echo "[*] Verifying sha256..."
-        ACTUAL=$(sha256sum "$IMG_PATH" | awk '{print $1}')
-        if [ "$ACTUAL" != "$OS_SHA256" ]; then
-            echo "[!] SHA256 mismatch: expected $OS_SHA256, got $ACTUAL"
-            # Continue quand même : pour les tests, le hash dans le profile
-            # peut être un placeholder. En prod on devrait abort.
-            echo "[!] CONTINUING ANYWAY (test mode)"
+    # Chemin bmaptool (USE_BMAP=1) : PAS de téléchargement local ici — cf.
+    # écriture ci-dessous. bmaptool accepte des URLs directement pour
+    # `image` ET `--bmap` (confirmé réellement : test round-trip via un
+    # serveur HTTP local, octet pour octet identique) et vérifie chaque
+    # bloc individuellement contre le `.bmap` pendant la copie — plus fort
+    # qu'un sha256 global sur un fichier qu'on aurait téléchargé nous-mêmes
+    # d'abord. `os_raw_zst_sha256` reste dans le schéma (PROVISIONING_SPEC.md
+    # §3.1) pour audit/outillage externe, mais n'est plus utilisé ici.
+    #
+    # Chemin qcow2/raw (fallback, USE_BMAP=0) : téléchargement local puis
+    # vérification sha256 active avant écriture — délibérément PAS de
+    # streaming direct `qemu-img convert -f qcow2 -O raw -t none <URL>
+    # <device>` (qemu-img statique le supporte, testé et confirmé — le
+    # driver curl fonctionne bien en HTTP Range contre le CDN Debian réel),
+    # pour ne pas perdre cette vérification active (le streaming direct n'a
+    # que la sécurité du transport TLS, pas de check par bloc ni global).
+    # Le qcow2 de référence (~330 Mo) tient sans souci dans le tmpfs de
+    # cette initrd ; à revisiter seulement si des profils futurs servent
+    # des images sensiblement plus grosses ou visent du matériel avec peu
+    # de RAM.
+    if [ "$USE_BMAP" = "1" ]; then
+        echo "[*] OS image will be written via bmaptool (streamed, per-block verified)"
+    else
+        echo "[*] Downloading OS image..."
+        case "$OS_FORMAT" in
+            raw)
+                IMG_PATH="$PROV_DIR/disk.img"
+                wget -O "$IMG_PATH" "$OS_URL" || { echo "[!] Download failed"; exec /bin/sh; }
+                ;;
+            qcow2)
+                IMG_PATH="$PROV_DIR/disk.qcow2"
+                wget -O "$IMG_PATH" "$OS_URL" || { echo "[!] Download failed"; exec /bin/sh; }
+                ;;
+            *)
+                echo "[!] Unsupported os_format '$OS_FORMAT' (supported: raw, qcow2)"
+                exec /bin/sh
+                ;;
+        esac
+        # Vérification sha256 (sha256sum dispo dans busybox)
+        if [ -n "$OS_SHA256" ] && [ "$OS_SHA256" != "" ]; then
+            echo "[*] Verifying sha256..."
+            ACTUAL=$(sha256sum "$IMG_PATH" | awk '{print $1}')
+            if [ "$ACTUAL" != "$OS_SHA256" ]; then
+                echo "[!] SHA256 mismatch: expected $OS_SHA256, got $ACTUAL"
+                # Continue quand même : pour les tests, le hash dans le profile
+                # peut être un placeholder. En prod on devrait abort.
+                echo "[!] CONTINUING ANYWAY (test mode)"
+            fi
         fi
     fi
 
+    # blkdiscard avant écriture : zéro le disque, cheap et sûr sur les deux
+    # chemins. `|| echo` (pas d'assignation) : safe sous `set -e`, cf. le
+    # commentaire sur le for-loop modprobe plus haut dans ce fichier.
+    echo "[*] Discarding existing disk contents..."
+    blkdiscard "$DISK" 2>&1 || echo "[!] blkdiscard failed (ignored, continuing)"
+
     # Écriture sur disque
     echo "[*] Writing image to $DISK..."
-    case "$OS_FORMAT" in
-        raw)
-            dd if="$IMG_PATH" of="$DISK" bs=4M conv=fsync
-            ;;
-        qcow2)
-            if command -v qemu-img >/dev/null 2>&1; then
-                qemu-img convert -O raw -p "$IMG_PATH" "$DISK"
-            else
-                echo "[!] qemu-img not in initrd, cannot convert qcow2"
-                echo "[!] Tip: rebuild initrd with qemu-utils, or use os_format: raw"
-                exec /bin/sh
-            fi
-            ;;
-    esac
+    if [ "$USE_BMAP" = "1" ]; then
+        # Condition bare (pas de VAR=$(...)) : bmaptool logue déjà sur
+        # stdout/stderr lui-même, pas besoin de capturer sa sortie, et ça
+        # évite tout risque de retomber dans le piège `set -e` documenté
+        # ci-dessus.
+        if bmaptool copy "$OS_RAW_ZST_URL" "$DISK" --bmap "$OS_BMAP_URL"; then
+            echo "[*] bmaptool copy succeeded"
+        else
+            echo "[!] bmaptool copy failed"
+            exec /bin/sh
+        fi
+    else
+        case "$OS_FORMAT" in
+            raw)
+                dd if="$IMG_PATH" of="$DISK" bs=4M conv=fsync
+                ;;
+            qcow2)
+                if command -v qemu-img >/dev/null 2>&1; then
+                    qemu-img convert -O raw -p "$IMG_PATH" "$DISK"
+                else
+                    echo "[!] qemu-img not in initrd, cannot convert qcow2"
+                    echo "[!] Tip: rebuild initrd with qemu-utils, or use os_format: raw"
+                    exec /bin/sh
+                fi
+                ;;
+        esac
+    fi
     sync
     partprobe "$DISK" 2>/dev/null || true
     sleep 2

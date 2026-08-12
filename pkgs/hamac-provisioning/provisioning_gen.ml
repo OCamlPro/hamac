@@ -48,6 +48,9 @@ type rendered_profile = {
   os_image_url: string;
   os_image_sha256: string;
   os_format: string;
+  os_raw_zst_url: string;      (** "" si absent, cf. os_image_spec *)
+  os_raw_zst_sha256: string;
+  os_bmap_url: string;
 }
 
 (* ============================================================ *)
@@ -314,4 +317,7 @@ let render
     os_image_url = profile.pp_os.os_url;
     os_image_sha256 = profile.pp_os.os_sha256;
     os_format = profile.pp_os.os_format;
+    os_raw_zst_url = profile.pp_os.os_raw_zst_url;
+    os_raw_zst_sha256 = profile.pp_os.os_raw_zst_sha256;
+    os_bmap_url = profile.pp_os.os_bmap_url;
   }

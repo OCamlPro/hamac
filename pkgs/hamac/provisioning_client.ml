@@ -25,6 +25,9 @@ let render_to_json (r : Hamac_provisioning.Provisioning_gen.rendered_profile) : 
     "os_image_url", `String r.os_image_url;
     "os_image_sha256", `String r.os_image_sha256;
     "os_format", `String r.os_format;
+    "os_raw_zst_url", `String r.os_raw_zst_url;
+    "os_raw_zst_sha256", `String r.os_raw_zst_sha256;
+    "os_bmap_url", `String r.os_bmap_url;
   ]
 
 (** Pousse un profil rendu pour une MAC donnée.
