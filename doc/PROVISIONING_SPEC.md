@@ -89,6 +89,45 @@ cloud_init_extra:                # raw cloud-init pour cas spéciaux
 
 `netinstall` signifie : on télécharge un initrd/kernel Debian standard et on lance un preseed.
 
+#### Écriture des images « bloc » (`qcow2` / `raw`) sur le disque
+
+Un disque cible contient des **octets bruts** ; le `qcow2` est un format de
+*transport* (compressé, sparse) qui doit être « déplié » en raw avant d'être
+écrit. hamac ne fait donc **pas** un `dd` du qcow2 tel quel :
+
+- **`qcow2` = format canonique** d'un profil (source de vérité, aussi consommé
+  tel quel par le chemin VM / `QemuCluster`).
+- Pour l'installation métal, hamac sert **deux artefacts dérivés déterministes**
+  du qcow2 (regénérés au build du profil, pinnés par sha256) : un **`raw.zst`**
+  (`qemu-img convert -O raw` + compression) et son **`.bmap`** (`bmaptool
+  create` — carte des blocs non-vides + sha256 par plage).
+- L'init écrit via **`bmaptool`** (embarqué dans l'initramfs) :
+  ```
+  blkdiscard -f <device>
+  bmaptool copy --bmap <URL>/profile.bmap <URL>/profile.raw.zst <device>
+  ```
+  bmaptool télécharge (URL native), décompresse à la volée, **n'écrit que les
+  blocs mappés** et **vérifie le sha256 de chaque bloc** contre le `.bmap` — donc
+  écriture minimale *et* intégrité, sans staging.
+- **Fallback** : si seul un `qcow2` est disponible (pas de `raw.zst`/`.bmap`
+  pré-générés), l'init utilise un **`qemu-img` statique** (driver curl embarqué)
+  lisant le qcow2 en HTTP : `qemu-img convert -f qcow2 -O raw -t none <URL> <dev>`.
+  ⚠️ **intégrité affaiblie** : pas de vérif par-bloc — repli sur le sha256
+  end-to-end (`os_image_sha256`) + TLS. Pour éviter d'y rester, **discovery
+  génère `raw.zst`+`.bmap` paresseusement à la première demande** d'un profil
+  (mis en cache), promouvant le fallback en chemin rapide+vérifié.
+- `format: raw` fourni directement par l'ops est traité de la même façon
+  (idéalement pré-compressé + `.bmap` côté serveur).
+
+Dans tous les cas :
+- le **`.bmap` est la racine de confiance** (il porte les sha256 des blocs) →
+  le pinner/signer ; `blkdiscard` préalable pour que les zones non mappées
+  relisent zéro (ré-provisioning) ;
+- **resize au premier boot délégué à cloud-init** (`growpart` +
+  `resize_rootfs`, activés par défaut sur les cloud images) : relocalise le GPT,
+  étend la dernière partition et grossit le FS pour remplir un disque de taille
+  quelconque — **pas d'outil de resize dans l'initramfs**.
+
 ## 4. Bundles
 
 Un bundle est un répertoire `templates/bundles/<name>/` avec :
@@ -263,7 +302,12 @@ Format `GET /provisioning/<mac>` : renvoie le même JSON, plus un champ `created
    - Detect MAC locale
    - GET `/provisioning/<mac>` → reçoit cloud-init + URL OS
    - Télécharge l'image OS, vérifie sha256
-   - Installe (debootstrap, dd qcow2, ou preseed selon `format`)
+   - Installe selon `format` (cf. §3.1) :
+     - `qcow2` / `raw` → écrit l'image bloc sur le disque : `blkdiscard` puis
+       `bmaptool copy` du `raw.zst`+`.bmap` dérivés (écriture mappée + vérifiée),
+       ou fallback `qemu-img convert` depuis le qcow2. Le resize de la partition
+       est délégué à cloud-init au premier boot (`growpart` + `resize_rootfs`).
+     - `netinstall` → preseed Debian ; `debootstrap` → bootstrap direct
    - Chroote, applique cloud-init dans le système installé
    - Lance les `post-install/*.sh`
    - Reboot
