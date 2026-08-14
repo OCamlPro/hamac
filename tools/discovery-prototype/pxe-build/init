@@ -112,12 +112,22 @@ depmod 2>&1 || echo "[!] depmod failed (ignoré, voir logs ci-dessus)"
 # vérifié) — .ko.xz récupérés du paquet linux-image complet, cf.
 # .gitlab-ci.yml (LINUX_IMAGE_URL) et README.md de ce dossier. Sans ça,
 # detect_disk() ne trouve jamais /dev/nvme0n1 → "No target disk".
+# jbd2/ext4 : même trou que NVMe — absents de l'initrd netboot de base
+# (support ext4 normalement fourni par un udeb séparé pendant une vraie
+# install d-i, jamais chargé ici puisqu'on remplace /init entièrement).
+# Sans ça, `mount "$ROOT_PART" /mnt/root` plus bas échoue avec "Invalid
+# argument" (busybox essaie chaque type de /proc/filesystems, "ext4" n'y
+# apparaît jamais faute de module chargé — rencontré réellement sur le
+# Framework). Récupérés du même paquet linux-image que les modules NVMe
+# ci-dessus (cf. .gitlab-ci.yml). crc16/mbcache (dépendances de ext4) sont
+# déjà dans l'initrd de base, pas besoin de les ajouter.
 for mod in \
     virtio virtio_ring virtio_pci virtio_blk virtio_net \
     loop ata_piix \
     e1000 e1000e igb ixgbe \
     usb_common usbcore xhci_hcd xhci_pci mii libphy r8152 \
-    nvme_auth nvme_core nvme; do
+    nvme_auth nvme_core nvme \
+    jbd2 ext4; do
     # Assignation directement dans la condition du if : sous `set -e`, une
     # assignation VAR=$(cmd) qui échoue est elle-même traitée comme une
     # commande simple qui échoue, et tue le shell (donc PID 1, donc panic
