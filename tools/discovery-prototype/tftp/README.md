@@ -69,6 +69,19 @@ mkdir -p "lib/modules/${KVER}/kernel/drivers/nvme/host" "lib/modules/${KVER}/ker
 cp "${SRC}/host/nvme.ko.xz" "${SRC}/host/nvme-core.ko.xz" "lib/modules/${KVER}/kernel/drivers/nvme/host/"
 cp "${SRC}/common/nvme-auth.ko.xz" "lib/modules/${KVER}/kernel/drivers/nvme/common/"
 
+# Add ext4/jbd2 modules — same gap as NVMe above: absent from the base
+# netboot initrd entirely (ext4 support is normally pulled in via a
+# debian-installer udeb during a real install, which our custom /init
+# never runs). Without these, `mount $ROOT_PART /mnt/root` in pxe-build/init
+# fails with "Invalid argument" (busybox tries every fstype it finds in
+# /proc/filesystems; "ext4" is never in that list without the module).
+# Pulled from the same linux-image package as NVMe, same vermagic. crc16
+# and mbcache (ext4's other dependencies) are already in the base initrd.
+SRC="/tmp/linux-image-extract/usr/lib/modules/${KVER}/kernel/fs"
+mkdir -p "lib/modules/${KVER}/kernel/fs/ext4" "lib/modules/${KVER}/kernel/fs/jbd2"
+cp "${SRC}/ext4/ext4.ko.xz" "lib/modules/${KVER}/kernel/fs/ext4/"
+cp "${SRC}/jbd2/jbd2.ko.xz" "lib/modules/${KVER}/kernel/fs/jbd2/"
+
 # Add zstd + bmaptool + python3 (minimal + stdlib) + their real runtime
 # deps, for writing OS images via `bmaptool copy` instead of embarking
 # qemu-utils whole (~20 transitive packages, mostly TLS/PKCS#11, irrelevant
@@ -175,8 +188,9 @@ scratch on every relevant push :
 - `initramfs-hybrid.gz` is reconstructed by extracting Debian's netboot
   `initrd.gz` (also sha256-verified against `DEBIAN_INITRD_SHA256`),
   replacing its `busybox` with `busybox-static` (sha256-verified against
-  `BUSYBOX_STATIC_SHA256` — see the fix note above), adding NVMe modules
-  (`LINUX_IMAGE_URL`) and `zstd`/`bmaptool`/`python3` + their runtime deps
+  `BUSYBOX_STATIC_SHA256` — see the fix note above), adding NVMe and
+  ext4/jbd2 modules (both from `LINUX_IMAGE_URL`) and
+  `zstd`/`bmaptool`/`python3` + their runtime deps
   (`LIBLZ4_URL`, `ZSTD_URL`, `LIBZSTD1_URL`, `LIBSSL3_URL`,
   `PYTHON3_MINIMAL_URL`, `LIBPYTHON3_MINIMAL_URL`, `LIBPYTHON3_STDLIB_URL`,
   `BMAPTOOL_URL` — all sha256-verified, same pattern), replacing its
