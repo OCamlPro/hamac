@@ -22,8 +22,8 @@ investigation showed it produces zero console output on a Framework
 Laptop 13 (Intel Core Ultra Series 1 / Meteor Lake), a total silent
 freeze right at kernel handoff, independent of the PXE/dnsmasq/iPXE
 config. Debian's netboot installer kernel boots normally on the same
-hardware. See `HAMAC_PXE_FREEZE_INVESTIGATION.md` at the repo root,
-§8.8-8.11, for the full investigation.)
+hardware. See `HAMAC_PXE_FREEZE_INVESTIGATION.md` at the repo root for
+the full investigation.)
 
 ### 2. Build hybrid initramfs
 
@@ -62,6 +62,56 @@ SRC="/tmp/linux-image-extract/usr/lib/modules/${KVER}/kernel/drivers/nvme"
 mkdir -p "lib/modules/${KVER}/kernel/drivers/nvme/host" "lib/modules/${KVER}/kernel/drivers/nvme/common"
 cp "${SRC}/host/nvme.ko.xz" "${SRC}/host/nvme-core.ko.xz" "lib/modules/${KVER}/kernel/drivers/nvme/host/"
 cp "${SRC}/common/nvme-auth.ko.xz" "lib/modules/${KVER}/kernel/drivers/nvme/common/"
+
+# Add zstd + bmaptool + python3 (minimal + stdlib) + their real runtime
+# deps, for writing OS images via `bmaptool copy` instead of embarking
+# qemu-utils whole (~20 transitive packages, mostly TLS/PKCS#11, irrelevant
+# to local qcow2->raw conversion — see doc/PROVISIONING_SPEC.md §3.1 and
+# HAMAC_PXE_FREEZE_INVESTIGATION.md). `blkdiscard` is already in the base
+# netboot initrd, nothing to add for it. Set determined empirically (via
+# readelf -d tracing + a real bmaptool create/copy round-trip test), not
+# by trusting each package's declared Depends: (which over-declares —
+# e.g. libpython3.13-stdlib also depends on libsqlite3/libncursesw/
+# libreadline/libdb for dbm/curses/readline/sqlite3, none of which
+# bmaptool ever imports, so none of those are actually needed here).
+mkdir -p /tmp/bmap-extract
+for pair in \
+  "liblz4:https://deb.debian.org/debian/pool/main/l/lz4/liblz4-1_1.10.0-4_amd64.deb" \
+  "zstd:https://deb.debian.org/debian/pool/main/libz/libzstd/zstd_1.5.7+dfsg-1_amd64.deb" \
+  "libzstd1:https://deb.debian.org/debian/pool/main/libz/libzstd/libzstd1_1.5.7+dfsg-1_amd64.deb" \
+  "libssl3:https://deb.debian.org/debian/pool/main/o/openssl/libssl3t64_3.5.6-1~deb13u2_amd64.deb" \
+  "python3-minimal:https://deb.debian.org/debian/pool/main/p/python3.13/python3.13-minimal_3.13.5-2+deb13u3_amd64.deb" \
+  "libpython3-minimal:https://deb.debian.org/debian/pool/main/p/python3.13/libpython3.13-minimal_3.13.5-2+deb13u3_amd64.deb" \
+  "libpython3-stdlib:https://deb.debian.org/debian/pool/main/p/python3.13/libpython3.13-stdlib_3.13.5-2+deb13u3_amd64.deb" \
+  "bmaptool:https://deb.debian.org/debian/pool/main/b/bmap-tools/bmaptool_3.9.0-3_all.deb" \
+; do
+  name="${pair%%:*}"
+  url="${pair#*:}"
+  wget -O "/tmp/${name}.deb" "$url"
+  dpkg-deb -x "/tmp/${name}.deb" /tmp/bmap-extract
+done
+BE=/tmp/bmap-extract
+cp "$BE/usr/bin/zstd" bin/zstd
+cp "$BE"/usr/lib/x86_64-linux-gnu/liblz4.so.1* usr/lib/x86_64-linux-gnu/
+cp "$BE"/usr/lib/x86_64-linux-gnu/libzstd.so.1* usr/lib/x86_64-linux-gnu/
+cp "$BE"/usr/lib/x86_64-linux-gnu/libssl.so.3* "$BE"/usr/lib/x86_64-linux-gnu/libcrypto.so.3* usr/lib/x86_64-linux-gnu/
+cp "$BE/usr/bin/python3.13" usr/bin/python3.13
+ln -sf python3.13 usr/bin/python3
+cp -r "$BE/usr/lib/python3.13" usr/lib/
+cp -r "$BE/usr/lib/python3/dist-packages/bmaptool" usr/lib/python3.13/
+cp "$BE/usr/bin/bmaptool" usr/bin/bmaptool
+chmod +x usr/bin/bmaptool usr/bin/python3.13 bin/zstd
+
+# Build the static qemu-img fallback (qemu-img-builder stage in
+# docker/hamac-pxe/Dockerfile, Alpine/musl, ~10-15 min) and pull it out —
+# see that Dockerfile's comment for why it's Alpine/musl rather than the
+# same base as the ipxe-builder stage. Build-tested end to end: static-pie
+# linked, zero NEEDED entries, `qemu-img convert` works.
+docker build --target qemu-img-builder -t qemu-img-builder-tmp /path/to/sieste/docker/hamac-pxe/
+QIB_CID=$(docker create qemu-img-builder-tmp)
+docker cp "${QIB_CID}:/usr/src/qemu/build/qemu-img" usr/bin/qemu-img
+docker rm "${QIB_CID}"
+chmod +x usr/bin/qemu-img
 
 # Replace init with SIESTE's version
 cp /path/to/sieste/tools/discovery-prototype/pxe-build/init ./init
@@ -115,8 +165,12 @@ scratch on every relevant push :
 - `initramfs-hybrid.gz` is reconstructed by extracting Debian's netboot
   `initrd.gz` (also sha256-verified against `DEBIAN_INITRD_SHA256`),
   replacing its `busybox` with `busybox-static` (sha256-verified against
-  `BUSYBOX_STATIC_SHA256` — see the fix note above), replacing its `/init`
-  by our custom one (`pxe-build/init`), and re-packing.
+  `BUSYBOX_STATIC_SHA256` — see the fix note above), adding NVMe modules
+  (`LINUX_IMAGE_URL`) and `zstd`/`bmaptool`/`python3` + their runtime deps
+  (`LIBLZ4_URL`, `ZSTD_URL`, `LIBZSTD1_URL`, `LIBSSL3_URL`,
+  `PYTHON3_MINIMAL_URL`, `LIBPYTHON3_MINIMAL_URL`, `LIBPYTHON3_STDLIB_URL`,
+  `BMAPTOOL_URL` — all sha256-verified, same pattern), replacing its
+  `/init` by our custom one (`pxe-build/init`), and re-packing.
 
 **When to bump the pinned Debian files** :
 - `DEBIAN_NETBOOT_URL` points at Debian's `dists/stable/.../current/`

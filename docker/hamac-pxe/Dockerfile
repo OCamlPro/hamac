@@ -106,6 +106,145 @@ RUN git clone https://github.com/ipxe/ipxe.git /usr/src/ipxe \
 # prefix BIOS legacy non utilisé par notre cible EFI) — sans ça le build
 # casse sur des warnings sans rapport avec snp.efi lui-même.
 
+# ---- Stage : build from-source statique de qemu-img (fallback bmaptool) ----
+# `qemu-img` sert de fallback dans pxe-build/init pour les profils/initrd
+# pas encore migrés au chemin bmaptool (raw.zst + .bmap dérivés à l'avance,
+# cf. doc/PROVISIONING_SPEC.md §3.1) — c'est le SEUL usage : conversion
+# qcow2->raw purement locale, jamais de réseau/TLS. Le paquet apt
+# `qemu-utils` embarquerait ~20 paquets de dépendances transitives (surtout
+# TLS/PKCS#11 pour le support NBD-over-TLS, hors sujet ici — testé et
+# rejeté, cf. HAMAC_PXE_FREEZE_INVESTIGATION.md). D'où un build from-source
+# minimal, en désactivant tout ce qui n'est pas qcow2/raw.
+#
+# Alpine/musl plutôt que la même base que ipxe-builder (Ubuntu/glibc) :
+# un lien vraiment statique avec glibc est notoirement peu fiable pour un
+# projet de la taille de QEMU (problèmes connus autour de NSS/dlopen) ;
+# musl s'y prête beaucoup mieux. C'est le même choix que
+# tools/static-build/Dockerfile pour les binaires SIESTE eux-mêmes.
+#
+# N'atterrit PAS dans l'image Docker finale via COPY --from= comme
+# ipxe-builder : le binaire produit ici doit finir DANS l'initramfs
+# (initramfs-hybrid.gz), assemblée par le job CI build:hamac-pxe AVANT le
+# `docker build` de ce Dockerfile. Le CI cible ce stage spécifiquement
+# (`docker build --target qemu-img-builder`) et en extrait le binaire —
+# voir .gitlab-ci.yml.
+FROM alpine:3.21 AS qemu-img-builder
+RUN apk add --no-cache \
+      bash \
+      build-base \
+      meson \
+      ninja-build \
+      pkgconf \
+      python3 \
+      glib-dev \
+      glib-static \
+      pixman-dev \
+      pixman-static \
+      zlib-static \
+      bzip2-static \
+      perl \
+      git \
+      linux-headers \
+      curl-dev \
+      curl-static \
+      openssl-dev \
+      openssl-libs-static \
+      nghttp2-dev \
+      nghttp2-static \
+      libssh2-dev \
+      libssh2-static \
+      brotli-dev \
+      brotli-static \
+      libidn2-dev \
+      libidn2-static \
+      libpsl-dev \
+      libpsl-static \
+      libunistring-dev \
+      libunistring-static \
+      zstd-dev \
+      zstd-static
+# Version pinnée pour reproductibilité (même logique que IPXE_GIT_COMMIT
+# ci-dessus). À bumper volontairement, pas de dérive automatique.
+ARG QEMU_GIT_TAG=v10.2.4
+RUN git clone --depth 1 --branch "${QEMU_GIT_TAG}" https://github.com/qemu/qemu.git /usr/src/qemu
+WORKDIR /usr/src/qemu
+# --static + --disable-system/--disable-user : on ne veut QUE les outils
+# (qemu-img, qemu-io...), pas les émulateurs. Tout le reste désactivé
+# explicitement plutôt que de compter sur l'absence des libs dev
+# correspondantes dans l'image de build — TLS/PKCS#11 (gnutls/nettle/
+# gcrypt), réseau/affichage/son (curses/vnc/sdl/gtk/opengl/spice/alsa/oss/
+# pa), stockage distant (rbd/glusterfs/libiscsi/libnfs), et le reste des
+# à-côtés non pertinents pour une conversion qcow2->raw locale.
+#
+# --enable-curl (PAS désactivé, contrairement au reste) : pxe-build/init
+# n'utilise PAS le driver curl aujourd'hui (le fallback qcow2 télécharge
+# en local via wget puis convertit, pour garder la vérification sha256
+# active — cf. commentaire dans pxe-build/init) — mais la capacité de
+# streamer un qcow2 directement depuis une URL
+# (`qemu-img convert -f qcow2 -O raw -t none <URL> <device>`, sans copie
+# locale intermédiaire) est réellement buildée et testée statique+curl
+# ci-dessous, prête si un futur profil a besoin de s'affranchir de l'espace
+# tmpfs local (image nettement plus grosse, matériel avec peu de RAM). Le
+# CDN Debian (cdimage.debian.org, via son miroir réel) supporte bien les
+# requêtes HTTP Range nécessaires — vérifié directement (`curl -H "Range:
+# ..."` → `206 Partial Content` correct), donc ce chemin fonctionnerait
+# vraiment le jour où quelqu'un veut l'activer côté pxe-build/init.
+#
+# --enable-tools est nécessaire explicitement : meson.build a
+# `have_tools = get_option('tools').disable_auto_if(not have_system).allowed()`
+# — avec `tools` sur sa valeur par défaut `auto` ET `--disable-system`,
+# have_tools reste faux et qemu-img n'est même pas déclaré comme cible
+# ninja (découvert en testant : `ninja -t targets all` ne le listait pas
+# du tout tant que ce flag manquait).
+RUN ./configure \
+      --static \
+      --disable-system \
+      --disable-user \
+      --disable-bsd-user \
+      --enable-tools \
+      --enable-curl \
+      --disable-guest-agent \
+      --disable-docs \
+      --disable-gnutls \
+      --disable-nettle \
+      --disable-gcrypt \
+      --disable-curses \
+      --disable-vnc \
+      --disable-sdl \
+      --disable-gtk \
+      --disable-opengl \
+      --disable-spice \
+      --disable-usb-redir \
+      --disable-libusb \
+      --disable-brlapi \
+      --disable-vde \
+      --disable-netmap \
+      --disable-pa \
+      --disable-alsa \
+      --disable-oss \
+      --disable-cap-ng \
+      --disable-seccomp \
+      --disable-numa \
+      --disable-rbd \
+      --disable-glusterfs \
+      --disable-libiscsi \
+      --disable-libnfs \
+      --disable-smartcard \
+      --disable-virglrenderer \
+      --disable-capstone \
+      --disable-slirp \
+ && ninja -C build qemu-img
+# Build-testé de bout en bout (docker build --target qemu-img-builder,
+# curl inclus) : lien statique complet réussi une fois zlib-static/
+# bzip2-static/curl-static+sa propre chaîne de deps statiques (openssl/
+# nghttp2/libssh2/brotli/libidn2/libpsl/libunistring/zstd, toutes ci-dessus)
+# ajoutées — le lien échouait sinon sur "-lz"/"libbz2.so non-static"/
+# "-lunistring" un par un au fil des tests. `file build/qemu-img` confirme
+# "static-pie linked". Fonctionnellement vérifié : conversion qcow2->raw
+# locale ET streaming direct via URL HTTP (driver curl, testé contre un
+# vrai serveur HTTP local avec Range requests) donnent tous les deux un
+# résultat identique octet pour octet à la source.
+
 # ---- Stage 2 : image finale --------------------------------------------------
 FROM ${PXE_BASE_IMAGE}
 

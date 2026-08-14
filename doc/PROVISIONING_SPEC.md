@@ -83,9 +83,12 @@ cloud_init_extra:                # raw cloud-init pour cas spéciaux
 | Champ | Type | Obligatoire | Description |
 |---|---|---|---|
 | `image` | string | oui | Identifiant logique (humain) |
-| `url` | string | oui | URL téléchargeable de l'image |
+| `url` | string | oui | URL téléchargeable de l'image — référence canonique, consommée directement par les VMs |
 | `sha256` | string | oui | Hash pour vérification |
 | `format` | string | oui | `qcow2` \| `raw` \| `iso` \| `netinstall` |
+| `raw_zst_url` | string | non | URL d'un raw disk image compressé zstd, dérivé de `url` à l'avance (voir ci-dessous) |
+| `raw_zst_sha256` | string | non | Hash du `raw_zst_url` |
+| `bmap_url` | string | non | URL du `.bmap` (block map, `bmaptool create`) associé au `raw_zst_url` |
 
 `netinstall` signifie : on télécharge un initrd/kernel Debian standard et on lance un preseed.
 
@@ -96,37 +99,69 @@ Un disque cible contient des **octets bruts** ; le `qcow2` est un format de
 écrit. hamac ne fait donc **pas** un `dd` du qcow2 tel quel :
 
 - **`qcow2` = format canonique** d'un profil (source de vérité, aussi consommé
-  tel quel par le chemin VM / `QemuCluster`).
-- Pour l'installation métal, hamac sert **deux artefacts dérivés déterministes**
-  du qcow2 (regénérés au build du profil, pinnés par sha256) : un **`raw.zst`**
-  (`qemu-img convert -O raw` + compression) et son **`.bmap`** (`bmaptool
-  create` — carte des blocs non-vides + sha256 par plage).
-- L'init écrit via **`bmaptool`** (embarqué dans l'initramfs) :
+  tel quel par le chemin VM / `QemuCluster`) — `url`/`sha256`/`format`
+  ci-dessus ne changent pas de sens quand `raw_zst_url`/`bmap_url` sont
+  renseignés.
+- Pour l'installation métal, hamac sert **deux artefacts dérivés
+  déterministes** du qcow2 : un **`raw.zst`** (`qemu-img convert -O raw` +
+  compression zstd) et son **`.bmap`** (`bmaptool create` — carte des blocs
+  non-vides + sha256 par plage). Générés aujourd'hui par
+  `tools/discovery-prototype/pxe-build/prepare-os-assets.sh`, invoqué par la
+  CI (`build:hamac-discovery-image`, gated sur `provisioning-profiles/**`) et
+  baqués dans l'image `hamac-discovery` (`/usr/share/hamac/images`, **hors**
+  du volume Swarm persistant — un chemin dans le volume ne serait jamais
+  ré-écrasé par un nouveau build après le premier déploiement).
+- L'init écrit via **`bmaptool`** (embarqué dans l'initramfs — python3
+  minimal + stdlib, pas de toolchain TLS complète) :
   ```
-  blkdiscard -f <device>
-  bmaptool copy --bmap <URL>/profile.bmap <URL>/profile.raw.zst <device>
+  blkdiscard <device>
+  bmaptool copy <raw_zst_url> <device> --bmap <bmap_url>
   ```
-  bmaptool télécharge (URL native), décompresse à la volée, **n'écrit que les
-  blocs mappés** et **vérifie le sha256 de chaque bloc** contre le `.bmap` — donc
-  écriture minimale *et* intégrité, sans staging.
-- **Fallback** : si seul un `qcow2` est disponible (pas de `raw.zst`/`.bmap`
-  pré-générés), l'init utilise un **`qemu-img` statique** (driver curl embarqué)
-  lisant le qcow2 en HTTP : `qemu-img convert -f qcow2 -O raw -t none <URL> <dev>`.
-  ⚠️ **intégrité affaiblie** : pas de vérif par-bloc — repli sur le sha256
-  end-to-end (`os_image_sha256`) + TLS. Pour éviter d'y rester, **discovery
-  génère `raw.zst`+`.bmap` paresseusement à la première demande** d'un profil
-  (mis en cache), promouvant le fallback en chemin rapide+vérifié.
-- `format: raw` fourni directement par l'ops est traité de la même façon
-  (idéalement pré-compressé + `.bmap` côté serveur).
-
-Dans tous les cas :
-- le **`.bmap` est la racine de confiance** (il porte les sha256 des blocs) →
-  le pinner/signer ; `blkdiscard` préalable pour que les zones non mappées
-  relisent zéro (ré-provisioning) ;
-- **resize au premier boot délégué à cloud-init** (`growpart` +
-  `resize_rootfs`, activés par défaut sur les cloud images) : relocalise le GPT,
-  étend la dernière partition et grossit le FS pour remplir un disque de taille
-  quelconque — **pas d'outil de resize dans l'initramfs**.
+  **Confirmé réellement** (pas juste documenté) : `bmaptool copy` accepte des
+  URLs HTTP directement pour l'image *et* le `.bmap` — pas de téléchargement
+  local préalable côté `pxe-build/init`. Il télécharge, décompresse à la
+  volée, **n'écrit que les blocs mappés** et **vérifie le sha256 de chaque
+  bloc** contre le `.bmap` — écriture minimale *et* intégrité forte, sans
+  staging local. C'est strictement plus robuste qu'un sha256 global sur un
+  fichier téléchargé nous-mêmes d'abord (`raw_zst_sha256`, ci-dessus, reste
+  dans le schéma pour audit/outillage externe mais n'est plus le mécanisme
+  de vérification actif de ce chemin).
+- **Fallback** (si `raw_zst_url`/`bmap_url` sont absents, ou si l'initrd
+  déployée ne connaît pas encore `bmaptool` — rollout) : `pxe-build/init`
+  retombe silencieusement sur `url`/`format`/`sha256` — téléchargement local
+  (`wget`) puis `qemu-img convert -O raw` (buildé statiquement from-source,
+  pas le paquet apt : `qemu-utils` forcerait une vingtaine de paquets de
+  dépendances transitives, TLS/PKCS#11 pour l'essentiel, hors de propos pour
+  une conversion locale). Ce fallback **vérifie activement le sha256**
+  (`os_image_sha256`) du fichier téléchargé avant écriture.
+  - Le driver **curl** de qemu-img (streaming direct `qemu-img convert -f
+    qcow2 -O raw -t none <URL> <device>`, sans copie locale intermédiaire)
+    est buildé et fonctionnellement vérifié dans le binaire statique — le
+    CDN Debian répond correctement aux requêtes HTTP Range nécessaires —
+    mais **n'est pas utilisé aujourd'hui** : le qcow2 de référence (~330 Mo)
+    tient sans souci dans le tmpfs de cette initrd, et le téléchargement
+    local préserve la vérification sha256 active plutôt que de ne compter
+    que sur TLS. À activer côté `pxe-build/init` si un futur profil sert une
+    image sensiblement plus grosse ou vise du matériel avec peu de RAM.
+  - `format: raw` fourni directement par l'ops (sans `raw_zst_url`/`bmap_url`)
+    suit le même chemin, sans conversion (juste `dd`).
+- **Connu manquant (pas encore implémenté)** : la génération *paresseuse* de
+  `raw.zst`+`.bmap` par discovery à la première demande d'un profil qui n'en
+  a pas encore (auto-promotion du fallback vers le chemin rapide+vérifié,
+  sans dépendre d'une étape CI par profil). Aujourd'hui, un profil sans
+  `raw_zst_url`/`bmap_url` renseignés reste **indéfiniment** sur le chemin
+  qemu-img — pas d'auto-guérison. Suivi comme amélioration future, pas
+  bloquant : le fallback fonctionne, juste sans le raccourci bmaptool.
+- `blkdiscard` préalable (sans `-f` — pas d'option de ce nom dans la version
+  busybox embarquée ; le binaire pris tel quel dans l'initrd netboot Debian
+  officiel s'en sort très bien sans) pour que les zones non mappées relisent
+  zéro en cas de ré-provisioning.
+- **Resize au premier boot délégué à cloud-init** (`growpart` +
+  `resize_rootfs`, activés par défaut sur les images cloud Debian, non
+  désactivés par nos templates `templates/bundles/*/cloud-init*.yaml.j2`) :
+  relocalise le GPT, étend la dernière partition et grossit le FS pour
+  remplir un disque de taille quelconque — **pas d'outil de resize dans
+  l'initramfs**.
 
 ## 4. Bundles
 
@@ -281,9 +316,14 @@ Format `POST /provisioning/<mac>` :
   "ipxe_script": "#!ipxe\n...",
   "os_image_url": "https://...",
   "os_image_sha256": "...",
-  "os_format": "qcow2"
+  "os_format": "qcow2",
+  "os_raw_zst_url": "",
+  "os_raw_zst_sha256": "",
+  "os_bmap_url": ""
 }
 ```
+
+`os_raw_zst_url`/`os_raw_zst_sha256`/`os_bmap_url` sont vides quand le profil source n'a pas de `raw_zst_url`/`bmap_url` (§3.1) — chaîne vide, pas de champ absent, pour un parsing côté init plus simple.
 
 Format `GET /provisioning/<mac>` : renvoie le même JSON, plus un champ `created_at` (timestamp Unix).
 
@@ -300,13 +340,18 @@ Format `GET /provisioning/<mac>` : renvoie le même JSON, plus un champ `created
    - POST sur `/provisioning/<mac>` du discovery server
 3. La machine boote en PXE → init script :
    - Detect MAC locale
-   - GET `/provisioning/<mac>` → reçoit cloud-init + URL OS
-   - Télécharge l'image OS, vérifie sha256
+   - GET `/provisioning/<mac>` → reçoit cloud-init + URL OS (+ éventuellement
+     `os_raw_zst_url`/`os_bmap_url`, cf. §7.2)
    - Installe selon `format` (cf. §3.1) :
-     - `qcow2` / `raw` → écrit l'image bloc sur le disque : `blkdiscard` puis
-       `bmaptool copy` du `raw.zst`+`.bmap` dérivés (écriture mappée + vérifiée),
-       ou fallback `qemu-img convert` depuis le qcow2. Le resize de la partition
-       est délégué à cloud-init au premier boot (`growpart` + `resize_rootfs`).
+     - `qcow2` / `raw` → écrit l'image bloc sur le disque : `blkdiscard` puis,
+       si `os_raw_zst_url`/`os_bmap_url` présents et `bmaptool` disponible
+       dans l'initrd, `bmaptool copy` **directement depuis ces URLs**
+       (streaming, décompression à la volée, vérification sha256 par bloc —
+       pas de téléchargement local préalable) ; sinon fallback sur le chemin
+       qcow2 historique : téléchargement local puis vérification sha256
+       (`os_image_sha256`) puis `qemu-img convert` (ou `dd` direct si
+       `format: raw`). Le resize de la partition est délégué à cloud-init au
+       premier boot (`growpart` + `resize_rootfs`).
      - `netinstall` → preseed Debian ; `debootstrap` → bootstrap direct
    - Chroote, applique cloud-init dans le système installé
    - Lance les `post-install/*.sh`

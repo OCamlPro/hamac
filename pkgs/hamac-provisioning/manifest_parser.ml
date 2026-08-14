@@ -494,7 +494,22 @@ let parse_os_image_spec path (v : Yaml.value) : os_image_spec result =
     | Ok None -> Ok "debian"   (* défaut : famille apt (debian/ubuntu) *)
     | Error e -> Error e
   in
-  Ok { os_image_name; os_url; os_sha256; os_format; os_family }
+  (* Assets dérivés pour install physique (bmaptool) — optionnels, vides si
+     absents. Le qcow2 ci-dessus reste la référence. *)
+  let* os_raw_zst_url = match opt_string "raw_zst_url" fields with
+    | Ok v -> Ok (Option.value v ~default:"")
+    | Error e -> Error e
+  in
+  let* os_raw_zst_sha256 = match opt_string "raw_zst_sha256" fields with
+    | Ok v -> Ok (Option.value v ~default:"")
+    | Error e -> Error e
+  in
+  let* os_bmap_url = match opt_string "bmap_url" fields with
+    | Ok v -> Ok (Option.value v ~default:"")
+    | Error e -> Error e
+  in
+  Ok { os_image_name; os_url; os_sha256; os_format; os_family;
+       os_raw_zst_url; os_raw_zst_sha256; os_bmap_url }
 
 (** Parse un bundle_ref : name + params (params bruts, transmis tels quels
     au générateur Jinja2). *)

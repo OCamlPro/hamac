@@ -201,6 +201,13 @@ type os_image_spec = {
   os_format: string;        (** qcow2 | raw | iso | netinstall *)
   os_family: string;        (** debian | ubuntu | fedora | ... — sélectionne
                                 la variante de template cloud-init du bundle *)
+  os_raw_zst_url: string;    (** URL du raw.zst dérivé pour install physique
+                                  (bmaptool copy), vide si absent — le qcow2
+                                  ci-dessus reste la référence, consommée
+                                  directement par les VMs. Cf. §3.1 de
+                                  PROVISIONING_SPEC.md. *)
+  os_raw_zst_sha256: string; (** Hash du raw.zst, vide si os_raw_zst_url l'est *)
+  os_bmap_url: string;       (** URL du .bmap associé, vide si absent *)
 } [@@deriving show]
 
 (** Référence à un bundle depuis un provisioning_profile, avec les valeurs

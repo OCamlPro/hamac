@@ -36,6 +36,15 @@ COPY discovery_server.exe /usr/local/bin/hamac-discovery
 COPY bundles  /usr/share/hamac/bundles
 COPY profiles /usr/share/hamac/profiles
 
+# Images OS dérivées (raw.zst + .bmap, cf. doc/PROVISIONING_SPEC.md §3.1 et
+# tools/discovery-prototype/pxe-build/prepare-os-assets.sh) : générées et
+# copiées par la CI (build:hamac-discovery-image), PAS dans
+# /var/lib/hamac-discovery/images (le défaut du code, `images_dir`/
+# IMAGES_DIR) — ce chemin est DANS le volume Swarm persistant, donc un
+# nouveau build ne l'y écraserait jamais après le premier déploiement. Même
+# logique que bundles/profiles ci-dessus : built-in, hors du state.
+COPY images /usr/share/hamac/images
+
 # State directory persisté via volume Swarm
 RUN mkdir -p /var/lib/hamac-discovery/provisioning \
  && chown -R hamac:hamac /var/lib/hamac-discovery
@@ -44,6 +53,7 @@ VOLUME ["/var/lib/hamac-discovery"]
 ENV HAMAC_DISCOVERY_STATE=/var/lib/hamac-discovery \
     HAMAC_BUNDLES_DIR=/usr/share/hamac/bundles \
     HAMAC_PROFILES_DIR=/usr/share/hamac/profiles \
+    IMAGES_DIR=/usr/share/hamac/images \
     PORT=8877
 
 USER hamac

@@ -65,6 +65,9 @@ type provisioning_record = {
   pr_os_image_url: string;
   pr_os_image_sha256: string;
   pr_os_format: string;
+  pr_os_raw_zst_url: string;      (* "" si absent, cf. PROVISIONING_SPEC.md §3.1 *)
+  pr_os_raw_zst_sha256: string;
+  pr_os_bmap_url: string;
   pr_created_at: float;
 }
 
@@ -1296,7 +1299,9 @@ let handle_list_images () =
       |> List.filter (fun f ->
           Filename.check_suffix f ".img" ||
           Filename.check_suffix f ".img.gz" ||
-          Filename.check_suffix f ".qcow2")
+          Filename.check_suffix f ".qcow2" ||
+          Filename.check_suffix f ".zst" ||
+          Filename.check_suffix f ".bmap")
       |> List.map (fun name ->
           let path = Filename.concat dir name in
           let stats = Unix.stat path in
@@ -1379,6 +1384,9 @@ let provisioning_record_to_json (r : provisioning_record) : Yojson.Safe.t =
     "os_image_url", `String r.pr_os_image_url;
     "os_image_sha256", `String r.pr_os_image_sha256;
     "os_format", `String r.pr_os_format;
+    "os_raw_zst_url", `String r.pr_os_raw_zst_url;
+    "os_raw_zst_sha256", `String r.pr_os_raw_zst_sha256;
+    "os_bmap_url", `String r.pr_os_bmap_url;
     "created_at", `Float r.pr_created_at;
   ]
 
@@ -1420,12 +1428,22 @@ let provisioning_record_of_json (j : Yojson.Safe.t)
                match get_str_or_default "os_format" "" with
                | Error e -> Error e
                | Ok pr_os_format ->
-                 match get_float "created_at" with
+                 match get_str_or_default "os_raw_zst_url" "" with
                  | Error e -> Error e
-                 | Ok pr_created_at ->
-                   Ok { pr_profile_name; pr_cloud_init; pr_ipxe_script;
-                        pr_os_image_url; pr_os_image_sha256; pr_os_format;
-                        pr_created_at })
+                 | Ok pr_os_raw_zst_url ->
+                   match get_str_or_default "os_raw_zst_sha256" "" with
+                   | Error e -> Error e
+                   | Ok pr_os_raw_zst_sha256 ->
+                     match get_str_or_default "os_bmap_url" "" with
+                     | Error e -> Error e
+                     | Ok pr_os_bmap_url ->
+                       match get_float "created_at" with
+                       | Error e -> Error e
+                       | Ok pr_created_at ->
+                         Ok { pr_profile_name; pr_cloud_init; pr_ipxe_script;
+                              pr_os_image_url; pr_os_image_sha256; pr_os_format;
+                              pr_os_raw_zst_url; pr_os_raw_zst_sha256; pr_os_bmap_url;
+                              pr_created_at })
   | _ -> Error "expected a JSON object"
 
 (** Persiste un record sur disque dans state_dir/provisioning/<mac>.json *)
@@ -1866,6 +1884,9 @@ let render_and_store_machine (m : machine) : (unit, string) Stdlib.result =
         pr_os_image_url = r.Hamac_provisioning.Provisioning_gen.os_image_url;
         pr_os_image_sha256 = r.Hamac_provisioning.Provisioning_gen.os_image_sha256;
         pr_os_format = r.Hamac_provisioning.Provisioning_gen.os_format;
+        pr_os_raw_zst_url = r.Hamac_provisioning.Provisioning_gen.os_raw_zst_url;
+        pr_os_raw_zst_sha256 = r.Hamac_provisioning.Provisioning_gen.os_raw_zst_sha256;
+        pr_os_bmap_url = r.Hamac_provisioning.Provisioning_gen.os_bmap_url;
         pr_created_at = Unix.gettimeofday ();
       } in
       Hashtbl.replace provisioning m.mc_mac record;
