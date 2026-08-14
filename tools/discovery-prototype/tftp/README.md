@@ -45,7 +45,13 @@ zcat /path/to/initrd.gz | cpio -idmv
 # "Kernel panic - not syncing: Attempted to kill init!". Confirmed and
 # fixed via local QEMU testing before this went anywhere near production —
 # see HAMAC_PXE_FREEZE_INVESTIGATION.md.)
-wget -O /tmp/busybox-static.deb "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.38.0-1_amd64.deb"
+#
+# snapshot.debian.org, not deb.debian.org/.../pool/... : a pool/ URL pinned
+# to an exact version still 404s once Debian rebuilds that same version
+# (binNMU, `+bN`) and drops the old file from the pool — hit this for real
+# in CI. snapshot.debian.org serves a file by its permanent hash instead
+# (see .gitlab-ci.yml BUSYBOX_STATIC_URL comment for how to look one up).
+wget -O /tmp/busybox-static.deb "https://snapshot.debian.org/file/7c87a0b1d84991b9ebe331f38ddddaaae22fe145"
 dpkg-deb -x /tmp/busybox-static.deb /tmp/busybox-extract
 cp /tmp/busybox-extract/usr/bin/busybox bin/busybox
 chmod +x bin/busybox
@@ -74,16 +80,20 @@ cp "${SRC}/common/nvme-auth.ko.xz" "lib/modules/${KVER}/kernel/drivers/nvme/comm
 # e.g. libpython3.13-stdlib also depends on libsqlite3/libncursesw/
 # libreadline/libdb for dbm/curses/readline/sqlite3, none of which
 # bmaptool ever imports, so none of those are actually needed here).
+# All snapshot.debian.org, not deb.debian.org/.../pool/... — see the
+# busybox-static note above and .gitlab-ci.yml's LIBLZ4_URL comment for why
+# (pool/ URLs pinned to an exact version still rot; snapshot's per-hash
+# URLs don't).
 mkdir -p /tmp/bmap-extract
 for pair in \
-  "liblz4:https://deb.debian.org/debian/pool/main/l/lz4/liblz4-1_1.10.0-4_amd64.deb" \
-  "zstd:https://deb.debian.org/debian/pool/main/libz/libzstd/zstd_1.5.7+dfsg-1_amd64.deb" \
-  "libzstd1:https://deb.debian.org/debian/pool/main/libz/libzstd/libzstd1_1.5.7+dfsg-1_amd64.deb" \
-  "libssl3:https://deb.debian.org/debian/pool/main/o/openssl/libssl3t64_3.5.6-1~deb13u2_amd64.deb" \
-  "python3-minimal:https://deb.debian.org/debian/pool/main/p/python3.13/python3.13-minimal_3.13.5-2+deb13u3_amd64.deb" \
-  "libpython3-minimal:https://deb.debian.org/debian/pool/main/p/python3.13/libpython3.13-minimal_3.13.5-2+deb13u3_amd64.deb" \
-  "libpython3-stdlib:https://deb.debian.org/debian/pool/main/p/python3.13/libpython3.13-stdlib_3.13.5-2+deb13u3_amd64.deb" \
-  "bmaptool:https://deb.debian.org/debian/pool/main/b/bmap-tools/bmaptool_3.9.0-3_all.deb" \
+  "liblz4:https://snapshot.debian.org/file/366df9ca4cd9a1009c147a612e6526be145a4732" \
+  "zstd:https://snapshot.debian.org/file/68018e28d4afac4567e7ef0b4b86aa8cd888734d" \
+  "libzstd1:https://snapshot.debian.org/file/96dbb7ea8dced3367f661f31964693f4919c0f9a" \
+  "libssl3:https://snapshot.debian.org/file/fa81f709727b16de2a82710bbe0556b58f2b3f50" \
+  "python3-minimal:https://snapshot.debian.org/file/9359a1cdee9b7f7b3ffc3615522388e26f64dcbe" \
+  "libpython3-minimal:https://snapshot.debian.org/file/6e6e21c2113c1eac1ac300715d71e32e98d09e85" \
+  "libpython3-stdlib:https://snapshot.debian.org/file/a1aaebe2d285ecf60729b8444ee5dff26b3fa15c" \
+  "bmaptool:https://snapshot.debian.org/file/82685902e669b19c3853e42be863fd94dc1ccf78" \
 ; do
   name="${pair%%:*}"
   url="${pair#*:}"
