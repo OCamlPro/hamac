@@ -45,7 +45,7 @@ zcat /path/to/initrd.gz | cpio -idmv
 # "Kernel panic - not syncing: Attempted to kill init!". Confirmed and
 # fixed via local QEMU testing before this went anywhere near production —
 # see HAMAC_PXE_FREEZE_INVESTIGATION.md.)
-wget -O /tmp/busybox-static.deb "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.38.0-1_amd64.deb"
+wget -O /tmp/busybox-static.deb "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.37.0-6+b8_amd64.deb"
 dpkg-deb -x /tmp/busybox-static.deb /tmp/busybox-extract
 cp /tmp/busybox-extract/usr/bin/busybox bin/busybox
 chmod +x bin/busybox
