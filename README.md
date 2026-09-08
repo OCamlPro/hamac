@@ -61,6 +61,19 @@ discovery server (keyed by MAC), and the OS image is written to disk. See
 - [`doc/HAMAC_ROADMAP.md`](doc/HAMAC_ROADMAP.md) — milestones.
 - [`doc/PROVISIONING_SPEC.md`](doc/PROVISIONING_SPEC.md) — provisioning profile & disk-write spec.
 
-## License
+## Licensing
 
-GNU Affero General Public License v3.0 — see [`LICENSE`](LICENSE).
+hamac is **dual-licensed** by OCamlPro:
+
+- **Open source** — [GNU AGPL-3.0](LICENSE). Free to use, modify and
+  redistribute under the AGPL's terms, **including its network-copyleft**: if
+  you run a modified version as a network service, you must offer its users the
+  complete corresponding source.
+- **Commercial** — for organizations that cannot or do not wish to comply with
+  the AGPL (e.g. embedding hamac in a proprietary product or a closed-source
+  SaaS), a commercial license is available from OCamlPro.
+
+See [`LICENSING.md`](LICENSING.md) for details. Contributions require a signed
+CLA so they can be offered under both licenses — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Commercial licensing & questions: **contact@ocamlpro.com**.
