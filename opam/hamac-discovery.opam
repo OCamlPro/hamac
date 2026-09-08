@@ -28,7 +28,3 @@ build: [
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
 
-pin-depends: [
-  [ "ocamlpro-cli.dev" "git://git@gitlab.ocamlpro.com:OCamlPro/ocamlpro-stdlib"]
-  [ "ocamlpro-codec.dev" "git://git@gitlab.ocamlpro.com:OCamlPro/ocamlpro-stdlib"]
-]

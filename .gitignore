@@ -1,0 +1,11 @@
+# Build
+_build/
+*.install
+*.merlin
+.merlin
+
+# Artefacts de build des images PXE (copiés depuis tools/ par build.sh)
+/docker/hamac-pxe/*/tftp/
+/docker/hamac-discovery/discovery_server.exe
+/docker/hamac-discovery/bundles/
+/docker/hamac-discovery/profiles/

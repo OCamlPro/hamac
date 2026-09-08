@@ -1,0 +1,48 @@
+build_info:
+
+dune:
+  name: hamac
+  packages:
+    - name: hamac-provisioning
+      kind: library
+      depends:
+        - name: yaml
+        - name: fpath
+        - name: bos
+        - name: jingoo
+      ppx:
+        - name: ppx_deriving
+          modules: [ppx_deriving.std]
+
+    - name: hamac
+      kind: executable
+      depends:
+        - name: hamac-provisioning
+        - name: yaml
+        - name: fpath
+        - name: bos
+        - name: logs
+          modules: [logs.fmt]
+        - name: cmdliner
+        - name: jingoo
+        - name: cohttp-lwt-unix
+        - name: lwt
+        - name: yojson
+      ppx:
+        - name: ppx_deriving
+          modules: [ppx_deriving.std]
+      target: bytecode
+
+    - name: hamac-discovery
+      kind: executable
+      depends:
+        - name: hamac-provisioning
+        - name: cohttp-lwt-unix
+        - name: lwt
+          modules: [lwt.unix]
+        - name: yojson
+        # `unix` n'est PAS listé : ce n'est pas un package opam (lib findlib
+        # du compilateur). Il est tiré transitivement par lwt.unix /
+        # cohttp-lwt-unix et résolu par dune via findlib.
+      # native : l'image Docker n'embarque pas de runtime OCaml
+      target: native
