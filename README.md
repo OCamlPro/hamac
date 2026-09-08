@@ -1,5 +1,7 @@
 # hamac
 
+*Zero-touch infrastructure orchestration: turn declarative service manifests into resolved, deployed infrastructure — with security zones inferred from your data, not bolted on.*
+
 **hamac** is an infrastructure orchestrator for **SIESTE** manifests. It reads
 declarative `.sieste.yml` manifests describing services and infrastructure,
 resolves their dependencies to concrete providers, and provisions/deploys them —
