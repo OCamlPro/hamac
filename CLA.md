@@ -1,43 +1,121 @@
-# Contributor License Agreement (CLA)
+OCamlPro Individual Contributor License Agreement
+=================================================
 
-> **DRAFT — pending review by OCamlPro's legal counsel.** This is a working
-> scaffold to make the dual-licensing model explicit, **not** a finalized legal
-> agreement. Do not rely on it as-is. A legally-reviewed basis such as the
-> [Harmony Agreements](https://www.harmonyagreements.org/) (CLA) or the Apache
-> Individual CLA is recommended before adoption.
+In order to clarify the intellectual property license granted with
+Contributions from any person or entity, OCamlPro SAS ("OCamlPro") must
+have a Contributor License Agreement ("CLA") on file that has been
+signed by each Contributor, indicating agreement to the license terms
+below. This license is for your protection as a Contributor as well as
+the protection of OCamlPro; it does not change your rights to use your
+own Contributions for any other purpose.
 
-This Agreement applies to any Contribution you make to **hamac** ("the Project"),
-whose copyright holder is **OCamlPro** ("OCamlPro"). By contributing, you agree:
+You accept and agree to the following terms and conditions for Your
+present and future Contributions submitted to OCamlPro. Except for the
+license granted herein to OCamlPro and recipients of software
+distributed by OCamlPro, You reserve all right, title, and interest in
+and to Your Contributions.
 
-## 1. Definitions
-"Contribution" means any original work of authorship (code, documentation, etc.)
-that you intentionally submit to the Project.
+1. Definitions.
 
-## 2. Copyright license
-You grant OCamlPro a perpetual, worldwide, non-exclusive, royalty-free,
-irrevocable copyright license to reproduce, prepare derivative works of,
-publicly display, **sublicense**, and distribute your Contribution and
-derivative works — **including the right to distribute your Contribution under
-the GNU AGPL-3.0 and under a commercial license**.
+"You" (or "Your") shall mean the copyright owner or legal entity
+authorized by the copyright owner that is making this Agreement with
+OCamlPro. For legal entities, the entity making a Contribution and all
+other entities that control, are controlled by, or are under common
+control with that entity are considered to be a single
+Contributor. For the purposes of this definition, "control" means (i)
+the power, direct or indirect, to cause the direction or management of
+such entity, whether by contract or otherwise, or (ii) ownership of
+fifty percent (50%) or more of the outstanding shares, or (iii)
+beneficial ownership of such entity.
 
-## 3. Patent license
-You grant OCamlPro a perpetual, worldwide, non-exclusive, royalty-free,
-irrevocable patent license to make, use, sell and otherwise transfer your
-Contribution, for patent claims you can license that are infringed by your
-Contribution alone or in combination with the Project.
+"Contribution" shall mean any original work of authorship, including
+any modifications or additions to an existing work, that is
+intentionally submitted by You to OCamlPro for inclusion in, or
+documentation of, any of the products owned or managed by OCamlPro
+(the "Work"). For the purposes of this definition, "submitted" means
+any form of electronic, verbal, or written communication sent to
+OCamlPro or its representatives, including but not limited to
+communication on electronic mailing lists, source code control
+systems, and issue tracking systems that are managed by, or on behalf
+of, OCamlPro for the purpose of discussing and improving the Work, but
+excluding communication that is conspicuously marked or otherwise
+designated in writing by You as "Not a Contribution."
 
-## 4. Your representations
-- The Contribution is your original creation, or you have the right to submit it.
-- If your employer has rights to work you create, you have permission to make the
-  Contribution, or your employer has waived such rights for the Project.
-- The Contribution does not, to your knowledge, violate any third party's rights.
+2. Grant of Copyright License. 
 
-## 5. No obligation
-OCamlPro is not obligated to use your Contribution.
+Subject to the terms and conditions of this Agreement, You hereby
+grant to OCamlPro and to recipients of software distributed by
+OCamlPro a perpetual, worldwide, non-exclusive, no-charge,
+royalty-free, irrevocable copyright license to reproduce, prepare
+derivative works of, publicly display, publicly perform, sublicense,
+and distribute Your Contributions and such derivative works.
 
-## 6. Retained rights
-This is a **license, not an assignment**: you retain all rights in your
-Contribution not expressly granted here.
+3. Grant of Patent License. 
 
----
-Signed: __________________________   Name: ______________   Date: ____________
+Subject to the terms and conditions of this Agreement, You hereby
+grant to OCamlPro and to recipients of software distributed by
+OCamlPro a perpetual, worldwide, non-exclusive, no-charge,
+royalty-free, irrevocable (except as stated in this section) patent
+license to make, have made, use, offer to sell, sell, import, and
+otherwise transfer the Work, where such license applies only to those
+patent claims licensable by You that are necessarily infringed by Your
+Contribution(s) alone or by combination of Your Contribution(s) with
+the Work to which such Contribution(s) was submitted. If any entity
+institutes patent litigation against You or any other entity
+(including a cross-claim or counterclaim in a lawsuit) alleging that
+your Contribution, or the Work to which you have contributed,
+constitutes direct or contributory patent infringement, then any
+patent licenses granted to that entity under this Agreement for that
+Contribution or Work shall terminate as of the date such litigation is
+filed.
+
+4. You represent that you are legally entitled to grant the above
+license. If your employer(s) has rights to intellectual property that
+you create that includes your Contributions, you represent that you
+have received permission to make Contributions on behalf of that
+employer, that your employer has waived such rights for your
+Contributions to OCamlPro, or that your employer has executed a
+separate Corporate CLA with OCamlPro.
+
+5. You represent that each of Your Contributions is Your original
+creation (see section 7 for submissions on behalf of others). You
+represent that Your Contribution submissions include complete details
+of any third-party license or other restriction (including, but not
+limited to, related patents and trademarks) of which you are
+personally aware and which are associated with any part of Your
+Contributions.
+
+6. You are not expected to provide support for Your Contributions,
+except to the extent You desire to provide support. You may provide
+support for free, for a fee, or not at all. Unless required by
+applicable law or agreed to in writing, You provide Your Contributions
+on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied, including, without limitation, any
+warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY,
+or FITNESS FOR A PARTICULAR PURPOSE.
+
+7. Should You wish to submit work that is not Your original creation,
+You may submit it to OCamlPro separately from any Contribution,
+identifying the complete details of its source and of any license or
+other restriction (including, but not limited to, related patents,
+trademarks, and license agreements) of which you are personally aware,
+and conspicuously marking the work as "Submitted on behalf of a
+third-party: [[]named here]".
+
+8. You agree to notify OCamlPro of any facts or circumstances of which
+you become aware that would make these representations inaccurate in
+any respect.
+
+--------------------------------------------------------------------------
+
+Please sign to indicate Your agreement:
+
+  Full name:                _______________________________________
+
+  Signature:                _______________________________________
+
+  Date:                     _______________________________________
+
+  E-mail:                   _______________________________________
+
+  Forgejo / GitHub username: ______________________________________

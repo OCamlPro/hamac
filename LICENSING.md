@@ -25,7 +25,7 @@ To obtain one, contact **contact@ocamlpro.com**.
 ## 3. Copyright & contributions
 
 OCamlPro is the copyright holder of hamac. To keep dual-licensing viable,
-**external contributions require a signed Contributor License Agreement (CLA)**
+**external contributions require a signed **OCamlPro Individual Contributor License Agreement** (CLA)**
 granting OCamlPro the right to distribute the contribution under **both** the
 AGPL and the commercial license. See [`CONTRIBUTING.md`](CONTRIBUTING.md) and
 [`CLA.md`](CLA.md).
