@@ -21,6 +21,7 @@
   ;; The executable's dependencies
   (libraries
     bos
+    cmdliner
     cohttp-lwt-unix
     fmt
     fpath
@@ -28,8 +29,6 @@
     jingoo
     logs.fmt
     lwt
-    ocamlpro-cli
-    ocamlpro-codec
     yaml
     yojson
     build_info)

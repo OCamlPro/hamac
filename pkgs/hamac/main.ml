@@ -1,6 +1,3 @@
-open Ocamlpro_cli
-open Ocamlpro_codec
-
 (* ============================================================ *)
 (* State                                                         *)
 (* ============================================================ *)
@@ -303,164 +300,121 @@ let run_provision_clear () =
     exit 1
 
 (* ============================================================ *)
-(* CLI Arguments                                                 *)
+(* CLI (cmdliner)                                               *)
 (* ============================================================ *)
 
-let file_arg = Cli.Argument.(remaining
-  ~docv:"FILES"
-  ~doc:"Manifest files (.sieste.yml)"
-  Codec.string_codec
-  (fun l -> manifest_files := l)
-)
+open Cmdliner
 
-let debug = Cli.Argument.(flag
-  ~doc:"Enable debug mode."
-  ["d"; "debug"]
-  (fun b ->
-    if b then Logs.set_level (Some Logs.Debug))
-)
+let set_debug d = if d then Logs.set_level (Some Logs.Debug)
 
-(* ============================================================ *)
-(* Commands                                                      *)
-(* ============================================================ *)
+(* ---- Arguments partagés ---- *)
 
+let files_arg =
+  let doc = "Manifest files (.sieste.yml)." in
+  Arg.(value & pos_all string [] & info [] ~docv:"FILES" ~doc)
+
+let debug_arg =
+  let doc = "Enable debug mode." in
+  Arg.(value & flag & info ["d"; "debug"] ~doc)
+
+let bundles_dir_arg =
+  let doc =
+    "Extra directory to search for bundles (prepended to default search path)."
+  in
+  Arg.(value & opt string "" & info ["bundles-dir"] ~docv:"DIR" ~doc)
+
+let profile_arg =
+  let doc = "Provisioning profile manifest (.yaml). Required." in
+  Arg.(value & opt string "" & info ["profile"] ~docv:"FILE" ~doc)
+
+let mac_arg =
+  let doc = "Target MAC address (lowercased automatically). Required." in
+  Arg.(value & opt string "" & info ["mac"] ~docv:"MAC" ~doc)
+
+let discovery_arg =
+  let doc = "Discovery server base URL (no trailing slash)." in
+  Arg.(value & opt string "http://localhost:8877" & info ["discovery"] ~docv:"URL" ~doc)
+
+(* ---- Termes / commandes ---- *)
+
+(* Commandes qui consomment les fichiers positionnels + debug. *)
+let files_term run =
+  let go files debug = manifest_files := files; set_debug debug; run () in
+  Term.(const go $ files_arg $ debug_arg)
+
+let validate_term = files_term run_validate
 let validate_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Validate manifest files."
-    "validate"
-    run_validate in
-  Cli.Command.add_argument cmd file_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
-
+  Cmd.v (Cmd.info "validate" ~doc:"Validate manifest files.") validate_term
 let plan_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Plan infrastructure from service manifests."
-    "plan"
-    run_plan in
-  Cli.Command.add_argument cmd file_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
-
+  Cmd.v (Cmd.info "plan" ~doc:"Plan infrastructure from service manifests.")
+    (files_term run_plan)
 let resolve_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Resolve service dependencies to concrete providers."
-    "resolve"
-    run_resolve in
-  Cli.Command.add_argument cmd file_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
-
+  Cmd.v (Cmd.info "resolve"
+           ~doc:"Resolve service dependencies to concrete providers.")
+    (files_term run_resolve)
 let simulate_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Simulate infrastructure with DinD nodes and zone isolation."
-    "simulate"
-    run_simulate in
-  Cli.Command.add_argument cmd file_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
-
+  Cmd.v (Cmd.info "simulate"
+           ~doc:"Simulate infrastructure with DinD nodes and zone isolation.")
+    (files_term run_simulate)
 let deploy_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Generate flat docker-compose.yml from resolved stack."
-    "deploy"
-    run_deploy in
-  Cli.Command.add_argument cmd file_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
+  Cmd.v (Cmd.info "deploy"
+           ~doc:"Generate flat docker-compose.yml from resolved stack.")
+    (files_term run_deploy)
 
 let status_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Show stack status."
-    "status"
-    run_status in
-  Cli.Command.add_argument cmd debug;
-  cmd
-
-let provision_bundles_dir_arg = Cli.Argument.optional
-  ~docv:"DIR"
-  ~doc:"Extra directory to search for bundles (prepended to default search path)."
-  ["bundles-dir"]
-  Codec.string_codec
-  ~default:""
-  (fun s -> provision_bundles_dir := s)
-
-let provision_profile_file_arg = Cli.Argument.optional
-  ~docv:"FILE"
-  ~doc:"Provisioning profile manifest (.yaml). Required."
-  ["profile"]
-  Codec.string_codec
-  ~default:""
-  (fun s -> if s <> "" then manifest_files := [s])
+  let go debug = set_debug debug; run_status () in
+  Cmd.v (Cmd.info "status" ~doc:"Show stack status.")
+    Term.(const go $ debug_arg)
 
 let provision_dryrun_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Render cloud-init + iPXE for a provisioning_profile without pushing it."
-    "provision-dryrun"
-    run_provision_dryrun in
-  Cli.Command.add_argument cmd provision_profile_file_arg;
-  Cli.Command.add_argument cmd provision_bundles_dir_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
-
-let provision_mac_arg = Cli.Argument.optional
-  ~docv:"MAC"
-  ~doc:"Target MAC address (lowercased automatically). Required."
-  ["mac"]
-  Codec.string_codec
-  ~default:""
-  (fun s -> provision_mac := s)
-
-let provision_discovery_url_arg = Cli.Argument.optional
-  ~docv:"URL"
-  ~doc:"Discovery server base URL (no trailing slash)."
-  ["discovery"]
-  Codec.string_codec
-  ~default:"http://localhost:8877"
-  (fun s -> provision_discovery_url := s)
+  let go profile bundles_dir debug =
+    set_debug debug;
+    if profile <> "" then manifest_files := [profile];
+    provision_bundles_dir := bundles_dir;
+    run_provision_dryrun ()
+  in
+  Cmd.v (Cmd.info "provision-dryrun"
+           ~doc:"Render cloud-init + iPXE for a provisioning_profile without pushing it.")
+    Term.(const go $ profile_arg $ bundles_dir_arg $ debug_arg)
 
 let provision_push_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Render and push a provisioning_profile to the discovery server for a MAC."
-    "provision-push"
-    run_provision_push in
-  Cli.Command.add_argument cmd provision_profile_file_arg;
-  Cli.Command.add_argument cmd provision_bundles_dir_arg;
-  Cli.Command.add_argument cmd provision_mac_arg;
-  Cli.Command.add_argument cmd provision_discovery_url_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
+  let go profile bundles_dir mac discovery debug =
+    set_debug debug;
+    if profile <> "" then manifest_files := [profile];
+    provision_bundles_dir := bundles_dir;
+    provision_mac := mac;
+    provision_discovery_url := discovery;
+    run_provision_push ()
+  in
+  Cmd.v (Cmd.info "provision-push"
+           ~doc:"Render and push a provisioning_profile to the discovery server for a MAC.")
+    Term.(const go $ profile_arg $ bundles_dir_arg $ mac_arg $ discovery_arg $ debug_arg)
 
 let provision_clear_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Remove the provisioning record for a MAC on the discovery server."
-    "provision-clear"
-    run_provision_clear in
-  Cli.Command.add_argument cmd provision_mac_arg;
-  Cli.Command.add_argument cmd provision_discovery_url_arg;
-  Cli.Command.add_argument cmd debug;
-  cmd
+  let go mac discovery debug =
+    set_debug debug;
+    provision_mac := mac;
+    provision_discovery_url := discovery;
+    run_provision_clear ()
+  in
+  Cmd.v (Cmd.info "provision-clear"
+           ~doc:"Remove the provisioning record for a MAC on the discovery server.")
+    Term.(const go $ mac_arg $ discovery_arg $ debug_arg)
 
-let root_cmd =
-  let cmd = Cli.Command.make
-    ~doc:"Hamac - stack manager for SIESTE manifests."
-    "hamac"
-    (fun () -> ()) in
-  Cli.Command.add_command ~default:true cmd validate_cmd;
-  Cli.Command.add_command cmd plan_cmd;
-  Cli.Command.add_command cmd resolve_cmd;
-  Cli.Command.add_command cmd simulate_cmd;
-  Cli.Command.add_command cmd deploy_cmd;
-  Cli.Command.add_command cmd status_cmd;
-  Cli.Command.add_command cmd provision_dryrun_cmd;
-  Cli.Command.add_command cmd provision_push_cmd;
-  Cli.Command.add_command cmd provision_clear_cmd;
-  cmd
+let main_cmd =
+  let doc = "Hamac - stack manager for SIESTE manifests." in
+  Cmd.group (Cmd.info "hamac" ~doc)
+    [ validate_cmd; plan_cmd; resolve_cmd; simulate_cmd; deploy_cmd; status_cmd;
+      provision_dryrun_cmd; provision_push_cmd; provision_clear_cmd ]
 
 let () =
   Printexc.record_backtrace true;
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Warning);
-  try Cli.Command.run root_cmd
-  with _ ->
-    Fmt.epr "%s@." (Printexc.get_backtrace ())
+  let code =
+    try Cmd.eval main_cmd
+    with e ->
+      Fmt.epr "%s@.%s@." (Printexc.to_string e) (Printexc.get_backtrace ());
+      2
+  in
+  exit code
