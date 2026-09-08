@@ -2,6 +2,8 @@
 
 *Zero-touch infrastructure orchestration: turn declarative service manifests into resolved, deployed infrastructure — with security zones inferred from your data, not bolted on.*
 
+> **Canonical repository:** https://forge.ocamlpro.com/OSS/hamac — the GitHub repository is a read-only mirror. Please file issues and merge requests on Forgejo.
+
 **hamac** is an infrastructure orchestrator for **SIESTE** manifests. It reads
 declarative `.sieste.yml` manifests describing services and infrastructure,
 resolves their dependencies to concrete providers, and provisions/deploys them —

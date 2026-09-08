@@ -17,7 +17,7 @@ Contributing on behalf of a company? A **Corporate CLA** may be required — con
 
 ## Where to contribute
 
-The **canonical repository is on Forgejo** — issues and merge requests go there.
+The **canonical repository is on Forgejo** — <https://forge.ocamlpro.com/OSS/hamac> — issues and merge requests go there.
 The GitHub repository is a **read-only mirror**: please do not open pull requests
 on it (they cannot be merged from the mirror).
 
