@@ -9,3 +9,6 @@ _build/
 /docker/hamac-discovery/discovery_server.exe
 /docker/hamac-discovery/bundles/
 /docker/hamac-discovery/profiles/
+
+# Sortie de `hamac simulate`
+/.hamac/

@@ -1,3 +1,6 @@
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
+
 (** Générateur de cloud-init / iPXE à partir d'un [provisioning_profile].
 
     Pipeline :

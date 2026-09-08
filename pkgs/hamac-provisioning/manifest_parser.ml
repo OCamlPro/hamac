@@ -1,3 +1,6 @@
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
+
 (** YAML manifest parser for hamac.
 
     Parses .sieste.yml files into structured [Manifest_types.manifest] values

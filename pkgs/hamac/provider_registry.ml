@@ -1,3 +1,6 @@
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
+
 (** Provider registry for hamac.
 
     Loads provider manifests from a search path and indexes them

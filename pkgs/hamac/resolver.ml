@@ -1,3 +1,6 @@
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
+
 (** Resolver for hamac.
 
     Resolves service consumes to concrete providers, generates credentials,

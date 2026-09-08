@@ -1,3 +1,6 @@
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
+
 (** Client HTTP qui pousse un [rendered_profile] vers le discovery server.
 
     Endpoint cible : POST {discovery_url}/provisioning/<mac>

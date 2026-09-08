@@ -12,7 +12,7 @@
 #                                                     # (défaut : ubuntu:noble,
 #                                                     #  cf. Dockerfile)
 #
-# Tag par défaut : registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0
+# Tag par défaut : registry.ocamlpro.com/ocamlpro/hamac/hamac-pxe:0.1.0
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SRC_TFTP="$PROJECT_ROOT/tools/discovery-prototype/tftp"
 
-TAG="${1:-registry.ocamlpro.com/ocamlpro/sieste/hamac-pxe:0.1.0}"
+TAG="${1:-registry.ocamlpro.com/ocamlpro/hamac/hamac-pxe:0.1.0}"
 LATEST_TAG="${TAG%:*}:latest"
 BUILD_ARGS=()
 [ -n "${PXE_BASE_IMAGE:-}" ] && BUILD_ARGS+=(--build-arg "PXE_BASE_IMAGE=${PXE_BASE_IMAGE}")

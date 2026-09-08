@@ -1,3 +1,6 @@
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
+
 (** Infrastructure simulator for hamac.
 
     Generates a docker-compose.yml that simulates a multi-node

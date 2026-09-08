@@ -1,3 +1,6 @@
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
+
 (** SIESTE Infrastructure Discovery Server
 
     Minimal REST API for node registration, discovery, and service deployment.

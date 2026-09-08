@@ -4,7 +4,7 @@
 # Usage:
 #   ./build.sh [tag]
 #
-# Tag défaut: registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:0.1.0
+# Tag défaut: registry.ocamlpro.com/ocamlpro/hamac/hamac-discovery:0.1.0
 #
 # Le binaire OCaml est compilé localement (besoin d'opam) puis copié dans le
 # contexte Docker. Le Dockerfile ne fait que packager.
@@ -22,7 +22,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-TAG="${1:-registry.ocamlpro.com/ocamlpro/sieste/hamac-discovery:0.1.0}"
+TAG="${1:-registry.ocamlpro.com/ocamlpro/hamac/hamac-discovery:0.1.0}"
 LATEST_TAG="${TAG%:*}:latest"
 
 echo "==> Building discovery_server binary (release mode)..."
