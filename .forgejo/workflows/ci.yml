@@ -1,11 +1,10 @@
 # Forgejo Actions CI pour hamac.
 #
-# Runners de la stack SI OCamlPro (cf. si/configs/shared.yaml) :
-#   - label `docker` -> jobs dans un conteneur node:20-bookworm
-#   - label `dind`   -> jobs dans docker:dind (privileged, pour builder des images)
-# Les actions (`uses:`) résolvent via code.forgejo.org (DEFAULT_ACTIONS_URL),
-# donc `actions/checkout` est disponible ; on n'utilise PAS d'action GitHub-only
-# (ex. ocaml/setup-ocaml) — on passe par une image opam.
+# Runner SI OCamlPro (cf. si/configs/shared.yaml + forgejo-runner_config.yaml) :
+# le label `docker` exécute le job dans node:20-bookworm, et l'isolation DinD
+# (`docker_host: "-"`) prive les jobs d'accès au démon Docker. => on N'utilise
+# PAS de `container:` de job (créerait un conteneur imbriqué => docker create
+# pend). On tourne directement dans node:20-bookworm et on installe OCaml/opam.
 name: CI
 
 on:
@@ -16,19 +15,28 @@ on:
 jobs:
   build:
     runs-on: docker
-    container:
-      image: ocaml/opam:debian-12-ocaml-5.3
+    env:
+      OPAMROOTISOK: "1"          # node:20-bookworm tourne en root
+      OPAMYES: "1"
+      OPAMCONFIRMLEVEL: unsafe-yes
+      DEBIAN_FRONTEND: noninteractive
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # actions/checkout peut écrire le workspace sous un autre uid que l'user
-      # `opam` de l'image ; on rétablit la propriété (sudo dispo dans ocaml/opam).
-      - name: Fix workspace ownership
-        run: sudo chown -R opam:opam .
+      - name: Install opam + OCaml + build deps (Debian)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            opam ocaml m4 pkg-config build-essential libyaml-dev git ca-certificates
 
-      - name: Install dependencies (public opam only)
-        run: opam install . --deps-only --with-test -y
+      - name: Init opam (no sandbox inside a container)
+        run: opam init --bare --disable-sandboxing -y
+
+      - name: Switch (system OCaml) + install project deps (public opam only)
+        run: |
+          opam switch create . ocaml-system --no-install -y
+          opam install . --deps-only --with-test -y
 
       - name: Build
         run: opam exec -- dune build
@@ -36,5 +44,5 @@ jobs:
       - name: Test
         run: opam exec -- dune runtest
 
-  # TODO (incrément suivant, label `dind`) : build des images docker
-  #   hamac-discovery / hamac-pxe (portage des jobs GitLab, sans deploy).
+  # TODO (incrément suivant) : jobs images hamac-discovery / hamac-pxe
+  # via `runs-on: dind` (docker:dind), portés du GitLab CI, sans deploy.
