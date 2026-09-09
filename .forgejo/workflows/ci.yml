@@ -1,9 +1,3 @@
-# Forgejo Actions CI pour hamac.
-#
-# Runner SI OCamlPro : label `docker` => job dans node:20-bookworm, isolation
-# DinD (docker_host: "-"). => pas de `container:` de job (docker create pend).
-# On installe OCaml/opam via apt, et on fait un checkout git MANUEL (pas
-# d'action externe : évite la dépendance au proxy code.forgejo.org + node).
 name: CI
 
 on:
@@ -11,23 +5,33 @@ on:
     branches: [master]
   pull_request:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     runs-on: docker
     env:
-      OPAMROOTISOK: "1"          # node:20-bookworm tourne en root
+      OPAMROOTISOK: "1"
       OPAMYES: "1"
       OPAMCONFIRMLEVEL: unsafe-yes
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - name: Install git + opam + OCaml + build deps
+      - name: Diagnostics + install git/opam/OCaml/build deps
         run: |
+          set -eux
+          echo "--- disk before ---"; df -h /
+          echo "--- mem ---"; free -m || true
           apt-get update
           apt-get install -y --no-install-recommends \
             git ca-certificates opam ocaml m4 pkg-config build-essential libyaml-dev
+          echo "--- disk after ---"; df -h /
+          echo "=== INSTALL STEP COMPLETED OK ==="
 
-      - name: Checkout (manual clone, no external action)
+      - name: Checkout (manual clone)
         run: |
+          set -eux
           git config --global --add safe.directory "$PWD"
           git init -q .
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
@@ -35,11 +39,10 @@ jobs:
           git checkout -q -f FETCH_HEAD
           git log --oneline -1
 
-      - name: Init opam (no sandbox inside a container)
-        run: opam init --bare --disable-sandboxing -y
-
-      - name: Switch (system OCaml) + install project deps (public opam only)
+      - name: opam init + switch (system OCaml) + deps
         run: |
+          set -eux
+          opam init --bare --disable-sandboxing -y
           opam switch create . ocaml-system --no-install -y
           opam install . --deps-only --with-test -y
 
