@@ -18,26 +18,26 @@ jobs:
       OPAMCONFIRMLEVEL: unsafe-yes
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - name: Diagnostics + install git/opam/OCaml/build deps
+      - name: Install git + opam + OCaml + build deps
         run: |
           set -eux
-          echo "--- disk before ---"; df -h /
-          echo "--- mem ---"; free -m || true
           apt-get update
           apt-get install -y --no-install-recommends \
             git ca-certificates opam ocaml m4 pkg-config build-essential libyaml-dev
-          echo "--- disk after ---"; df -h /
-          echo "=== INSTALL STEP COMPLETED OK ==="
 
-      - name: Checkout (manual clone)
+      - name: Checkout (manual clone, authenticated with job token)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -eux
+          set -eu   # pas de -x : ne pas logguer le token
           git config --global --add safe.directory "$PWD"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git init -q .
+          git config --global http."${GITHUB_SERVER_URL}/".extraheader "Authorization: Basic ${AUTH}"
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch -q --depth 1 origin "${GITHUB_REF_NAME}"
+          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
           git checkout -q -f FETCH_HEAD
-          git log --oneline -1
+          echo "checked out:"; git log --oneline -1
 
       - name: opam init + switch (system OCaml) + deps
         run: |
