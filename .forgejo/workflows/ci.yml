@@ -25,19 +25,26 @@ jobs:
           apt-get install -y --no-install-recommends \
             git ca-certificates opam ocaml m4 pkg-config build-essential libyaml-dev
 
-      - name: Checkout (manual clone, authenticated with job token)
+      - name: Checkout (auth + diagnostic, tolère la casse)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -eu   # pas de -x : ne pas logguer le token
+          set -eu   # pas de -x : ne pas logger le token
+          echo "server=$GITHUB_SERVER_URL repo=$GITHUB_REPOSITORY ref=$GITHUB_REF_NAME"
+          echo "token length: ${#GH_TOKEN}"
           git config --global --add safe.directory "$PWD"
           AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git init -q .
           git config --global http."${GITHUB_SERVER_URL}/".extraheader "Authorization: Basic ${AUTH}"
+          git init -q .
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          if ! git fetch --depth 1 origin "${GITHUB_REF_NAME}"; then
+            echo "fetch KO -> retry avec chemin en minuscules"
+            lc=$(printf '%s' "$GITHUB_REPOSITORY" | tr 'A-Z' 'a-z')
+            git remote set-url origin "${GITHUB_SERVER_URL}/${lc}.git"
+            git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          fi
           git checkout -q -f FETCH_HEAD
-          echo "checked out:"; git log --oneline -1
+          echo "checked out: $(git log --oneline -1)"
 
       - name: opam init + switch (system OCaml) + deps
         run: |
