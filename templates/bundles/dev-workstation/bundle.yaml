@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: bundle
+name: dev-workstation
+version: "0.1.0"
+description: "Poste de dev minimal : utilisateur sudo, SSH, docker, dotfiles optionnels"
+
+# Paramètres acceptés
+params:
+  username:
+    type: string
+    required: true
+  full_name:
+    # Nom affiché (champ GECOS de /etc/passwd). Si vide, défaut = username.
+    type: string
+    required: false
+  ssh_public_keys:
+    # Liste de clés SSH publiques. Peut être vide si initial_password fourni.
+    type: list[string]
+    required: false
+  initial_password:
+    # Mot de passe initial en clair, force-expiré au premier login.
+    # À utiliser quand l'user n'a pas encore de clé SSH ; il en générera une
+    # après son premier login console.
+    type: string
+    required: false
+  dotfiles_repo:
+    type: string
+    required: false
+  timezone:
+    type: string
+    required: false
+
+# Le contenu (packages, users, runcmd...) vit dans les templates cloud-init
+# du bundle : cloud-init.yaml.j2 (portable apt = Debian/Ubuntu), et au besoin
+# cloud-init.<family>.yaml.j2 pour une famille d'OS spécifique (ex: fedora).
+
+# Aucune dépendance vers d'autres bundles pour le moment
+depends_on: []

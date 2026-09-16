@@ -36,21 +36,33 @@ are committed, so building does not require marmiton).
 
 ## Usage
 
+The commands below run as-is from the root of this repository, against the
+example manifests it ships.
+
 ```sh
 # Validate / plan / resolve manifests
-hamac validate manifests/*.sieste.yml
-hamac plan     services.sieste.yml
-hamac resolve  services.sieste.yml
+hamac validate examples/enterprise-stack/*.sieste.yml
+hamac plan     examples/enterprise-stack/*.sieste.yml
+hamac resolve  examples/enterprise-stack/*.sieste.yml
 
 # Bare-metal provisioning
-hamac provision-dryrun --profile=dev-workstation.yaml
-hamac provision-push   --profile=dev-workstation.yaml \
+hamac provision-dryrun --profile=provisioning-profiles/dev-workstation-demo.yaml
+hamac provision-push   --profile=provisioning-profiles/dev-workstation.yaml \
                        --mac=aa:bb:cc:dd:ee:ff \
                        --discovery=http://discovery:8877
 hamac provision-clear  --mac=aa:bb:cc:dd:ee:ff --discovery=http://discovery:8877
 ```
 
 Run `hamac --help` for the full command list.
+
+### Files hamac looks for
+
+| Directory | Contents | Looked up |
+|---|---|---|
+| `providers/` | Provider manifests (`postgresql`, `redis`) — a provider is a `kind: service` manifest, not a compiled plugin. | `./providers`, then `~/.hamac/providers` |
+| `templates/bundles/<name>/` | Provisioning bundles: `bundle.yaml` + cloud-init Jinja2 templates. | `./templates/bundles`, `/usr/share/hamac/bundles`, or `--bundles-dir` |
+| `provisioning-profiles/` | `kind: provisioning_profile` manifests. `dev-workstation.yaml` takes its parameters from the machine record; `dev-workstation-demo.yaml` carries them inline so a dry run needs nothing else. | passed with `--profile` |
+| `examples/enterprise-stack/` | Three services across three security zones, consuming a database and a cache. | passed on the command line |
 
 ## Bare-metal provisioning (PXE)
 

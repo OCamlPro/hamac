@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: provisioning_profile
+name: dev-workstation-demo
+
+# Variante auto-suffisante de `dev-workstation.yaml`, destinée aux exemples et
+# aux essais : les paramètres du bundle sont fournis ici en dur, pour que
+# `hamac provision-dryrun --profile=...` rende un cloud-init sans aucune autre
+# donnée. En exploitation réelle, utiliser `dev-workstation.yaml` : les
+# paramètres y viennent de l'enregistrement de machine (`/api/machines`),
+# jamais d'un fichier versionné.
+
+os:
+  image: debian-12-amd64-genericcloud
+  url: https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
+  sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  format: qcow2
+  family: debian
+  raw_zst_url: ""
+  raw_zst_sha256: ""
+  bmap_url: ""
+
+bundles:
+  - name: dev-workstation
+    params:
+      username: devuser
+      full_name: "Example Developer"
+      timezone: Europe/Paris
+      # Clé d'exemple, volontairement non utilisable.
+      ssh_public_keys:
+        - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE example@hamac"
+
+cloud_init_extra:
+  runcmd:
+    - systemctl enable --now ssh

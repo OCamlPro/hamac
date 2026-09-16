@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: provisioning_profile
+name: dev-workstation
+
+# Profil générique pour poste de développement.
+# Toutes les données utilisateur (username, full_name, initial_password,
+# timezone, ssh_public_keys, dotfiles_repo…) sont fournies en `params` à la
+# création de la machine — pas ici.
+
+os:
+  image: debian-12-amd64-genericcloud
+  # Référence canonique — c'est ce que consomment les VMs directement.
+  # qcow2 reste la référence même pour les installs physiques (voir
+  # raw_zst_url/bmap_url ci-dessous) : hamac provisionne aussi bien des VMs
+  # que du bare-metal, et le qcow2 est le format que Debian publie et que
+  # les deux mondes peuvent consommer (le physique via une conversion
+  # dérivée, pas un doublon de source de vérité).
+  url: https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
+  # TODO: récupérer le sha256 réel depuis SHA512SUMS de Debian au moment du
+  # push (Debian ne publie que du SHA512 pour les images cloud, pas de
+  # SHA256SUMS — calculer soi-même si un sha256 est nécessaire) :
+  #   wget -qO- https://cdimage.debian.org/cdimage/cloud/bookworm/latest/SHA512SUMS \
+  #     | grep debian-12-genericcloud-amd64.qcow2
+  sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  format: qcow2
+  family: debian   # sélectionne la variante de template cloud-init du bundle
+
+  # Assets dérivés pour install physique (PXE), générés à l'avance depuis
+  # le qcow2 ci-dessus via tools/discovery-prototype/pxe-build/prepare-os-assets.sh
+  # (qemu-img convert -O raw | zstd | bmaptool create). Optionnels : si
+  # absents ou si l'initrd hamac-pxe déployée ne connaît pas encore
+  # bmaptool, pxe-build/init retombe sur url/format/sha256 ci-dessus via
+  # qemu-img. Cf. PROVISIONING_SPEC.md §3.1.
+  raw_zst_url: ""
+  raw_zst_sha256: ""
+  bmap_url: ""
+
+bundles:
+  - name: dev-workstation
+    # params vide : tout vient de /api/machines à la création.
+
+cloud_init_extra:
+  # SSH activé au boot (l'image cloud Debian a sshd installé). La clé/le mdp
+  # de connexion sont injectés par le bundle via les params de la machine.
+  runcmd:
+    - systemctl enable --now ssh
