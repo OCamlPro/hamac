@@ -45,6 +45,10 @@ hamac validate examples/enterprise-stack/*.sieste.yml
 hamac plan     examples/enterprise-stack/*.sieste.yml
 hamac resolve  examples/enterprise-stack/*.sieste.yml
 
+# Credentials come from the system CSPRNG. --seed makes them reproducible for
+# tests and demos, and therefore predictable: never use it for a real deployment.
+hamac resolve --seed 42 examples/enterprise-stack/*.sieste.yml
+
 # Bare-metal provisioning
 hamac provision-dryrun --profile=provisioning-profiles/dev-workstation-demo.yaml
 hamac provision-push   --profile=provisioning-profiles/dev-workstation.yaml \

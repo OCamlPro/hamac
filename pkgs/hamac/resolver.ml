@@ -15,12 +15,67 @@ open Hamac_provisioning.Manifest_types
 let alpha_chars = "abcdefghijklmnopqrstuvwxyz"
 let alnum_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-let () = Random.self_init ()
+(* Source d'aléa des credentials.
+
+   Par défaut, les credentials sont des mots de passe de production : ils sont
+   tirés de la source cryptographique du système (/dev/urandom), pas d'un PRNG
+   généraliste.
+
+   [set_seed] bascule sur un générateur déterministe pour les tests et les
+   démonstrations. Il est implémenté ici plutôt que délégué à [Random] parce que
+   l'implémentation de [Random] a changé en OCaml 5.0 : une même graine n'y
+   produit pas la même suite d'une version du compilateur à l'autre, ce qui
+   suffirait à faire diverger une sortie de référence entre le poste de
+   développement et la CI. SplitMix64 (Steele, Lea & Flood, 2014) tient en
+   quelques lignes et fixe la suite une fois pour toutes. *)
+
+type rng =
+  | Urandom                (** défaut : source cryptographique du système *)
+  | Seeded of int64 ref    (** [--seed] : SplitMix64, stable entre versions *)
+
+let rng = ref Urandom
+
+(** Fixe la graine du générateur de credentials : deux exécutions sur les mêmes
+    manifestes produisent alors les mêmes valeurs, quel que soit le compilateur.
+    Destiné aux tests et aux démonstrations — les credentials en deviennent
+    prévisibles. *)
+let set_seed (seed : int) : unit = rng := Seeded (ref (Int64.of_int seed))
+
+let splitmix_next (st : int64 ref) : int64 =
+  let open Int64 in
+  st := add !st 0x9E3779B97F4A7C15L;
+  let z = !st in
+  let z = mul (logxor z (shift_right_logical z 30)) 0xBF58476D1CE4E5B9L in
+  let z = mul (logxor z (shift_right_logical z 27)) 0x94D049BB133111EBL in
+  logxor z (shift_right_logical z 31)
+
+(* Ouvert une fois, pas à chaque octet. Si la source manque (système sans
+   /dev/urandom), on retombe sur [Random] auto-initialisé : moins bon, mais
+   toujours imprévisible. *)
+let urandom : in_channel option Lazy.t =
+  lazy (try Some (open_in_bin "/dev/urandom") with Sys_error _ -> None)
+
+let fallback_state = lazy (Random.State.make_self_init ())
+
+(** Entier uniforme dans [0, n), pour n <= 256. Le tirage cryptographique
+    rejette les valeurs qui biaiseraient le reste ; la voie SplitMix s'en
+    dispense, le biais y étant borné par 2^-56. *)
+let rng_int (n : int) : int =
+  match !rng with
+  | Seeded st -> Int64.to_int (Int64.unsigned_rem (splitmix_next st) (Int64.of_int n))
+  | Urandom ->
+    match Lazy.force urandom with
+    | None -> Random.State.int (Lazy.force fallback_state) n
+    | Some ic ->
+      let limit = 256 - (256 mod n) in
+      let rec draw () =
+        let b = input_byte ic in
+        if b < limit then b mod n else draw ()
+      in
+      draw ()
 
 let generate_string (charset : string) (len : int) : string =
-  String.init len (fun _ ->
-    charset.[Random.int (String.length charset)]
-  )
+  String.init len (fun _ -> charset.[rng_int (String.length charset)])
 
 (** Parse a generate directive like "{generate.alpha(12)}" or "{generate.alnum(32)}"
     and return the generated string. Returns None if not a generate directive. *)

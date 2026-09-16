@@ -320,6 +320,14 @@ let debug_arg =
   let doc = "Enable debug mode." in
   Arg.(value & flag & info ["d"; "debug"] ~doc)
 
+let seed_arg =
+  let doc =
+    "Seed the credential generator, so that resolving the same manifests twice \
+     yields the same credentials. Test and demo aid: seeded credentials are \
+     predictable. Never use it for a real deployment."
+  in
+  Arg.(value & opt (some int) None & info ["seed"] ~docv:"N" ~doc)
+
 let bundles_dir_arg =
   let doc =
     "Extra directory to search for bundles (prepended to default search path)."
@@ -345,6 +353,22 @@ let files_term run =
   let go files debug = manifest_files := files; set_debug debug; run () in
   Term.(const go $ files_arg $ debug_arg)
 
+(* Commandes qui génèrent des credentials : mêmes arguments, plus --seed. *)
+let files_seed_term run =
+  let go files seed debug =
+    manifest_files := files;
+    set_debug debug;
+    (match seed with
+     | Some s ->
+       Resolver.set_seed s;
+       Logs.warn (fun m ->
+         m "--seed %d: generated credentials are reproducible, hence \
+            predictable. Never use this for a real deployment." s)
+     | None -> ());
+    run ()
+  in
+  Term.(const go $ files_arg $ seed_arg $ debug_arg)
+
 let validate_term = files_term run_validate
 let validate_cmd =
   Cmd.v (Cmd.info "validate" ~doc:"Validate manifest files.") validate_term
@@ -354,15 +378,15 @@ let plan_cmd =
 let resolve_cmd =
   Cmd.v (Cmd.info "resolve"
            ~doc:"Resolve service dependencies to concrete providers.")
-    (files_term run_resolve)
+    (files_seed_term run_resolve)
 let simulate_cmd =
   Cmd.v (Cmd.info "simulate"
            ~doc:"Simulate infrastructure with DinD nodes and zone isolation.")
-    (files_term run_simulate)
+    (files_seed_term run_simulate)
 let deploy_cmd =
   Cmd.v (Cmd.info "deploy"
            ~doc:"Generate flat docker-compose.yml from resolved stack.")
-    (files_term run_deploy)
+    (files_seed_term run_deploy)
 
 let status_cmd =
   let go debug = set_debug debug; run_status () in

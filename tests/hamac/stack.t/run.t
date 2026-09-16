@@ -41,42 +41,44 @@ manifestes de service).
   
 
 `resolve` apparie chaque `consumes` à un provider et génère les credentials.
-Ceux-ci étant aléatoires, on les masque pour garder une sortie déterministe.
+`--seed` fixe la suite tirée : les valeurs ci-dessous sont donc vérifiées telles
+quelles, y compris leur substitution dans les URL d'injection. Sans `--seed`,
+elles viennent de /dev/urandom et changent à chaque exécution.
 
-  $ hamac resolve analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml \
-  >   | sed -E -e 's/(USER|PASSWORD)=[A-Za-z0-9]+/\1=<generated>/' \
-  >            -e 's#://[^@]*@#://<generated>@#'
+  $ hamac resolve --seed 42 analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml
+  hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
   Loaded 2 provider(s) from ./providers
   Providers to instantiate:
     postgresql-analytics-db (postgres:15-alpine)
-      env: POSTGRES_USER=<generated>
-      env: POSTGRES_PASSWORD=<generated>
+      env: POSTGRES_USER=jbkquuxmrgvc
+      env: POSTGRES_PASSWORD=8NCONRJsMfb5QNVfDvXs1etrbNguG1sd
       env: POSTGRES_DB=analytics_db
     redis-analytics-cache (redis:7-alpine)
-      env: REDIS_PASSWORD=<generated>
+      env: REDIS_PASSWORD=z0MnC3n6uH1Pbi0QyUaAet6W5esZAe2B
     postgresql-payroll-db (postgres:15-alpine)
-      env: POSTGRES_USER=<generated>
-      env: POSTGRES_PASSWORD=<generated>
+      env: POSTGRES_USER=jigxfhovnsau
+      env: POSTGRES_PASSWORD=sKjLFMOjVgBs4xo20BSaR4zIuflNwunR
       env: POSTGRES_DB=payroll_db
     postgresql-web_api-db (postgres:15-alpine)
-      env: POSTGRES_USER=<generated>
-      env: POSTGRES_PASSWORD=<generated>
+      env: POSTGRES_USER=gyagnnaxjktc
+      env: POSTGRES_PASSWORD=9z5o8M5OwswpHEBuSHxXTNcPe1bDb8mi
       env: POSTGRES_DB=web_api_db
   
   Wiring:
     analytics.db -> postgresql
-      inject: DATABASE_URL=postgresql://<generated>@postgresql-analytics-db:5432/analytics_db
+      inject: DATABASE_URL=postgresql://jbkquuxmrgvc:8NCONRJsMfb5QNVfDvXs1etrbNguG1sd@postgresql-analytics-db:5432/analytics_db
     analytics.cache -> redis
-      inject: REDIS_URL=redis://<generated>@redis-analytics-cache:6379
+      inject: REDIS_URL=redis://:z0MnC3n6uH1Pbi0QyUaAet6W5esZAe2B@redis-analytics-cache:6379
     payroll.db -> postgresql
-      inject: DATABASE_URL=postgresql://<generated>@postgresql-payroll-db:5432/payroll_db
+      inject: DATABASE_URL=postgresql://jigxfhovnsau:sKjLFMOjVgBs4xo20BSaR4zIuflNwunR@postgresql-payroll-db:5432/payroll_db
     web_api.db -> postgresql
-      inject: DATABASE_URL=postgresql://<generated>@postgresql-web_api-db:5432/web_api_db
+      inject: DATABASE_URL=postgresql://gyagnnaxjktc:9z5o8M5OwswpHEBuSHxXTNcPe1bDb8mi@postgresql-web_api-db:5432/web_api_db
 
 `deploy` produit un docker-compose câblé : réseaux, variables injectées,
 dépendances et healthchecks portant les credentials résolus.
 
-  $ hamac deploy analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml
+  $ hamac deploy --seed 42 analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml
+  hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
   Loaded 2 provider(s) from ./providers
   Generated docker-compose.yml (3 services, 4 providers)
   $ grep -E '^(services|networks|  [a-z])' docker-compose.yml | head -20
@@ -90,3 +92,12 @@ dépendances et healthchecks portant les credentials résolus.
     web_api:
   networks:
     hamac:
+
+Sans `--seed`, les credentials viennent de /dev/urandom : deux résolutions
+successives des mêmes manifestes ne coïncident pas. C'est le comportement par
+défaut, et c'est celui qui compte pour un déploiement réel.
+
+  $ hamac resolve analytics.sieste.yml > r1 2>&1
+  $ hamac resolve analytics.sieste.yml > r2 2>&1
+  $ cmp -s r1 r2 && echo "identiques" || echo "differentes"
+  differentes
