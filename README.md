@@ -77,6 +77,25 @@ discovery server (keyed by MAC), and the OS image is written to disk. See
 - [`doc/HAMAC_ROADMAP.md`](doc/HAMAC_ROADMAP.md) — milestones.
 - [`doc/PROVISIONING_SPEC.md`](doc/PROVISIONING_SPEC.md) — provisioning profile & disk-write spec.
 
+## Funding
+
+<p>
+  <img src="doc/assets/france-2030.png" alt="France 2030" height="64">
+  &nbsp;&nbsp;
+  <img src="doc/assets/france-relance.png" alt="France Relance" height="64">
+  &nbsp;&nbsp;
+  <img src="doc/assets/finance-par-union-europeenne-nextgenerationeu.png"
+       alt="Financé par l'Union européenne — NextGenerationEU" height="64">
+</p>
+
+> « Ce projet a été financé par le gouvernement dans le cadre de France 2030 »
+>
+> « Financé par l'Union européenne - Next Generation EU dans le cadre du plan
+> France Relance »
+
+*This project was funded by the French Government under France 2030, and by the
+European Union – NextGenerationEU under the France Relance plan.*
+
 ## Licensing
 
 hamac is **dual-licensed** by OCamlPro:
