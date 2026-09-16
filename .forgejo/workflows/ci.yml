@@ -44,32 +44,11 @@ jobs:
           git checkout -q -f FETCH_HEAD
           echo "checked out: $(git log --oneline -1)"
 
-      # Le gros du temps de job est la construction des dépendances. On cache
-      # les deux moitiés : ~/.opam (archives sources + index du dépôt) et
-      # _opam (le switch local, où vivent les paquets construits). La clé
-      # suit les .opam et dune-project : tant que les dépendances ne bougent
-      # pas, `opam install` devient un no-op.
-      #
-      # continue-on-error : l'action est externe et passe par le proxy
-      # code.forgejo.org. Si elle ne résout pas, le job doit rester vert et
-      # reconstruire comme avant, pas échouer sur une optimisation.
-      - name: Cache opam
-        continue-on-error: true
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.opam
-            _opam
-          key: opam-${{ hashFiles('**/*.opam', 'dune-project') }}
-          restore-keys: |
-            opam-
-
       - name: opam init + switch (system OCaml) + deps
         run: |
           set -eux
           opam init --bare --disable-sandboxing -y
-          # `switch create` échoue si _opam vient d'être restauré du cache.
-          [ -d _opam ] || opam switch create . ocaml-system --no-install -y
+          opam switch create . ocaml-system --no-install -y
           opam install . --deps-only --with-test -y
 
       - name: Build
@@ -108,20 +87,20 @@ jobs:
   image-discovery:
     runs-on: dind
     continue-on-error: true
-    # Le `defaults.run.shell: bash` global ne vaut pas ici : l'image du label
-    # dind est une Alpine, qui n'a pas bash. Le runner lançait donc chaque
-    # step par `bash -c` et échouait dès le premier, avant même de pouvoir
-    # l'installer (exec: "bash": executable file not found in $PATH).
-    defaults:
-      run:
-        shell: sh
+    # Chaque step déclare `shell: sh` : l'image du label dind est une Alpine,
+    # qui n'a pas bash, et le `defaults.run.shell: bash` global s'y applique
+    # sinon — le job échouait dès son premier step, avant même de pouvoir
+    # installer bash (exec: "bash": executable file not found in $PATH).
+    # Un `defaults` au niveau job n'a pas suffi : le runner ne l'honore pas.
     steps:
       - name: Outils (l'image du label dind est une Alpine nue)
+        shell: sh
         run: apk add --no-cache git
 
       - name: Checkout (URL publique, authentifié)
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: sh
         run: |
           set -eu
           PUB="https://forge.ocamlpro.com"
@@ -137,6 +116,7 @@ jobs:
       # on le compile donc dans debian-12 (glibc 2.36), la même base que
       # l'image runtime, sinon il ne démarrerait pas dedans.
       - name: Compile le binaire dans une image debian-12
+        shell: sh
         run: |
           set -eux
           docker run --rm -v "$PWD":/src -w /src ocaml/opam:debian-12-ocaml-5.3 \
@@ -145,6 +125,7 @@ jobs:
                      && opam exec -- dune build --profile=release pkgs/hamac-discovery'
 
       - name: Assemble le contexte et construit l'image
+        shell: sh
         run: |
           set -eux
           cp _build/default/pkgs/hamac-discovery/main.exe docker/hamac-discovery/discovery_server.exe
@@ -163,6 +144,7 @@ jobs:
       # daemon évite la question, et l'image embarque déjà curl pour son
       # propre HEALTHCHECK.
       - name: L'image démarre et répond sur /health
+        shell: sh
         run: |
           set -eux
           docker run -d --name discovery "hamac-discovery:${GITHUB_SHA}"
