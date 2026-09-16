@@ -44,11 +44,32 @@ jobs:
           git checkout -q -f FETCH_HEAD
           echo "checked out: $(git log --oneline -1)"
 
+      # Le gros du temps de job est la construction des dépendances. On cache
+      # les deux moitiés : ~/.opam (archives sources + index du dépôt) et
+      # _opam (le switch local, où vivent les paquets construits). La clé
+      # suit les .opam et dune-project : tant que les dépendances ne bougent
+      # pas, `opam install` devient un no-op.
+      #
+      # continue-on-error : l'action est externe et passe par le proxy
+      # code.forgejo.org. Si elle ne résout pas, le job doit rester vert et
+      # reconstruire comme avant, pas échouer sur une optimisation.
+      - name: Cache opam
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.opam
+            _opam
+          key: opam-${{ hashFiles('**/*.opam', 'dune-project') }}
+          restore-keys: |
+            opam-
+
       - name: opam init + switch (system OCaml) + deps
         run: |
           set -eux
           opam init --bare --disable-sandboxing -y
-          opam switch create . ocaml-system --no-install -y
+          # `switch create` échoue si _opam vient d'être restauré du cache.
+          [ -d _opam ] || opam switch create . ocaml-system --no-install -y
           opam install . --deps-only --with-test -y
 
       - name: Build
@@ -73,3 +94,71 @@ jobs:
           opam exec -- dune exec -- hamac resolve examples/enterprise-stack/*.sieste.yml
           opam exec -- dune exec -- hamac provision-dryrun \
             --profile=provisioning-profiles/dev-workstation-demo.yaml
+
+  # Construit l'image du serveur de découverte et vérifie qu'elle démarre.
+  # Tourne sur le label `dind`, seul environnement où le daemon Docker est
+  # disponible (cf. CLAUDE.md : pas de `container:` au niveau job).
+  #
+  # Pas de push : aucun registre n'est encore câblé pour ce dépôt public.
+  # Pour en ajouter un, `docker login` puis `docker push` en fin de job.
+  #
+  # TODO retirer continue-on-error une fois ce job vert une première fois —
+  # il est ajouté après une longue série d'échecs CI, et ne doit pas faire
+  # rougir un run par ailleurs sain tant qu'il n'est pas éprouvé.
+  image-discovery:
+    runs-on: dind
+    continue-on-error: true
+    steps:
+      - name: Outils (l'image du label dind est une Alpine nue)
+        run: apk add --no-cache git bash curl
+
+      - name: Checkout (URL publique, authentifié)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          PUB="https://forge.ocamlpro.com"
+          git config --global --add safe.directory "$PWD"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
+          git init -q .
+          git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
+          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          git checkout -q -f FETCH_HEAD
+
+      # Le binaire est lié dynamiquement à la glibc de la machine de build ;
+      # on le compile donc dans debian-12 (glibc 2.36), la même base que
+      # l'image runtime, sinon il ne démarrerait pas dedans.
+      - name: Compile le binaire dans une image debian-12
+        run: |
+          set -eux
+          docker run --rm -v "$PWD":/src -w /src ocaml/opam:debian-12-ocaml-5.3 \
+            bash -c 'sudo chown -R opam:opam /src \
+                     && opam install -y --deps-only ./opam/hamac-provisioning.opam ./opam/hamac-discovery.opam \
+                     && opam exec -- dune build --profile=release pkgs/hamac-discovery'
+
+      - name: Assemble le contexte et construit l'image
+        run: |
+          set -eux
+          cp _build/default/pkgs/hamac-discovery/main.exe docker/hamac-discovery/discovery_server.exe
+          rm -rf docker/hamac-discovery/bundles docker/hamac-discovery/profiles
+          cp -r templates/bundles     docker/hamac-discovery/bundles
+          cp -r provisioning-profiles docker/hamac-discovery/profiles
+          # Les images OS dérivées (raw.zst + .bmap) ne sont pas générées ici :
+          # cf. doc/PROVISIONING_SPEC.md §3.1. Le Dockerfile les COPY, donc le
+          # répertoire doit exister même vide.
+          mkdir -p docker/hamac-discovery/images
+          docker build -t "hamac-discovery:${GITHUB_SHA}" docker/hamac-discovery/
+
+      - name: L'image démarre et répond sur /health
+        run: |
+          set -eux
+          docker run -d --name discovery -p 8877:8877 "hamac-discovery:${GITHUB_SHA}"
+          ok=0
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8877/health; then ok=1; break; fi
+            sleep 1
+          done
+          docker logs discovery
+          docker rm -f discovery
+          [ "$ok" = 1 ]
