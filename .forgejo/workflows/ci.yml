@@ -80,13 +80,8 @@ jobs:
   #
   # Pas de push : aucun registre n'est encore câblé pour ce dépôt public.
   # Pour en ajouter un, `docker login` puis `docker push` en fin de job.
-  #
-  # TODO retirer continue-on-error une fois ce job vert une première fois —
-  # il est ajouté après une longue série d'échecs CI, et ne doit pas faire
-  # rougir un run par ailleurs sain tant qu'il n'est pas éprouvé.
   image-discovery:
     runs-on: dind
-    continue-on-error: true
     # Chaque step déclare `shell: sh` : l'image du label dind est une Alpine,
     # qui n'a pas bash, et le `defaults.run.shell: bash` global s'y applique
     # sinon — le job échouait dès son premier step, avant même de pouvoir
