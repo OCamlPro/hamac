@@ -1,0 +1,77 @@
+{# Bundle dev-workstation — variante Debian (cloud-init Jinja2).
+   Un template par famille d'OS : cloud-init.<family>.yaml.j2.
+   Ubuntu est quasi identique (apt, docker.io) ; Fedora divergerait
+   (dnf, moby-engine) — à ajouter le jour venu.
+   Params (cf. bundle.yaml) :
+     username (req), full_name, ssh_public_keys, initial_password,
+     dotfiles_repo, timezone.
+   Au moins ssh_public_keys OU initial_password doit être fourni. #}
+
+users:
+  - name: {{ params.username }}
+    gecos: "{{ params.full_name | default(params.username) }}"
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: docker, sudo
+{% if params.initial_password %}
+    lock_passwd: false
+    plain_text_passwd: {{ params.initial_password }}
+{% else %}
+    lock_passwd: true
+{% endif %}
+{% if params.ssh_public_keys %}
+    ssh_authorized_keys:
+{% for key in params.ssh_public_keys %}
+      - {{ key }}
+{% endfor %}
+{% endif %}
+
+{% if params.initial_password %}
+chpasswd:
+  expire: true
+{% endif %}
+
+{% if params.timezone %}
+timezone: {{ params.timezone }}
+{% endif %}
+
+package_update: true
+packages:
+  - git
+  - vim
+  - curl
+  - ca-certificates
+  - sudo
+  - openssh-server
+  - docker.io
+  - python3
+  - python3-pip
+  - tmux
+  - htop
+  - jq
+  - rsync
+
+write_files:
+  - path: /etc/motd
+    permissions: '0644'
+    content: |
+      ============================================================
+      Provisioned by hamac (bundle: dev-workstation)
+      User: {{ params.full_name | default(params.username) }} ({{ params.username }})
+      ============================================================
+
+runcmd:
+  # --- user setup ---
+  - install -d -o {{ params.username }} -g {{ params.username }} /home/{{ params.username }}/.config /home/{{ params.username }}/.local/bin /home/{{ params.username }}/projects
+  - bash -c 'printf "\n# hamac/dev-workstation\nexport PATH=\"$HOME/.local/bin:$PATH\"\nalias ll=\"ls -lah\"\n" >> /home/{{ params.username }}/.bashrc'
+  - chown {{ params.username }}:{{ params.username }} /home/{{ params.username }}/.bashrc
+  - systemctl enable --now ssh || systemctl enable --now sshd
+  # --- docker ---
+  - systemctl enable --now docker
+  - usermod -aG docker {{ params.username }} || true
+{% if params.dotfiles_repo %}
+  # --- dotfiles ---
+  - sudo -u {{ params.username }} git clone --depth 1 {{ params.dotfiles_repo }} /home/{{ params.username }}/.dotfiles || true
+  - bash -c 'for b in /home/{{ params.username }}/.dotfiles/bootstrap.sh /home/{{ params.username }}/.dotfiles/install.sh /home/{{ params.username }}/.dotfiles/setup.sh; do [ -x "$b" ] && sudo -u {{ params.username }} "$b" && break; done || true'
+{% endif %}
+  - echo "hamac dev-workstation provisioning done"

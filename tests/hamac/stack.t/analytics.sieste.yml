@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: service
+name: analytics
+runtime: eventloop
+
+artifact:
+  path: ./bin/analytics
+  sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  format: native-linux-amd64
+
+consumes:
+  - name: db
+    capability: database
+    inject:
+      DATABASE_URL: "postgresql://{user}:{password}@{host}:{port}/{dbname}"
+  - name: cache
+    capability: cache
+    inject:
+      REDIS_URL: "redis://:{password}@{host}:{port}"
+
+security:
+  zone: internal
+
+resources:
+  memory_limit: 1Gi
+  cpu_limit: "2"
+
+replicas: 2
+
+autoscaling:
+  min_replicas: 2
+  max_replicas: 8
+  cpu_threshold: 60

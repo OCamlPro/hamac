@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: service
+name: postgresql
+runtime: http
+capability: database
+
+artifact:
+  path: postgres:15-alpine
+  sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  format: oci-image
+
+inputs:
+  user: "{generate.alpha(12)}"
+  password: "{generate.alnum(32)}"
+  dbname: "{consumer.name}_db"
+
+provides:
+  host: "{service_name}"
+  port: "5432"
+  user: "{input.user}"
+  password: "{input.password}"
+  dbname: "{input.dbname}"
+
+readiness:
+  command: ["pg_isready", "-U", "{input.user}"]
+  interval: 5
+  timeout: 30
+
+ports:
+  - host: 5432
+    container: 5432
+    protocol: tcp
+
+environment:
+  POSTGRES_USER: "{input.user}"
+  POSTGRES_PASSWORD: "{input.password}"
+  POSTGRES_DB: "{input.dbname}"

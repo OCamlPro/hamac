@@ -56,3 +56,20 @@ jobs:
 
       - name: Test
         run: opam exec -- dune runtest
+
+      # Les tests cram ont leurs propres fixtures, hermétiques. Cette étape
+      # vérifie les fichiers réellement livrés (providers, exemples, profils,
+      # bundles) : ils doivent rester valides et rendables, sinon un
+      # utilisateur qui suit le README tombe sur une erreur.
+      - name: Smoke test des fichiers livrés
+        run: |
+          set -eux
+          opam exec -- dune exec -- hamac validate \
+            providers/*.sieste.yml \
+            examples/enterprise-stack/*.sieste.yml \
+            provisioning-profiles/*.yaml \
+            templates/bundles/*/bundle.yaml
+          opam exec -- dune exec -- hamac plan examples/enterprise-stack/*.sieste.yml
+          opam exec -- dune exec -- hamac resolve examples/enterprise-stack/*.sieste.yml
+          opam exec -- dune exec -- hamac provision-dryrun \
+            --profile=provisioning-profiles/dev-workstation-demo.yaml

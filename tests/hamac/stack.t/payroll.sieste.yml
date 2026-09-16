@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: service
+name: payroll
+runtime: http
+
+artifact:
+  path: ./bin/payroll
+  sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  format: native-linux-amd64
+
+consumes:
+  - name: db
+    capability: database
+    inject:
+      DATABASE_URL: "postgresql://{user}:{password}@{host}:{port}/{dbname}"
+
+security:
+  zone: secure
+  route_labels:
+    - route: "/salary/*"
+      required_clearance: ["comptable", "admin"]
+    - route: "/employees/*"
+      required_clearance: ["admin"]
+
+resources:
+  memory_limit: 256Mi
+  cpu_limit: "0.5"
+
+replicas: 2

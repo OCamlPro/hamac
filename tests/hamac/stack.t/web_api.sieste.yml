@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: service
+name: web_api
+runtime: http
+
+artifact:
+  path: ./bin/web_api
+  sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  format: native-linux-amd64
+
+consumes:
+  - name: db
+    capability: database
+    inject:
+      DATABASE_URL: "postgresql://{user}:{password}@{host}:{port}/{dbname}"
+
+security:
+  zone: public
+
+ports:
+  - host: 8080
+    container: 8080
+    protocol: tcp
+
+resources:
+  memory_limit: 512Mi
+  cpu_limit: "1"
+
+replicas: 3
+
+autoscaling:
+  min_replicas: 3
+  max_replicas: 10
+  cpu_threshold: 70

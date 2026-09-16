@@ -1,0 +1,7 @@
+manifest_version: "1.0"
+kind: service
+name: web
+runtime: http
+ports:
+  - host: notanint
+    container: 8080
