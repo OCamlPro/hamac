@@ -1,5 +1,6 @@
 # Build
 _build/
+_opam/
 *.install
 *.merlin
 .merlin
@@ -10,5 +11,6 @@ _build/
 /docker/hamac-discovery/bundles/
 /docker/hamac-discovery/profiles/
 
-# Sortie de `hamac simulate`
+# Sorties de `hamac simulate` / `hamac deploy`
 /.hamac/
+/docker-compose.yml
