@@ -108,9 +108,16 @@ jobs:
   image-discovery:
     runs-on: dind
     continue-on-error: true
+    # Le `defaults.run.shell: bash` global ne vaut pas ici : l'image du label
+    # dind est une Alpine, qui n'a pas bash. Le runner lançait donc chaque
+    # step par `bash -c` et échouait dès le premier, avant même de pouvoir
+    # l'installer (exec: "bash": executable file not found in $PATH).
+    defaults:
+      run:
+        shell: sh
     steps:
       - name: Outils (l'image du label dind est une Alpine nue)
-        run: apk add --no-cache git bash curl
+        run: apk add --no-cache git
 
       - name: Checkout (URL publique, authentifié)
         env:
@@ -150,13 +157,18 @@ jobs:
           mkdir -p docker/hamac-discovery/images
           docker build -t "hamac-discovery:${GITHUB_SHA}" docker/hamac-discovery/
 
+      # Le curl est lancé DANS le conteneur plutôt que depuis le job : selon
+      # que le daemon tourne ici ou à côté, un port publié n'est pas
+      # forcément joignable sur localhost depuis le job. Passer par l'API du
+      # daemon évite la question, et l'image embarque déjà curl pour son
+      # propre HEALTHCHECK.
       - name: L'image démarre et répond sur /health
         run: |
           set -eux
-          docker run -d --name discovery -p 8877:8877 "hamac-discovery:${GITHUB_SHA}"
+          docker run -d --name discovery "hamac-discovery:${GITHUB_SHA}"
           ok=0
           for _ in $(seq 1 30); do
-            if curl -fsS http://localhost:8877/health; then ok=1; break; fi
+            if docker exec discovery curl -fsS http://localhost:8877/health; then ok=1; break; fi
             sleep 1
           done
           docker logs discovery
