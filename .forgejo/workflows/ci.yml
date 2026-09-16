@@ -97,6 +97,23 @@ jobs:
         shell: sh
         run: apk add --no-cache git
 
+      # Le label `dind` fait tourner le job DANS l'image docker:dind, en
+      # privileged, mais le runner est configuré avec `docker_host: "-"` : il
+      # n'injecte aucun socket, et comme il exécute les steps sans passer par
+      # l'entrypoint de l'image, le daemon n'est jamais démarré. D'où
+      #   dial unix /var/run/docker.sock: connect: no such file or directory
+      # On le démarre donc ici — c'est précisément ce que le privileged permet.
+      - name: Démarre le daemon Docker
+        shell: sh
+        run: |
+          set -eux
+          dockerd --host=unix:///var/run/docker.sock >/tmp/dockerd.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if docker info >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker info || { echo "--- dockerd.log ---"; cat /tmp/dockerd.log; exit 1; }
+
       - name: Checkout (URL publique, authentifié)
         env:
           GH_TOKEN: ${{ github.token }}

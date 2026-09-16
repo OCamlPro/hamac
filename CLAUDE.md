@@ -53,6 +53,13 @@ Tourne sur les runners Forgejo d'OCamlPro. Trois contraintes apprises à la dure
   un `container:` crée un conteneur imbriqué dont le `docker create` **pend**. Le job tourne dans
   l'image du label `docker` (`node:20-bookworm`) et installe OCaml/opam via `apt` (OCaml système
   4.13, `opam switch create . ocaml-system`).
+- **Jobs `runs-on: dind`** : le label `dind` fait tourner le job **dans** l'image
+  `docker:dind` (Alpine, `privileged: true`), avec `docker_host: "-"` côté runner.
+  Deux conséquences à conserver : chaque step doit déclarer `shell: sh` (pas de
+  bash dans l'image, et le `defaults` global du workflow impose bash ; un
+  `defaults` au niveau job n'est pas honoré), et le **daemon Docker doit être
+  démarré par le job lui-même** (`dockerd --host=unix:///var/run/docker.sock &`)
+  — le runner n'injecte aucun socket et n'exécute pas l'entrypoint de l'image.
 - **Cloner depuis l'URL publique** `https://forge.ocamlpro.com/…` — `GITHUB_SERVER_URL`
   (`http://forgejo:3000`) est un nom de service interne **non résolvable** depuis les conteneurs
   de job. Le checkout est fait à la main avec `git` (pas d'`actions/checkout`, qui dépendrait du
