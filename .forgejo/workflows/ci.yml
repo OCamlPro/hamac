@@ -194,19 +194,35 @@ jobs:
       # Publiée seulement depuis master, et jamais depuis une pull request :
       # une PR ne doit pas pouvoir pousser une image sous le nom du projet.
       # Le registre de conteneurs est celui de Forgejo, donc public comme le
-      # dépôt. Si le token du job n'a pas le droit d'écrire les paquets, il
-      # faudra un secret dédié portant `write:package`.
+      # dépôt.
+      #
+      # L'authentification demande un secret dédié : le token éphémère du job
+      # ne porte pas `write:package` (essayé, le push échoue sans même créer
+      # le dépôt d'image — NAME_UNKNOWN au registre). Tant que REGISTRY_TOKEN
+      # n'existe pas, l'étape le dit et passe son tour, plutôt que de faire
+      # échouer un run par ailleurs sain pour une publication optionnelle.
+      #
+      # Pour l'activer : créer dans les paramètres du dépôt un secret
+      # REGISTRY_TOKEN portant le droit `write:package`, et si besoin
+      # REGISTRY_USER (défaut : le propriétaire du dépôt).
       - name: Publie l'image sur le registre Forgejo
         if: github.event_name == 'push' && github.ref_name == 'master'
         shell: sh
         env:
           REGISTRY: forge.ocamlpro.com
-          GH_TOKEN: ${{ github.token }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
         run: |
           set -eu   # pas de -x : ne pas logger le token
           OWNER=$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')
           IMAGE="${REGISTRY}/${OWNER}/hamac-discovery"
-          echo "$GH_TOKEN" | docker login "$REGISTRY" -u "${GITHUB_ACTOR}" --password-stdin
+          if [ -z "${REGISTRY_TOKEN:-}" ]; then
+            echo "REGISTRY_TOKEN absent : image construite et vérifiée, publication ignorée."
+            echo "Pour publier ${IMAGE} : créer ce secret avec le droit write:package."
+            exit 0
+          fi
+          echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" \
+            -u "${REGISTRY_USER:-$OWNER}" --password-stdin
           docker tag "hamac-discovery:${GITHUB_SHA}" "${IMAGE}:${GITHUB_SHA}"
           docker tag "hamac-discovery:${GITHUB_SHA}" "${IMAGE}:latest"
           docker push "${IMAGE}:${GITHUB_SHA}"
