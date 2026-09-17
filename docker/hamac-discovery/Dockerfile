@@ -8,10 +8,14 @@
 
 FROM debian:bookworm-slim
 
-LABEL org.opencontainers.image.title="hamac-discovery" \
+# Commit à partir duquel le binaire a été construit, passé par la CI.
+ARG VCS_REF=unknown
+
+LABEL org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.title="hamac-discovery" \
       org.opencontainers.image.description="Discovery server for hamac provisioning : REST API for node registration and provisioning profiles" \
-      org.opencontainers.image.source="https://gitlab.ocamlpro.com/OCamlPro/sieste" \
-      org.opencontainers.image.licenses="proprietary" \
+      org.opencontainers.image.source="https://forge.ocamlpro.com/OSS/hamac" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.authors="OCamlPro <contact@ocamlpro.com>" \
       org.opencontainers.image.version="0.1.0"
 

@@ -250,8 +250,8 @@ FROM ${PXE_BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="hamac-pxe" \
       org.opencontainers.image.description="PXE proxy DHCP + TFTP for hamac provisioning : serves iPXE (UEFI+BIOS) + kernel + initramfs to bare-metal hosts" \
-      org.opencontainers.image.source="https://gitlab.ocamlpro.com/OCamlPro/sieste" \
-      org.opencontainers.image.licenses="proprietary" \
+      org.opencontainers.image.source="https://forge.ocamlpro.com/OSS/hamac" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.authors="OCamlPro <contact@ocamlpro.com>" \
       org.opencontainers.image.version="0.1.0"
 
