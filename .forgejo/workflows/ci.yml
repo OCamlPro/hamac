@@ -99,8 +99,8 @@ jobs:
   # Tourne sur le label `dind`, seul environnement où le daemon Docker est
   # disponible (cf. CLAUDE.md : pas de `container:` au niveau job).
   #
-  # Pas de push : aucun registre n'est encore câblé pour ce dépôt public.
-  # Pour en ajouter un, `docker login` puis `docker push` en fin de job.
+  # Sur master, l'image est publiée sur le registre de conteneurs de Forgejo
+  # (`forge.ocamlpro.com/oss/hamac-discovery`), public comme le dépôt.
   image-discovery:
     runs-on: dind
     # Chaque step déclare `shell: sh` : l'image du label dind est une Alpine,
@@ -169,7 +169,8 @@ jobs:
           # cf. doc/PROVISIONING_SPEC.md §3.1. Le Dockerfile les COPY, donc le
           # répertoire doit exister même vide.
           mkdir -p docker/hamac-discovery/images
-          docker build -t "hamac-discovery:${GITHUB_SHA}" docker/hamac-discovery/
+          docker build --build-arg "VCS_REF=${GITHUB_SHA}" \
+            -t "hamac-discovery:${GITHUB_SHA}" docker/hamac-discovery/
 
       # Le curl est lancé DANS le conteneur plutôt que depuis le job : selon
       # que le daemon tourne ici ou à côté, un port publié n'est pas
@@ -189,3 +190,26 @@ jobs:
           docker logs discovery
           docker rm -f discovery
           [ "$ok" = 1 ]
+
+      # Publiée seulement depuis master, et jamais depuis une pull request :
+      # une PR ne doit pas pouvoir pousser une image sous le nom du projet.
+      # Le registre de conteneurs est celui de Forgejo, donc public comme le
+      # dépôt. Si le token du job n'a pas le droit d'écrire les paquets, il
+      # faudra un secret dédié portant `write:package`.
+      - name: Publie l'image sur le registre Forgejo
+        if: github.event_name == 'push' && github.ref_name == 'master'
+        shell: sh
+        env:
+          REGISTRY: forge.ocamlpro.com
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu   # pas de -x : ne pas logger le token
+          OWNER=$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="${REGISTRY}/${OWNER}/hamac-discovery"
+          echo "$GH_TOKEN" | docker login "$REGISTRY" -u "${GITHUB_ACTOR}" --password-stdin
+          docker tag "hamac-discovery:${GITHUB_SHA}" "${IMAGE}:${GITHUB_SHA}"
+          docker tag "hamac-discovery:${GITHUB_SHA}" "${IMAGE}:latest"
+          docker push "${IMAGE}:${GITHUB_SHA}"
+          docker push "${IMAGE}:latest"
+          docker logout "$REGISTRY"
+          echo "publié : ${IMAGE}:${GITHUB_SHA} et ${IMAGE}:latest"
