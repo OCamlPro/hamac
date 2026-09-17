@@ -156,3 +156,23 @@ explicitement **déléguée à Hamac** plutôt que hand-rollée deux fois.
 
 **À retirer côté SI une fois livré** : l'intérim D5 (`failover=manual` + sonde
 `clusterHealthService` → Zulip `adminsys`).
+
+---
+
+## Financement
+
+> « Ce projet a été financé par le gouvernement dans le cadre de France 2030 »
+>
+> « Financé par l'Union européenne - Next Generation EU dans le cadre du plan
+> France Relance »
+
+<p>
+  <img src="assets/france-2030.png" alt="France 2030" height="48">
+  &nbsp;&nbsp;
+  <img src="assets/france-relance.png" alt="France Relance" height="48">
+  &nbsp;&nbsp;
+  <img src="assets/finance-par-union-europeenne-nextgenerationeu.png"
+       alt="Financé par l'Union européenne — NextGenerationEU" height="48">
+</p>
+
+Provenance et règles d'usage des logos : [`assets/SOURCES.md`](assets/SOURCES.md).

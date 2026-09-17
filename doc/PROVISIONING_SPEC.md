@@ -407,3 +407,23 @@ Le compilateur sortirait alors le YAML attendu par hamac. C'est cohérent avec l
 - `doc/HAMAC_ROADMAP.md` : milestone 6
 - `tools/discovery-prototype/discovery-server/discovery_server.ml` : prototype actuel
 - `tools/discovery-prototype/pxe-build/init` : init script à étendre
+
+---
+
+## Financement
+
+> « Ce projet a été financé par le gouvernement dans le cadre de France 2030 »
+>
+> « Financé par l'Union européenne - Next Generation EU dans le cadre du plan
+> France Relance »
+
+<p>
+  <img src="assets/france-2030.png" alt="France 2030" height="48">
+  &nbsp;&nbsp;
+  <img src="assets/france-relance.png" alt="France Relance" height="48">
+  &nbsp;&nbsp;
+  <img src="assets/finance-par-union-europeenne-nextgenerationeu.png"
+       alt="Financé par l'Union européenne — NextGenerationEU" height="48">
+</p>
+
+Provenance et règles d'usage des logos : [`assets/SOURCES.md`](assets/SOURCES.md).
