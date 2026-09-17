@@ -18,12 +18,17 @@ jobs:
       OPAMCONFIRMLEVEL: unsafe-yes
       DEBIAN_FRONTEND: noninteractive
     steps:
+      # Les durées sont relevées pour savoir où passe le temps du job avant
+      # d'essayer de le réduire : une première tentative de cache opam a été
+      # poussée sans cette mesure, n'a rien fait gagner et a cassé le job.
       - name: Install git + opam + OCaml + build deps
         run: |
           set -eux
+          t=$(date +%s)
           apt-get update
           apt-get install -y --no-install-recommends \
             git ca-certificates opam ocaml m4 pkg-config build-essential libyaml-dev
+          echo "TIMING apt=$(($(date +%s)-t))s"
 
       - name: Checkout (URL publique, authentifié)
         env:
@@ -47,15 +52,31 @@ jobs:
       - name: opam init + switch (system OCaml) + deps
         run: |
           set -eux
+          t=$(date +%s)
           opam init --bare --disable-sandboxing -y
+          t_init=$(($(date +%s)-t)); t=$(date +%s)
           opam switch create . ocaml-system --no-install -y
+          t_switch=$(($(date +%s)-t)); t=$(date +%s)
           opam install . --deps-only --with-test -y
+          t_deps=$(($(date +%s)-t))
+          echo "TIMING opam_init=${t_init}s switch_create=${t_switch}s install_deps=${t_deps}s"
+          # Taille des deux candidats au cache, pour juger du coût d'un
+          # aller-retour par le serveur de cache.
+          du -sh ~/.opam ~/.opam/download-cache _opam 2>/dev/null || true
 
       - name: Build
-        run: opam exec -- dune build
+        run: |
+          set -eux
+          t=$(date +%s)
+          opam exec -- dune build
+          echo "TIMING build=$(($(date +%s)-t))s"
 
       - name: Test
-        run: opam exec -- dune runtest
+        run: |
+          set -eux
+          t=$(date +%s)
+          opam exec -- dune runtest
+          echo "TIMING test=$(($(date +%s)-t))s"
 
       # Les tests cram ont leurs propres fixtures, hermétiques. Cette étape
       # vérifie les fichiers réellement livrés (providers, exemples, profils,
