@@ -20,6 +20,13 @@ jobs:
       OPAMYES: "1"
       OPAMCONFIRMLEVEL: unsafe-yes
       DEBIAN_FRONTEND: noninteractive
+      # Le budget par défaut du solveur CUDF est de 60 s, calibré pour une
+      # machine au repos. Ces runners partagent leurs nœuds avec la
+      # production : le même job y varie d'un facteur cinq, et la résolution a
+      # déjà expiré (exitcode 60) sur un commit qui ne touchait pas le job.
+      # Le solveur est le seul poste où un dépassement fait échouer le run
+      # plutôt que le ralentir, d'où une marge large.
+      OPAMSOLVERTIMEOUT: "600"
     steps:
       # Les durées sont relevées pour savoir où passe le temps du job avant
       # d'essayer de le réduire : une première tentative de cache opam a été
