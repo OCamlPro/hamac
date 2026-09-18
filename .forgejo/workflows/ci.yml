@@ -4,6 +4,9 @@ on:
   push:
     branches: [master]
   pull_request:
+  # Relance à la demande, depuis l'interface : utile pour rejouer un run après
+  # un incident d'infrastructure, ou après avoir ajouté un secret.
+  workflow_dispatch:
 
 defaults:
   run:
@@ -208,7 +211,7 @@ jobs:
       # login est celui du compte qui a émis le jeton : REGISTRY_USER, ou à
       # défaut l'auteur du push.
       - name: Publie l'image sur le registre Forgejo
-        if: github.event_name == 'push' && github.ref_name == 'master'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master'
         shell: sh
         env:
           REGISTRY: forge.ocamlpro.com
