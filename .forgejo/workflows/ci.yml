@@ -203,8 +203,10 @@ jobs:
       # échouer un run par ailleurs sain pour une publication optionnelle.
       #
       # Pour l'activer : créer dans les paramètres du dépôt un secret
-      # REGISTRY_TOKEN portant le droit `write:package`, et si besoin
-      # REGISTRY_USER (défaut : le propriétaire du dépôt).
+      # REGISTRY_TOKEN portant le droit `write:package`. Le propriétaire du
+      # dépôt étant une organisation, qui ne peut pas porter de jeton, le
+      # login est celui du compte qui a émis le jeton : REGISTRY_USER, ou à
+      # défaut l'auteur du push.
       - name: Publie l'image sur le registre Forgejo
         if: github.event_name == 'push' && github.ref_name == 'master'
         shell: sh
@@ -218,11 +220,13 @@ jobs:
           IMAGE="${REGISTRY}/${OWNER}/hamac-discovery"
           if [ -z "${REGISTRY_TOKEN:-}" ]; then
             echo "REGISTRY_TOKEN absent : image construite et vérifiée, publication ignorée."
-            echo "Pour publier ${IMAGE} : créer ce secret avec le droit write:package."
+            echo "Pour publier ${IMAGE} : créer ce secret avec le droit write:package,"
+            echo "et REGISTRY_USER si l'émetteur du jeton n'est pas l'auteur du push."
             exit 0
           fi
-          echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" \
-            -u "${REGISTRY_USER:-$OWNER}" --password-stdin
+          USER="${REGISTRY_USER:-$GITHUB_ACTOR}"
+          echo "connexion à ${REGISTRY} en tant que ${USER}"
+          echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$USER" --password-stdin
           docker tag "hamac-discovery:${GITHUB_SHA}" "${IMAGE}:${GITHUB_SHA}"
           docker tag "hamac-discovery:${GITHUB_SHA}" "${IMAGE}:latest"
           docker push "${IMAGE}:${GITHUB_SHA}"
