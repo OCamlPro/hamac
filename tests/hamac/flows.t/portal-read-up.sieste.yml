@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: service
+name: portal
+runtime: http
+consumes:
+  - name: salaries
+    service: payroll
+    inject:
+      PAYROLL_URL: "http://{host}:{port}"
+security:
+  zone: public

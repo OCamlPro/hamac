@@ -62,6 +62,14 @@ let load_services_and_overrides () =
   ) !manifest_files;
   (List.rev !services, !overrides)
 
+(** Flows the services declare between each other, checked against the
+    zone lattice (no read up). Any invalid declaration stops the command. *)
+let checked_flows services =
+  let flows, errors = Flows.declared services in
+  List.iter (fun err -> Logs.err (fun m -> m "%s" err)) errors;
+  if errors <> [] then exit 1;
+  flows
+
 (* ============================================================ *)
 (* Commands                                                      *)
 (* ============================================================ *)
@@ -88,7 +96,8 @@ let run_plan () =
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
   end;
-  let plan = Planner.plan ~name:"stack" services in
+  let flows = checked_flows services in
+  let plan = Planner.plan ~name:"stack" ~flows services in
   Planner.display_plan plan
 
 let run_resolve () =
@@ -99,7 +108,8 @@ let run_resolve () =
     exit 1
   end;
 
-  let resolution = Resolver.resolve_all ~registry ~services ~overrides in
+  let _flows = checked_flows services in
+  let resolution = Resolver.resolve_all ~registry ~services ~overrides () in
 
   (* Report errors *)
   List.iter (fun err ->
@@ -126,8 +136,9 @@ let run_resolve () =
     Logs.app (fun m -> m "");
     Logs.app (fun m -> m "Wiring:");
     List.iter (fun (w : Resolver.resolved_wire) ->
-      Logs.app (fun m -> m "  %s.%s -> %s"
-        w.consumer_name w.consume_name w.provider_name);
+      Logs.app (fun m -> m "  %s.%s -> %s%s"
+        w.consumer_name w.consume_name (Resolver.target_name w)
+        (match w.target with Resolver.Service _ -> " (service)" | _ -> ""));
       List.iter (fun (k, v) ->
         Logs.app (fun m -> m "    inject: %s=%s" k v)
       ) w.injected_env
@@ -145,11 +156,13 @@ let run_simulate () =
   end;
 
   (* Plan infrastructure *)
-  let plan = Planner.plan ~name:"stack" services in
+  let flows = checked_flows services in
+  let plan = Planner.plan ~name:"stack" ~flows services in
   Planner.display_plan plan;
 
-  (* Resolve providers *)
-  let resolution = Resolver.resolve_all ~registry ~services ~overrides in
+  (* Resolve providers; consumed services are reached on their node *)
+  let resolution = Resolver.resolve_all ~service_endpoint:Infra_sim.service_endpoint
+      ~registry ~services ~overrides () in
   List.iter (fun err -> Logs.err (fun m -> m "%s" err)) resolution.errors;
   if resolution.errors <> [] then exit 1;
 
@@ -192,7 +205,13 @@ let run_deploy () =
     exit 1
   end;
 
-  let resolution = Resolver.resolve_all ~registry ~services ~overrides in
+  let _flows = checked_flows services in
+  let zones = List.sort_uniq String.compare (List.map Flows.service_zone services) in
+  if List.length zones > 1 then
+    Logs.warn (fun m -> m "deploy generates a flat docker-compose on a single \
+      network: it does not isolate the security zones (%s). Use `hamac \
+      simulate` to deploy with zone filtering." (String.concat ", " zones));
+  let resolution = Resolver.resolve_all ~registry ~services ~overrides () in
 
   (* Report errors *)
   List.iter (fun err ->

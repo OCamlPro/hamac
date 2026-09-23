@@ -73,7 +73,41 @@ Run `hamac --help` for the full command list.
 | `providers/` | Provider manifests (`postgresql`, `redis`) — a provider is a `kind: service` manifest, not a compiled plugin. | `./providers`, then `~/.hamac/providers` |
 | `templates/bundles/<name>/` | Provisioning bundles: `bundle.yaml` + cloud-init Jinja2 templates. | `./templates/bundles`, `/usr/share/hamac/bundles`, or `--bundles-dir` |
 | `provisioning-profiles/` | `kind: provisioning_profile` manifests. `dev-workstation.yaml` takes its parameters from the machine record; `dev-workstation-demo.yaml` carries them inline so a dry run needs nothing else. | passed with `--profile` |
-| `examples/enterprise-stack/` | Three services across three security zones, consuming a database and a cache. | passed on the command line |
+| `examples/enterprise-stack/` | Three services across three security zones, consuming a database and a cache; `analytics` (internal) reads `web_api` (public). | passed on the command line |
+
+## Security zones and flows
+
+Each service declares a security zone. Zones are ordered by sensitivity —
+`public` < `default` < `internal` < `secure` — as a Bell-LaPadula lattice, and
+Hamac derives the network filtering from it:
+
+- **No read up.** Opening a connection to a service means reading from it, so
+  a zone can never open a connection to a more sensitive zone. `hamac plan`
+  rejects any service that declares such a dependency.
+- **Read down, only when declared.** A service may consume a service of a less
+  sensitive zone (`consumes: - service: web_api`); Hamac then opens exactly that
+  flow, to that service's port, and nothing else between the two zones.
+- **Stateful.** Replies to an allowed connection pass; every other connection
+  between zones is denied.
+
+```yaml
+# analytics (zone internal) reads the public API: allowed, and opened
+consumes:
+  - name: api
+    service: web_api
+    inject:
+      API_URL: "http://{host}:{port}"
+```
+
+Writing down — a sensitive service sending data to a less sensitive zone,
+including inside the request of an allowed connection — is not a network
+matter: it belongs to application-level controls or to a filtering data diode.
+
+`hamac simulate` enforces these rules: each node is attached only to its own
+zone's network and to those it may read from, with a fixed address, and
+`iptables` filters new connections both at node level and in `DOCKER-USER` for
+the service containers. `hamac deploy` produces a flat docker-compose on a
+single network and does not isolate zones (it warns about it).
 
 ## Bare-metal provisioning (PXE)
 

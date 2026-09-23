@@ -20,6 +20,10 @@ consumes:
     capability: cache
     inject:
       REDIS_URL: "redis://:{password}@{host}:{port}"
+  - name: api
+    service: web_api
+    inject:
+      API_URL: "http://{host}:{port}"
 
 security:
   zone: internal

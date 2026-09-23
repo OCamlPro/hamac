@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+manifest_version: "1.0"
+kind: service
+name: web_api
+runtime: http
+ports:
+  - host: 8080
+    container: 8080
+    protocol: tcp
+security:
+  zone: public

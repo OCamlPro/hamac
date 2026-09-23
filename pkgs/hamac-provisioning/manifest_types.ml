@@ -160,9 +160,58 @@ type network_segment = {
   vlan: int option;
 } [@@deriving show]
 
+(** A filtering rule between two security zones. Rules are stateful:
+    [Allow] opens new connections from [src_zone] to [dst_zone], replies to
+    an established connection always pass, and anything not allowed is
+    denied. *)
+type fw_action = Allow | Deny [@@deriving show]
+
 type firewall_rule = {
-  rule: string;              (** raw rule string for now *)
+  action: fw_action;
+  src_zone: string;
+  dst_zone: string;
+  flow: (string * string) option;
+    (** declared flow the rule opens: (consumer service, consumed service) *)
+  reason: string option;
 } [@@deriving show]
+
+(** Textual form, as printed by [hamac plan] and written in an
+    infrastructure manifest: ["ALLOW internal -> public (analytics -> web_api)"],
+    ["DENY public -> secure (no read up)"]. *)
+let firewall_rule_to_string (r : firewall_rule) : string =
+  let action = match r.action with Allow -> "ALLOW" | Deny -> "DENY" in
+  let detail = match r.flow, r.reason with
+    | Some (c, s), _ -> Printf.sprintf " (%s -> %s)" c s
+    | None, Some why -> Printf.sprintf " (%s)" why
+    | None, None -> ""
+  in
+  Printf.sprintf "%s %s -> %s%s" action r.src_zone r.dst_zone detail
+
+(** Inverse of [firewall_rule_to_string]. A parenthesised detail of the
+    form ["a -> b"] is read back as a flow, anything else as a reason. *)
+let firewall_rule_of_string (s : string) : (firewall_rule, string) result =
+  let s = String.trim s in
+  let head, detail = match String.index_opt s '(' with
+    | Some i when s.[String.length s - 1] = ')' ->
+      (String.trim (String.sub s 0 i),
+       Some (String.trim (String.sub s (i + 1) (String.length s - i - 2))))
+    | _ -> (s, None)
+  in
+  let words = String.split_on_char ' ' head |> List.filter ((<>) "") in
+  let flow_of d = match String.split_on_char ' ' d |> List.filter ((<>) "") with
+    | [c; "->"; t] -> Some (c, t)
+    | _ -> None
+  in
+  let mk action src_zone dst_zone =
+    let flow = Option.bind detail flow_of in
+    let reason = if flow = None then detail else None in
+    Ok { action; src_zone; dst_zone; flow; reason }
+  in
+  match words with
+  | ["ALLOW"; src; "->"; dst] -> mk Allow src dst
+  | ["DENY"; src; "->"; dst] -> mk Deny src dst
+  | _ -> Error (Printf.sprintf
+      "invalid firewall rule '%s' (expected: ALLOW|DENY <zone> -> <zone> [(detail)])" s)
 
 type infra_topology = {
   nodes: infra_node list;

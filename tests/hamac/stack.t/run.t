@@ -32,12 +32,12 @@ manifestes de service).
     secure: 10.12.0.0/24 (VLAN 102)
   
   Firewall rules:
-    DENY internal -> public (Bell-LaPadula)
-    ALLOW internal -> secure
-    ALLOW public -> internal
-    ALLOW public -> secure
-    DENY secure -> internal (Bell-LaPadula)
-    DENY secure -> public (Bell-LaPadula)
+    DENY internal -> public (no declared flow)
+    DENY internal -> secure (no read up)
+    DENY public -> internal (no read up)
+    DENY public -> secure (no read up)
+    DENY secure -> internal (no declared flow)
+    DENY secure -> public (no declared flow)
   
 
 `resolve` apparie chaque `consumes` à un provider et génère les credentials.
@@ -80,6 +80,7 @@ dépendances et healthchecks portant les credentials résolus.
   $ hamac deploy --seed 42 analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml
   hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
   Loaded 2 provider(s) from ./providers
+  hamac: [WARNING] deploy generates a flat docker-compose on a single network: it does not isolate the security zones (internal, public, secure). Use `hamac simulate` to deploy with zone filtering.
   Generated docker-compose.yml (3 services, 4 providers)
   $ grep -E '^(services|networks|  [a-z])' docker-compose.yml | head -20
   services:

@@ -30,3 +30,12 @@ Plusieurs fichiers en un appel : tous sont examinés, pas seulement le premier.
   service.yml: service (name=web, runtime=http)
   hamac: [ERROR] missing-name.yml: name: required field 'name' is missing
   [1]
+
+Les règles de filtrage d'un manifeste d'infrastructure sont lues et vérifiées ;
+une règle mal formée est refusée avec le format attendu :
+
+  $ hamac validate infra.yml
+  infra.yml: infrastructure (name=lab, backend=docker-compose)
+  $ hamac validate bad-firewall.yml
+  hamac: [ERROR] bad-firewall.yml: proposed_topology.network.firewall.0: invalid firewall rule 'PERMIT public secure' (expected: ALLOW|DENY <zone> -> <zone> [(detail)])
+  [1]

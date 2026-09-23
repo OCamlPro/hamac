@@ -1,0 +1,9 @@
+manifest_version: "1.0"
+kind: infrastructure
+name: lab
+backend: docker-compose
+proposed_topology:
+  nodes: []
+  network:
+    firewall:
+      - "PERMIT public secure"

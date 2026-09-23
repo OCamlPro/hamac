@@ -132,25 +132,23 @@ let emit_service buf (resolution : resolution) (svc : service_manifest) =
       | Some cl -> emit_line buf 5 "cpus: \"%s\"" cl
       | None -> ())
    | None -> ());
-  (* Depends on: all providers this service consumes *)
+  (* Depends on: provider instances and services this service consumes.
+     Always the map form: compose rejects mixing it with the list form. *)
   let deps = List.filter_map (fun (w : resolved_wire) ->
-    if w.consumer_name = svc.name then Some w
-    else None
-  ) resolution.wires in
+    if w.consumer_name <> svc.name then None
+    else match w.target with
+      | Provider { instance_name; _ } ->
+        let healthy = List.exists (fun (rp : resolved_provider) ->
+          rp.instance_name = instance_name && rp.provider.readiness <> None
+        ) resolution.providers in
+        Some (instance_name, if healthy then "service_healthy" else "service_started")
+      | Service name -> Some (name, "service_started")
+  ) resolution.wires |> List.sort_uniq compare in
   if deps <> [] then begin
     emit_line buf 2 "depends_on:";
-    List.iter (fun (w : resolved_wire) ->
-      let instance_name = Printf.sprintf "%s-%s-%s"
-        w.provider_name w.consumer_name w.consume_name in
-      (* Use condition if provider has healthcheck *)
-      let has_healthcheck = List.exists (fun (rp : resolved_provider) ->
-        rp.instance_name = instance_name && rp.provider.readiness <> None
-      ) resolution.providers in
-      if has_healthcheck then begin
-        emit_line buf 3 "%s:" instance_name;
-        emit_line buf 4 "condition: service_healthy"
-      end else
-        emit_line buf 3 "- %s" instance_name
+    List.iter (fun (name, condition) ->
+      emit_line buf 3 "%s:" name;
+      emit_line buf 4 "condition: %s" condition
     ) deps
   end;
   (* Restart and network *)

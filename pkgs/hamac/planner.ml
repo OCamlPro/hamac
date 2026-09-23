@@ -52,11 +52,8 @@ type zone_info = {
   total_replicas: int;
 }
 
-(** Extract zone name from a service (default: "default") *)
-let service_zone (svc : service_manifest) : string =
-  match svc.security with
-  | Some s -> s.zone
-  | None -> "default"
+(** Zone of a service (default: "default"), cf. {!Flows.service_zone}. *)
+let service_zone = Flows.service_zone
 
 (** Extract memory requirement per replica in MB *)
 let service_memory_mb (svc : service_manifest) : int =
@@ -126,36 +123,6 @@ let zone_cidr (zone_index : int) : string =
 let zone_vlan (zone_index : int) : int =
   100 + zone_index
 
-(** Generate firewall rules between zones.
-    Bell-LaPadula: information flows UP only (public -> internal -> secure).
-    Same zone: allow all. Higher to lower: deny by default. *)
-let zone_order = ["public"; "default"; "internal"; "secure"]
-
-let zone_level (zone : string) : int =
-  let rec aux i = function
-    | [] -> 1  (* unknown zones treated as "default" *)
-    | z :: _ when z = zone -> i
-    | _ :: rest -> aux (i + 1) rest
-  in
-  aux 0 zone_order
-
-let generate_firewall_rules (zones : zone_info list) : firewall_rule list =
-  let zone_names = List.map (fun z -> z.zone_name) zones in
-  List.concat_map (fun src ->
-    List.filter_map (fun dst ->
-      if src = dst then None
-      else
-        let src_level = zone_level src in
-        let dst_level = zone_level dst in
-        if src_level <= dst_level then
-          (* Lower can reach higher — allow *)
-          Some { rule = Printf.sprintf "ALLOW %s -> %s" src dst }
-        else
-          (* Higher cannot initiate to lower — deny *)
-          Some { rule = Printf.sprintf "DENY %s -> %s (Bell-LaPadula)" src dst }
-    ) zone_names
-  ) zone_names
-
 (* ============================================================ *)
 (* Plan generation                                               *)
 (* ============================================================ *)
@@ -166,8 +133,9 @@ type plan = {
   warnings: string list;
 }
 
-(** Generate an infrastructure proposal from service manifests *)
-let plan ~(name : string) (services : service_manifest list) : plan =
+(** Generate an infrastructure proposal from service manifests and the
+    flows they declare (already checked by {!Flows.declared}). *)
+let plan ~(name : string) ~(flows : Flows.flow list) (services : service_manifest list) : plan =
   let zones = compute_zones services in
   let warnings = ref [] in
 
@@ -200,7 +168,7 @@ let plan ~(name : string) (services : service_manifest list) : plan =
   ) zones in
 
   (* Firewall rules *)
-  let firewall = generate_firewall_rules zones in
+  let firewall = Flows.firewall_rules (List.map (fun z -> z.zone_name) zones) flows in
 
   let infrastructure = {
     manifest_version = "1.0";
@@ -277,8 +245,10 @@ let display_plan (p : plan) =
      if topo.firewall <> [] then begin
        Logs.app (fun m -> m "Firewall rules:");
        List.iter (fun (r : firewall_rule) ->
-         Logs.app (fun m -> m "  %s" r.rule)
+         Logs.app (fun m -> m "  %s" (firewall_rule_to_string r))
        ) topo.firewall;
+       if List.exists (fun (r : firewall_rule) -> r.action = Allow) topo.firewall then
+         Logs.app (fun m -> m "  Stateful: replies to an allowed connection pass.");
        Logs.app (fun m -> m "")
      end
    | None -> ());

@@ -435,7 +435,9 @@ let parse_network_segment path (v : Yaml.value) : network_segment result =
 
 let parse_firewall_rule path (v : Yaml.value) : firewall_rule result =
   let* rule = as_string path v in
-  Ok { rule }
+  match firewall_rule_of_string rule with
+  | Ok r -> Ok r
+  | Error msg -> error path msg
 
 let parse_infra_topology path (v : Yaml.value) : infra_topology result =
   let* fields = as_obj path v in

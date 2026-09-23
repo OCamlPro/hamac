@@ -3,8 +3,8 @@
 
 (** Resolver for hamac.
 
-    Resolves service consumes to concrete providers, generates credentials,
-    and substitutes injection templates. *)
+    Resolves service consumes to concrete providers or to other services of
+    the stack, generates credentials, and substitutes injection templates. *)
 
 open Hamac_provisioning.Manifest_types
 
@@ -148,13 +148,39 @@ let substitute (vars : (string * string) list) (template : string) : string =
 (* Resolution result                                             *)
 (* ============================================================ *)
 
+(** What a consumption is wired to. *)
+type wire_target =
+  | Provider of { provider_name: string; instance_name: string }
+      (** a provider instance created for this consumer *)
+  | Service of string
+      (** another service of the stack ([consumes: - service: ...]) *)
+
 type resolved_wire = {
   consumer_name: string;         (** service that consumes *)
   consume_name: string;          (** name of the consumption *)
-  provider_name: string;         (** resolved provider name *)
+  target: wire_target;
   generated_inputs: (string * string) list;  (** credentials generated *)
   injected_env: (string * string) list;      (** final env vars to inject *)
 }
+
+(** Name of what a wire points to: provider or consumed service. *)
+let target_name (w : resolved_wire) : string =
+  match w.target with
+  | Provider { provider_name; _ } -> provider_name
+  | Service name -> name
+
+(** Provider instance a wire points to, if any. *)
+let provider_instance (w : resolved_wire) : string option =
+  match w.target with
+  | Provider { instance_name; _ } -> Some instance_name
+  | Service _ -> None
+
+(** Default endpoint of a consumed service: its container name and the
+    container port of its first published port. *)
+let default_service_endpoint (svc : service_manifest) : string * string =
+  match svc.ports with
+  | p :: _ -> (svc.name, string_of_int p.container)
+  | [] -> (svc.name, "")
 
 type resolved_provider = {
   provider: service_manifest;    (** the provider manifest *)
@@ -238,7 +264,7 @@ let resolve_consumption
     let wire = {
       consumer_name = consumer.name;
       consume_name = cons.name;
-      provider_name = provider.name;
+      target = Provider { provider_name = provider.name; instance_name };
       generated_inputs;
       injected_env;
     } in
@@ -249,12 +275,44 @@ let resolve_consumption
     } in
     (Some (wire, rprovider), None)
 
-(** Resolve all consumptions for a list of services with optional stack overrides *)
+(** Resolve a consumption of another service of the stack. The consumed
+    service is reached at [endpoint target] = (host, port); its [provides]
+    and the [inject] templates may use {host}, {port} and {service_name}.
+    Whether the flow is allowed is checked beforehand by {!Flows.declared}. *)
+let resolve_service_consumption
+    ~(services : service_manifest list)
+    ~(endpoint : service_manifest -> string * string)
+    ~(consumer : service_manifest)
+    (cons : consumption) (target_name : string)
+  : (resolved_wire, string) result =
+  match List.find_opt (fun (s : service_manifest) -> s.name = target_name) services with
+  | None ->
+    Error (Printf.sprintf "%s: consumes '%s': unknown service '%s' (not part of this stack)"
+      consumer.name cons.name target_name)
+  | Some target ->
+    let host, port = endpoint target in
+    let base = [("host", host); ("port", port); ("service_name", host)] in
+    let provides = List.map (fun (k, tmpl) -> (k, substitute base tmpl)) target.provides in
+    let vars = provides @ base in
+    Ok {
+      consumer_name = consumer.name;
+      consume_name = cons.name;
+      target = Service target.name;
+      generated_inputs = [];
+      injected_env = List.map (fun (k, tmpl) -> (k, substitute vars tmpl)) cons.inject;
+    }
+
+(** Resolve all consumptions for a list of services with optional stack
+    overrides. [service_endpoint] locates a consumed service (default:
+    {!default_service_endpoint}); the infrastructure simulation passes the
+    node that hosts it. *)
 let resolve_all
+    ?(service_endpoint = default_service_endpoint)
     ~(registry : Provider_registry.t)
     ~(services : service_manifest list)
     ~(overrides : (string * (string * string) list) list)
     (** overrides: (service_name, [(consume_name, provider_name)]) *)
+    ()
   : resolution =
   let wires = ref [] in
   let providers = ref [] in
@@ -267,6 +325,13 @@ let resolve_all
       | None -> []
     in
     List.iter (fun (cons : consumption) ->
+      match cons.service with
+      | Some target_name ->
+        (match resolve_service_consumption ~services ~endpoint:service_endpoint
+                 ~consumer:svc cons target_name with
+         | Ok wire -> wires := wire :: !wires
+         | Error err -> errors := err :: !errors)
+      | None ->
       let provider_override = List.assoc_opt cons.name svc_overrides in
       match resolve_consumption ~registry ~consumer:svc ~provider_override cons with
       | (Some (wire, rprov), _) ->

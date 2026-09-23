@@ -34,17 +34,66 @@ let node_name (zone : string) (index : int) : string =
 (* Init script generation                                        *)
 (* ============================================================ *)
 
-(** A firewall directive for the init script *)
-type fw_directive =
-  | FwDenyNode of string * string   (* deny traffic to node name, reason *)
-  | FwAllow of string * string      (* allow traffic to subnet, reason *)
+(** Stateful filtering applied on a DinD node, derived from the plan's
+    rules for the node's zone. Connections inside a zone are not filtered;
+    replies to an allowed connection always pass. *)
+type node_filter = {
+  outbound: (string * (int * int)) list;
+    (** subnet of a less sensitive zone this node may open connections to,
+        with the host port range of the consumed service *)
+  inbound: (string * (int * int)) list;
+    (** address of a node of a more sensitive zone, attached to this zone's
+        network, allowed to open connections to the given port range *)
+  foreign: string list;
+    (** addresses of all nodes of other zones attached to this zone's
+        network: any other new connection from them is dropped *)
+  others: string list;
+    (** subnets of all other zones: any other new connection to or from
+        them is dropped *)
+}
+
+(** iptables commands implementing a [node_filter]. Service containers run
+    inside the node's own Docker daemon: their traffic crosses FORWARD, so
+    each rule is set both in INPUT/OUTPUT (node-level traffic) and in
+    DOCKER-USER (container traffic, where ports published with [-p] are
+    matched on their original destination port). Docker ends DOCKER-USER
+    with a RETURN rule: the chain is rebuilt so that ours come before it. *)
+let filter_commands (f : node_filter) : string list =
+  let range (lo, hi) = if lo = hi then string_of_int lo else Printf.sprintf "%d:%d" lo hi in
+  let established chain =
+    Printf.sprintf "iptables -I %s 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT" chain in
+  let accept_out = List.concat_map (fun (subnet, r) ->
+    [ Printf.sprintf "iptables -A OUTPUT -d %s -p tcp --dport %s -m conntrack --ctstate NEW -j ACCEPT" subnet (range r);
+      Printf.sprintf "iptables -A DOCKER-USER -d %s -p tcp -m conntrack --ctstate NEW --ctorigdstport %s -j ACCEPT" subnet (range r) ]
+  ) f.outbound in
+  let accept_in = List.concat_map (fun (src, r) ->
+    [ Printf.sprintf "iptables -A INPUT -s %s -p tcp --dport %s -m conntrack --ctstate NEW -j ACCEPT" src (range r);
+      Printf.sprintf "iptables -A DOCKER-USER -s %s -p tcp -m conntrack --ctstate NEW --ctorigdstport %s -j ACCEPT" src (range r) ]
+  ) f.inbound in
+  let drop_foreign = List.concat_map (fun src ->
+    [ Printf.sprintf "iptables -A INPUT -s %s -m conntrack --ctstate NEW -j DROP" src;
+      Printf.sprintf "iptables -A DOCKER-USER -s %s -m conntrack --ctstate NEW -j DROP" src ]
+  ) f.foreign in
+  let drop_others = List.concat_map (fun subnet ->
+    [ Printf.sprintf "iptables -A OUTPUT -d %s -m conntrack --ctstate NEW -j DROP" subnet;
+      Printf.sprintf "iptables -A INPUT -s %s -m conntrack --ctstate NEW -j DROP" subnet;
+      Printf.sprintf "iptables -A DOCKER-USER -d %s -m conntrack --ctstate NEW -j DROP" subnet;
+      Printf.sprintf "iptables -A DOCKER-USER -s %s -m conntrack --ctstate NEW -j DROP" subnet ]
+  ) f.others in
+  match accept_out @ accept_in @ drop_foreign @ drop_others with
+  | [] -> []
+  | rules ->
+    [ "iptables -F DOCKER-USER";
+      established "INPUT"; established "OUTPUT"; established "DOCKER-USER" ]
+    @ rules
+    @ [ "iptables -A DOCKER-USER -j RETURN" ]
 
 (** Generate the init script that runs inside a DinD node.
-    This script waits for Docker daemon, applies firewall rules,
+    This script waits for Docker daemon, applies the zone filtering,
     then pulls/runs services. *)
 let generate_node_init_script
     ~(services : (service_manifest * (string * string) list) list)
-    ~(firewall : fw_directive list)
+    ~(filter : node_filter)
   : string =
   let buf = Buffer.create 512 in
   Buffer.add_string buf "#!/bin/sh\n";
@@ -60,21 +109,15 @@ let generate_node_init_script
   Buffer.add_string buf "  echo 0 > \"$iface\" 2>/dev/null || true\n";
   Buffer.add_string buf "done\n\n";
 
-  (* Apply firewall rules *)
-  if firewall <> [] then begin
-    Buffer.add_string buf "# Firewall rules (Bell-LaPadula)\n";
-    Buffer.add_string buf "echo 'Applying firewall rules...'\n";
-    List.iter (fun dir ->
-      match dir with
-      | FwDenyNode (subnet, reason) ->
-        Buffer.add_string buf (Printf.sprintf
-          "iptables -A OUTPUT -d %s -j DROP # %s\n" subnet reason)
-      | FwAllow (subnet, reason) ->
-        Buffer.add_string buf (Printf.sprintf
-          "# ALLOW -> %s (%s)\n" subnet reason)
-    ) firewall;
-    Buffer.add_string buf "echo 'Firewall rules applied'\n\n"
-  end;
+  (* Zone filtering (Bell-LaPadula: no read up, read down only for
+     declared flows), stateful *)
+  (match filter_commands filter with
+   | [] -> ()
+   | cmds ->
+     Buffer.add_string buf "# Zone filtering: no read up, read down only for declared flows\n";
+     Buffer.add_string buf "echo 'Applying zone filtering...'\n";
+     List.iter (fun c -> Buffer.add_string buf (c ^ "\n")) cmds;
+     Buffer.add_string buf "echo 'Zone filtering applied'\n\n");
 
   (* Track replica index per service for unique container names *)
   let replica_counters : (string, int) Hashtbl.t = Hashtbl.create 8 in
@@ -141,6 +184,22 @@ type placement = {
   services: (service_manifest * (string * string) list) list;
     (** services + their injected env vars *)
 }
+
+(** Where a consumed service is reached in the simulation: the node that
+    hosts its first replica (round-robin starts with node 1 of its zone)
+    and the host port of its first published port. *)
+let service_endpoint (svc : service_manifest) : string * string =
+  let host = node_name (Planner.service_zone svc) 0 in
+  match svc.ports with
+  | p :: _ -> (host, string_of_int p.host)
+  | [] -> (host, "")
+
+(** Host port range a service occupies on a node: replicas on the same node
+    get consecutive host ports (see [generate_node_init_script]). *)
+let service_port_range (svc : service_manifest) : (int * int) option =
+  match svc.ports with
+  | p :: _ -> Some (p.host, p.host + Planner.service_max_replicas svc - 1)
+  | [] -> None
 
 (** Simple round-robin placement within a zone *)
 let place_services
@@ -241,8 +300,7 @@ let generate
     emit_line buf 2 "restart: unless-stopped";
     (* Attach to zone networks of all consumers *)
     let consumer_zones = List.filter_map (fun (w : resolved_wire) ->
-      if rp.instance_name = Printf.sprintf "%s-%s-%s"
-           w.provider_name w.consumer_name w.consume_name then
+      if provider_instance w = Some rp.instance_name then
         let svc_opt = List.find_opt (fun (s : service_manifest) ->
           s.name = w.consumer_name) services in
         match svc_opt with
@@ -262,38 +320,71 @@ let generate
   let zone_subnets = List.mapi (fun i (z : Planner.zone_info) ->
     (z.zone_name, Planner.zone_cidr i)
   ) plan.zones in
+  let rules = match plan.infrastructure.proposed_topology with
+    | Some topo -> topo.firewall
+    | None -> []
+  in
+
+  (* Networks of a node: its own zone + the zones it may open connections
+     to (declared read-down flows). Nodes of a less sensitive zone are
+     never attached to a more sensitive zone's network. *)
+  let node_networks (p : placement) =
+    p.zone :: List.filter_map (fun (r : firewall_rule) ->
+      if r.action = Allow && r.src_zone = p.zone then Some r.dst_zone else None
+    ) rules |> List.sort_uniq String.compare
+  in
+
+  (* Static addresses of the nodes on each zone network, so that filtering
+     can name the nodes of another zone attached to it: own nodes first,
+     then foreign ones, from .10; dynamic addresses (provider containers)
+     are confined to the upper half of the subnet. *)
+  let addresses = List.concat (List.mapi (fun i (z : Planner.zone_info) ->
+    let attached = List.filter (fun p -> List.mem z.zone_name (node_networks p)) placements in
+    let own, foreign = List.partition (fun p -> p.zone = z.zone_name) attached in
+    List.mapi (fun k (p : placement) ->
+      if k > 117 then
+        failwith (Printf.sprintf "zone %s: too many nodes attached to its network" z.zone_name);
+      ((p.node, z.zone_name), Printf.sprintf "10.%d.0.%d" (10 + i) (10 + k))
+    ) (own @ foreign)
+  ) plan.zones) in
+  let address node zone = List.assoc_opt (node, zone) addresses in
 
 
   (* DinD node containers *)
   List.iter (fun (p : placement) ->
     let script_name = Printf.sprintf ".hamac/init-%s.sh" p.node in
 
-    (* Build firewall directives for this node's zone *)
-    let fw_rules = match plan.infrastructure.proposed_topology with
-      | Some topo ->
-        List.concat_map (fun (r : firewall_rule) ->
-          (* Parse "DENY src -> dst (reason)" or "ALLOW src -> dst" *)
-          if String.length r.rule > 5 then
-            let parts = String.split_on_char ' ' r.rule in
-            match parts with
-            | "DENY" :: src :: "->" :: dst :: rest when src = p.zone ->
-              let reason = String.concat " " rest in
-              (match List.assoc_opt dst zone_subnets with
-               | Some subnet -> [FwDenyNode (subnet, reason)]
-               | None -> [])
-            | "ALLOW" :: src :: "->" :: dst :: rest when src = p.zone ->
-              let reason = String.concat " " rest in
-              (match List.assoc_opt dst zone_subnets with
-               | Some subnet -> [FwAllow (subnet, reason)]
-               | None -> [])
-            | _ -> []
-          else []
-        ) topo.firewall
-      | None -> []
-    in
+    (* Zone filtering for this node, from the plan's rules *)
+    let subnet z = List.assoc_opt z zone_subnets in
+    let find_service name = List.find_opt (fun (s : service_manifest) -> s.name = name) services in
+    let target_range (r : firewall_rule) =
+      Option.bind r.flow (fun (_, t) -> Option.bind (find_service t) service_port_range) in
+    let nodes_of zone = List.filter (fun (q : placement) -> q.zone = zone) placements in
+    let outbound = List.filter_map (fun (r : firewall_rule) ->
+      if r.action = Allow && r.src_zone = p.zone then
+        match subnet r.dst_zone, target_range r with
+        | Some sn, Some range -> Some (sn, range)
+        | _ -> None
+      else None
+    ) rules in
+    let inbound = List.concat_map (fun (r : firewall_rule) ->
+      if r.action = Allow && r.dst_zone = p.zone then
+        match target_range r with
+        | Some range ->
+          List.filter_map (fun (q : placement) ->
+            Option.map (fun ip -> (ip, range)) (address q.node p.zone)
+          ) (nodes_of r.src_zone)
+        | None -> []
+      else []
+    ) rules in
+    let foreign = List.filter_map (fun (q : placement) ->
+      if q.zone = p.zone then None else address q.node p.zone
+    ) placements in
+    let others = List.filter_map (fun (z, sn) ->
+      if z = p.zone then None else Some sn) zone_subnets in
+    let filter = { outbound; inbound; foreign; others } in
 
-    let script_content = generate_node_init_script ~services:p.services
-        ~firewall:fw_rules in
+    let script_content = generate_node_init_script ~services:p.services ~filter in
     scripts := (script_name, script_content) :: !scripts;
 
     emit_line buf 1 "%s:" p.node;
@@ -307,12 +398,11 @@ let generate
     emit_line buf 2 "environment:";
     emit_line buf 3 "DOCKER_TLS_CERTDIR: \"\"";
 
-    (* Depends on providers that this node's services consume *)
+    (* Depends on providers that this node's services consume (map form:
+       compose rejects mixing it with the list form) *)
     let deps = List.concat_map (fun ((svc : service_manifest), _) ->
       List.filter_map (fun (w : resolved_wire) ->
-        if w.consumer_name = svc.name then
-          Some (Printf.sprintf "%s-%s-%s" w.provider_name w.consumer_name w.consume_name)
-        else None
+        if w.consumer_name = svc.name then provider_instance w else None
       ) resolution.wires
     ) p.services |> List.sort_uniq String.compare in
     if deps <> [] then begin
@@ -321,31 +411,17 @@ let generate
         let has_hc = List.exists (fun (rp : resolved_provider) ->
           rp.instance_name = dep && rp.provider.readiness <> None
         ) resolution.providers in
-        if has_hc then begin
-          emit_line buf 3 "%s:" dep;
-          emit_line buf 4 "condition: service_healthy"
-        end else
-          emit_line buf 3 "- %s" dep
+        emit_line buf 3 "%s:" dep;
+        emit_line buf 4 "condition: %s" (if has_hc then "service_healthy" else "service_started")
       ) deps
     end;
 
-    (* Networks: own zone + zones this node is allowed to reach *)
-    let allowed_zones = match plan.infrastructure.proposed_topology with
-      | Some topo ->
-        List.filter_map (fun (r : firewall_rule) ->
-          let parts = String.split_on_char ' ' r.rule in
-          match parts with
-          | "ALLOW" :: src :: "->" :: dst :: _ when src = p.zone ->
-            Some dst
-          | _ -> None
-        ) topo.firewall
-      | None -> []
-    in
-    let all_zones = p.zone :: allowed_zones |> List.sort_uniq String.compare in
+    (* Networks, with the node's static address on each *)
     emit_line buf 2 "networks:";
     List.iter (fun z ->
-      emit_line buf 3 "- zone_%s" z
-    ) all_zones;
+      emit_line buf 3 "zone_%s:" z;
+      Option.iter (emit_line buf 4 "ipv4_address: %s") (address p.node z)
+    ) (node_networks p);
     emit_line buf 2 "restart: unless-stopped";
     Buffer.add_char buf '\n'
   ) placements;
@@ -358,6 +434,7 @@ let generate
     emit_line buf 2 "ipam:";
     emit_line buf 3 "config:";
     emit_line buf 4 "- subnet: %s" (Planner.zone_cidr idx);
+    emit_line buf 5 "ip_range: 10.%d.0.128/25  # dynamic addresses; nodes are static" (10 + idx);
     if z.zone_name = "secure" then begin
       emit_line buf 2 "internal: true  # isolated zone"
     end

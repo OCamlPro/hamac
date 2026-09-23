@@ -49,7 +49,8 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 - [x] Parsing des unites de ressources (Mi/Gi, millicores)
 - [x] Calcul du nombre de noeuds par zone selon les ressources
 - [x] Inference de la topologie reseau : un segment par zone avec CIDR et VLAN
-- [x] Regles firewall automatiques Bell-LaPadula (deny higher → lower)
+- [x] Regles de filtrage Bell-LaPadula entre zones : aucune connexion vers une zone plus sensible (no read up), lecture vers le bas ouverte seulement pour les flux declares, filtrage avec etat
+- [x] Flux declares entre services (`consumes: - service:`), verifies contre le treillis : une lecture vers le haut est refusee par `hamac plan`
 - [x] Generation d'un `infrastructure_manifest` proposal
 - [x] Commande `hamac plan <services...>` avec affichage complet
 - [x] Prise en compte de l'autoscaling (max_replicas) pour le dimensionnement
@@ -65,7 +66,8 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 - [x] Providers dans la zone de leur consommateur
 - [x] Commande `hamac simulate <services.sieste.yml>` avec affichage du placement
 - [x] Scripts d'init idempotents (restart sans conflit de noms)
-- [ ] Validation du firewall inter-zones (iptables/nftables dans les noeuds)
+- [x] Filtrage inter-zones dans les noeuds : iptables avec etat (INPUT/OUTPUT et DOCKER-USER), adresses fixes des noeuds sur chaque reseau de zone
+- [x] Validation de bout en bout : lecture vers le bas declaree ouverte, lecture vers le haut et port non declare bloques
 - [x] Tests d'integration avec `docker compose up`
   - Isolation DNS inter-zones validee (noms non resolus entre zones)
   - Isolation IP inter-zones validee (subnets distincts, 100% packet loss)
