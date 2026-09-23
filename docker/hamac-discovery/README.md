@@ -1,6 +1,6 @@
 # hamac-discovery Docker image
 
-Image runtime pour le serveur de découverte de hamac (REST API pour
+Image runtime pour le serveur de découverte de Hamac (REST API pour
 l'enregistrement des nodes et le service des profils de provisioning).
 
 Tag canonique : `registry.ocamlpro.com/ocamlpro/hamac/hamac-discovery:0.1.0` + `latest`.

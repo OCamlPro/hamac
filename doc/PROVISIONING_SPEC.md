@@ -1,13 +1,13 @@
 # Hamac Provisioning Profile Specification v0.1
 
 > **Statut** : draft — feature en cours d'implémentation (milestone 6 du `HAMAC_ROADMAP.md`).
-> Ce document définit le contrat pour le provisionnement d'OS via PXE par hamac.
+> Ce document définit le contrat pour le provisionnement d'OS via PXE par Hamac.
 
 ## 1. Objectif
 
-Permettre à **hamac** de provisionner un OS complet (Linux base + services pré-configurés) sur n'importe quelle machine qui boote en PXE, qu'elle fasse partie de l'infrastructure SI ou non (typiquement : poste de développeur).
+Permettre à **Hamac** de provisionner un OS complet (Linux base + services pré-configurés) sur n'importe quelle machine qui boote en PXE, qu'elle fasse partie de l'infrastructure SI ou non (typiquement : poste de développeur).
 
-Cette première itération vit **entièrement côté hamac** (manifestes YAML + OCaml + prototype discovery). Une future couche UI / DSL côté langage SIESTE pour décrire ces profils visuellement reste possible (voir section 10) mais n'est **pas** dans le scope de cette spec.
+Cette première itération vit **entièrement côté Hamac** (manifestes YAML + OCaml + prototype discovery). Une future couche UI / DSL côté langage SIESTE pour décrire ces profils visuellement reste possible (voir section 10) mais n'est **pas** dans le scope de cette spec.
 
 ## 2. Vue d'ensemble
 
@@ -96,13 +96,13 @@ cloud_init_extra:                # raw cloud-init pour cas spéciaux
 
 Un disque cible contient des **octets bruts** ; le `qcow2` est un format de
 *transport* (compressé, sparse) qui doit être « déplié » en raw avant d'être
-écrit. hamac ne fait donc **pas** un `dd` du qcow2 tel quel :
+écrit. Hamac ne fait donc **pas** un `dd` du qcow2 tel quel :
 
 - **`qcow2` = format canonique** d'un profil (source de vérité, aussi consommé
   tel quel par le chemin VM / `QemuCluster`) — `url`/`sha256`/`format`
   ci-dessus ne changent pas de sens quand `raw_zst_url`/`bmap_url` sont
   renseignés.
-- Pour l'installation métal, hamac sert **deux artefacts dérivés
+- Pour l'installation métal, Hamac sert **deux artefacts dérivés
   déterministes** du qcow2 : un **`raw.zst`** (`qemu-img convert -O raw` +
   compression zstd) et son **`.bmap`** (`bmaptool create` — carte des blocs
   non-vides + sha256 par plage). Générés aujourd'hui par
@@ -237,7 +237,7 @@ write_files:
 
 ### 4.3 Règle de merge cloud-init
 
-Quand plusieurs bundles produisent chacun un snippet cloud-init, hamac merge dans l'ordre :
+Quand plusieurs bundles produisent chacun un snippet cloud-init, Hamac merge dans l'ordre :
 
 1. Snippets bundles (ordre `bundles:` du profil)
 2. `cloud_init_extra` du profil
@@ -264,14 +264,14 @@ proposed_topology:
       provisioning_profile: dev-workstation   # ← NEW
 ```
 
-Si `provisioning_profile` est présent, hamac **ignore** les anciens champs `os.image` / `os.sha256` du node (qui restent supportés pour la compat). Le profil prend le dessus.
+Si `provisioning_profile` est présent, Hamac **ignore** les anciens champs `os.image` / `os.sha256` du node (qui restent supportés pour la compat). Le profil prend le dessus.
 
-Le profil est résolu par hamac via :
+Le profil est résolu par Hamac via :
 1. Recherche dans le dossier courant (`./provisioning-profiles/<name>.yaml`)
 2. Recherche dans `$HAMAC_PROFILES_DIR/<name>.yaml`
 3. Recherche dans `/etc/hamac/profiles/<name>.yaml`
 
-## 6. CLI hamac
+## 6. CLI Hamac
 
 ```bash
 # Lister les profils disponibles
@@ -296,13 +296,13 @@ hamac provision clear --mac=aa:bb:cc:dd:ee:ff
 
 Le discovery server persiste les profils sur disque dans `$HAMAC_DISCOVERY_STATE/provisioning/<mac>.json` (par défaut `/var/lib/hamac-discovery/provisioning/`). Un redémarrage du discovery ne casse pas un boot PXE en cours.
 
-Le contenu de chaque fichier est le **cloud-init final agrégé** (bundles + extra), pas le profil source. Tout le rendu Jinja2 a déjà eu lieu côté hamac. Le discovery est volontairement "bête" : il ne sait pas ce qu'est un bundle, il sert juste un blob YAML.
+Le contenu de chaque fichier est le **cloud-init final agrégé** (bundles + extra), pas le profil source. Tout le rendu Jinja2 a déjà eu lieu côté Hamac. Le discovery est volontairement "bête" : il ne sait pas ce qu'est un bundle, il sert juste un blob YAML.
 
 ### 7.2 Endpoints ajoutés
 
 | Méthode | Chemin | Description |
 |---|---|---|
-| `POST` | `/provisioning/<mac>` | hamac pousse un cloud-init pré-rendu pour ce mac |
+| `POST` | `/provisioning/<mac>` | Hamac pousse un cloud-init pré-rendu pour ce mac |
 | `GET` | `/provisioning/<mac>` | Le init PXE récupère son cloud-init |
 | `DELETE` | `/provisioning/<mac>` | Retire l'association mac → profil |
 | `GET` | `/provisioning` | Liste les associations (pour debug/dashboard) |
@@ -364,7 +364,7 @@ Format `GET /provisioning/<mac>` : renvoie le même JSON, plus un champ `created
 - **Signature des profils** : pourra être ajouté plus tard avec la même mécanique que les services (Ed25519).
 - **Bundles avec dépendances cycliques** : non détecté ; on fait confiance à l'ops.
 - **Mise à jour live d'un OS déjà provisionné** : ce n'est pas un agent de config (cf. Ansible / Salt). Le profil ne s'applique qu'au moment du PXE boot.
-- **Bundles avec runtime state** (DB, etc.) : pas encore. Les services type Zulip avec PostgreSQL viendront via les `kind: stack` classiques de hamac.
+- **Bundles avec runtime state** (DB, etc.) : pas encore. Les services type Zulip avec PostgreSQL viendront via les `kind: stack` classiques de Hamac.
 - **Exposition côté langage SIESTE** : reportée (voir section 10).
 
 ## 10. Évolutions futures
@@ -375,7 +375,7 @@ Format `GET /provisioning/<mac>` : renvoie le même JSON, plus un champ `created
 - Profile inheritance (`extends: base-debian`).
 
 ### Moyen terme : couche UI / DSL côté SIESTE
-Une fois la mécanique hamac stabilisée, le langage SIESTE pourra exposer une **DSL/UI** pour décrire les profils visuellement, par exemple :
+Une fois la mécanique Hamac stabilisée, le langage SIESTE pourra exposer une **DSL/UI** pour décrire les profils visuellement, par exemple :
 
 ```sieste
 profile dev_workstation:
@@ -388,7 +388,7 @@ profile dev_workstation:
   ]
 ```
 
-Le compilateur sortirait alors le YAML attendu par hamac. C'est cohérent avec l'architecture déjà choisie pour les services (`#[service]` → manifeste YAML → hamac).
+Le compilateur sortirait alors le YAML attendu par Hamac. C'est cohérent avec l'architecture déjà choisie pour les services (`#[service]` → manifeste YAML → Hamac).
 
 À ce moment-là, on pourra envisager :
 - Validation typée des `params` de bundles via le système de types SIESTE
@@ -402,8 +402,8 @@ Le compilateur sortirait alors le YAML attendu par hamac. C'est cohérent avec l
 
 ## 11. Références
 
-- `doc/MANIFEST_SPEC.md` : format des autres manifestes hamac
-- `doc/BUNDLE_SPEC.md` : système de bundles deploy hamac (à ne pas confondre avec les bundles de provisioning)
+- `doc/MANIFEST_SPEC.md` : format des autres manifestes Hamac
+- `doc/BUNDLE_SPEC.md` : système de bundles deploy Hamac (à ne pas confondre avec les bundles de provisioning)
 - `doc/HAMAC_ROADMAP.md` : milestone 6
 - `tools/discovery-prototype/discovery-server/discovery_server.ml` : prototype actuel
 - `tools/discovery-prototype/pxe-build/init` : init script à étendre

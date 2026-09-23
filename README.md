@@ -1,10 +1,17 @@
-# hamac
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="doc/assets/logo/hamac-logo-horizontal-sombre.svg">
+    <img src="doc/assets/logo/hamac-logo-horizontal-clair.svg" alt="Hamac" height="96">
+  </picture>
+</p>
+
+# Hamac
 
 *Zero-touch infrastructure orchestration: turn declarative service manifests into resolved, deployed infrastructure — with security zones inferred from your data, not bolted on.*
 
 > **Canonical repository:** https://forge.ocamlpro.com/OSS/hamac — the GitHub repository is a read-only mirror. Please file issues and merge requests on Forgejo.
 
-**hamac** is an infrastructure orchestrator for **SIESTE** manifests. It reads
+**Hamac** is an infrastructure orchestrator for **SIESTE** manifests. It reads
 declarative `.sieste.yml` manifests describing services and infrastructure,
 resolves their dependencies to concrete providers, and provisions/deploys them —
 including **bare-metal provisioning over PXE**.
@@ -59,7 +66,7 @@ hamac provision-clear  --mac=aa:bb:cc:dd:ee:ff --discovery=http://discovery:8877
 
 Run `hamac --help` for the full command list.
 
-### Files hamac looks for
+### Files Hamac looks for
 
 | Directory | Contents | Looked up |
 |---|---|---|
@@ -102,14 +109,14 @@ European Union – NextGenerationEU under the France Relance plan.*
 
 ## Licensing
 
-hamac is **dual-licensed** by OCamlPro:
+Hamac is **dual-licensed** by OCamlPro:
 
 - **Open source** — [GNU AGPL-3.0](LICENSE). Free to use, modify and
   redistribute under the AGPL's terms, **including its network-copyleft**: if
   you run a modified version as a network service, you must offer its users the
   complete corresponding source.
 - **Commercial** — for organizations that cannot or do not wish to comply with
-  the AGPL (e.g. embedding hamac in a proprietary product or a closed-source
+  the AGPL (e.g. embedding Hamac in a proprietary product or a closed-source
   SaaS), a commercial license is available from OCamlPro.
 
 See [`LICENSING.md`](LICENSING.md) for details. Contributions require a signed

@@ -1,12 +1,12 @@
-# Contributing to hamac
+# Contributing to Hamac
 
 Contributions are welcome — a few things to know first.
 
 ## Licensing of contributions (CLA required)
 
-hamac is **dual-licensed** (AGPL-3.0 + commercial — see [`LICENSING.md`](LICENSING.md)).
+Hamac is **dual-licensed** (AGPL-3.0 + commercial — see [`LICENSING.md`](LICENSING.md)).
 For OCamlPro to offer the commercial license, it must be able to distribute
-**every** part of hamac — including your contribution — under **both** licenses.
+**every** part of Hamac — including your contribution — under **both** licenses.
 
 Before a contribution can be merged, you must therefore sign OCamlPro's **Individual Contributor License Agreement** ([`CLA.md`](CLA.md)), which grants OCamlPro the
 right to license your contribution under the AGPL and under a commercial

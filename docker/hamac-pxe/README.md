@@ -3,7 +3,7 @@
 Image PXE pour hamac-provisioning. Combine dnsmasq (mode proxy DHCP +
 TFTP) avec un TFTP root pré-populé contenant les NBP iPXE (`ipxe.efi` +
 `undionly.kpxe`), le kernel Alpine et l'initramfs hybride avec le init
-hamac.
+Hamac.
 
 Tag canonique : `registry.ocamlpro.com/ocamlpro/hamac/hamac-pxe:0.1.0` + `latest`.
 
