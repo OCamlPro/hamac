@@ -412,6 +412,9 @@ Le compilateur sortirait alors le YAML attendu par hamac. C'est cohérent avec l
 
 ## Financement
 
+> « Ce projet a été financé par le Gouvernement dans le cadre du plan France 2030
+> opéré par Cap Digital et financé par l'Union européenne – NextGeneration EU »
+>
 > « Ce projet a été financé par le gouvernement dans le cadre de France 2030 »
 >
 > « Financé par l'Union européenne - Next Generation EU dans le cadre du plan
@@ -424,6 +427,8 @@ Le compilateur sortirait alors le YAML attendu par hamac. C'est cohérent avec l
   &nbsp;&nbsp;
   <img src="assets/finance-par-union-europeenne-nextgenerationeu.png"
        alt="Financé par l'Union européenne — NextGenerationEU" height="48">
+  &nbsp;&nbsp;
+  <img src="assets/cap-digital.png" alt="Cap Digital" height="48">
 </p>
 
 Provenance et règles d'usage des logos : [`assets/SOURCES.md`](assets/SOURCES.md).

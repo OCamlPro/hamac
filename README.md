@@ -90,15 +90,21 @@ discovery server (keyed by MAC), and the OS image is written to disk. See
   &nbsp;&nbsp;
   <img src="doc/assets/finance-par-union-europeenne-nextgenerationeu.png"
        alt="Financé par l'Union européenne — NextGenerationEU" height="64">
+  &nbsp;&nbsp;
+  <img src="doc/assets/cap-digital.png" alt="Cap Digital" height="64">
 </p>
 
+> « Ce projet a été financé par le Gouvernement dans le cadre du plan France 2030
+> opéré par Cap Digital et financé par l'Union européenne – NextGeneration EU »
+>
 > « Ce projet a été financé par le gouvernement dans le cadre de France 2030 »
 >
 > « Financé par l'Union européenne - Next Generation EU dans le cadre du plan
 > France Relance »
 
-*This project was funded by the French Government under France 2030, and by the
-European Union – NextGenerationEU under the France Relance plan.*
+*This project was funded by the French Government under the France 2030 plan
+operated by Cap Digital, and by the European Union – NextGenerationEU under the
+France Relance plan.*
 
 ## Licensing
 
