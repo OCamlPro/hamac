@@ -124,6 +124,7 @@ PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and keeps them
 as the `documents` artifact of the run.
 
 - [`doc/typst/manifest-spec.typ`](doc/typst/manifest-spec.typ) — manifest format specification (1.1, draft).
+- [`doc/schema/hamac-manifest-1.1.schema.json`](doc/schema/hamac-manifest-1.1.schema.json) — JSON Schema of the format (syntax and types), for editors and third-party generators.
 - [`doc/typst/provisioning-spec.typ`](doc/typst/provisioning-spec.typ) — provisioning profile & disk-write spec.
 - [`doc/typst/control-plane.typ`](doc/typst/control-plane.typ) — round-based control plane (design proposal).
 - [`doc/HAMAC_ROADMAP.md`](doc/HAMAC_ROADMAP.md) — milestones.

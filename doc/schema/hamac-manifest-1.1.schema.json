@@ -1,0 +1,1814 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forge.ocamlpro.com/OSS/hamac/raw/branch/master/doc/schema/hamac-manifest-1.1.schema.json",
+  "title": "Hamac manifest, format 1.1",
+  "description": "Stage 1 (syntax and types) of the Hamac manifest format, see doc/typst/manifest-spec.typ. Stages 2 and 3 (references, lattice, flows, constraint grammar) are checked by hamac validate and hamac plan. On divergence, the specification prevails.",
+  "type": "object",
+  "required": [
+    "manifest_version"
+  ],
+  "properties": {
+    "manifest_version": {
+      "$ref": "#/$defs/manifest_version"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "service",
+        "pattern",
+        "stack",
+        "infrastructure",
+        "provisioning_profile",
+        "bundle"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "service"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/service"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "pattern"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/pattern"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "stack"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/stack"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "infrastructure"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/infrastructure"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "provisioning_profile"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/provisioning_profile"
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "bundle"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/bundle"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "manifest_version": {
+            "const": "1.1"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "name": {
+            "pattern": "^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$"
+          }
+        }
+      },
+      "description": "In 1.1, a name is a DNS label: no '_'."
+    },
+    {
+      "if": {
+        "not": {
+          "required": [
+            "kind"
+          ]
+        }
+      },
+      "then": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/service"
+          },
+          {
+            "properties": {
+              "manifest_version": {
+                "const": "1.0"
+              }
+            }
+          }
+        ]
+      },
+      "description": "In 1.0, a manifest without kind is a service (deprecated); in 1.1 kind is required."
+    }
+  ],
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z]([a-z0-9_-]{0,61}[a-z0-9])?$",
+      "description": "DNS name (spec §3). '_' is accepted only in manifests of version 1.0 (deprecated, W002): the top-level rule for 1.1 narrows this pattern."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "manifest_version": {
+      "type": "string",
+      "pattern": "^1\\.[01]$",
+      "description": "Format version (spec §2.1). This schema implements 1.1."
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9]([a-z0-9._/-]*[a-z0-9])?$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "description": "Common metadata (spec §3)."
+    },
+    "assurance": {
+      "type": "object",
+      "properties": {
+        "boot": {
+          "type": "string",
+          "enum": [
+            "none",
+            "provider-vtpm",
+            "confidential-vm",
+            "measured-tpm2"
+          ]
+        },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "any",
+            "eu",
+            "secnumcloud",
+            "self"
+          ]
+        },
+        "physical": {
+          "type": "string",
+          "enum": [
+            "third-party",
+            "dedicated-rack",
+            "site"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "description": "Minimum per assurance axis (spec §6.4, experimental)."
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "oci-image",
+            "native-linux-amd64",
+            "native-linux-arm64",
+            "incus-vm-image",
+            "incus-system-image"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "format"
+      ],
+      "description": "What runs (spec §5.3). The parser takes any string for format; the spec lists these values."
+    },
+    "consumption": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "capability": {
+          "type": "string"
+        },
+        "service": {
+          "type": "string"
+        },
+        "inject": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "request",
+            "push"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "description": "Dependency and declared network flow (spec §5.4)."
+    },
+    "route_label": {
+      "type": "object",
+      "properties": {
+        "route": {
+          "type": "string"
+        },
+        "required_clearance": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "classification": {
+          "type": "string"
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "route"
+      ],
+      "description": "Authorization of a route, validated at the edge (spec §5.5). required_clearance is required in 1.0."
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "zone": {
+          "type": "string"
+        },
+        "route_labels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/route_label"
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "zone"
+      ],
+      "description": "Zone and route labels (spec §5.5)."
+    },
+    "port": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "container": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "tcp",
+            "udp"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "container"
+      ],
+      "description": "Listened port (spec §5.7). host is required in 1.0, deprecated in 1.1."
+    },
+    "volume": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "read_only": {
+          "type": "boolean"
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "container"
+      ],
+      "description": "Deprecated host-path volume (spec §5.2)."
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "memory_limit": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "memory_request": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "cpu_limit": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "cpu_request": {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "description": "Requests and limits (spec §5.6)."
+    },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "min_replicas": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "max_replicas": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "cpu_threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "memory_threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "min_replicas",
+        "max_replicas"
+      ]
+    },
+    "health_check": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "retries": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "path"
+      ]
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false
+    },
+    "readiness": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "command"
+      ]
+    },
+    "storage_volume": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "mount": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "ephemeral",
+            "local",
+            "replicated"
+          ]
+        },
+        "size": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "rebuild": {
+          "type": "string",
+          "enum": [
+            "from-backup",
+            "from-object",
+            "from-replica",
+            "none"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "mount",
+        "class"
+      ],
+      "description": "File-system volume (spec §5.8, experimental)."
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "schedule": {
+          "type": "string"
+        },
+        "retention": {
+          "type": "object",
+          "properties": {
+            "hourly": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            },
+            "daily": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            },
+            "weekly": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            },
+            "monthly": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            },
+            "yearly": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            }
+          },
+          "patternProperties": {
+            "^x-": {}
+          },
+          "additionalProperties": false
+        },
+        "consistency": {
+          "type": "object",
+          "properties": {
+            "pre": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number"
+                ]
+              }
+            },
+            "post": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number"
+                ]
+              }
+            }
+          },
+          "patternProperties": {
+            "^x-": {}
+          },
+          "additionalProperties": false
+        },
+        "verify": {
+          "type": "string",
+          "enum": [
+            "none",
+            "restore-test"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "description": "Backup policy (spec §5.8, experimental)."
+    },
+    "secret": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string",
+          "pattern": ":"
+        },
+        "generate": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "length": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            }
+          },
+          "patternProperties": {
+            "^x-": {}
+          },
+          "additionalProperties": false
+        },
+        "rotate": {
+          "type": "string"
+        },
+        "as": {
+          "type": "string",
+          "enum": [
+            "env",
+            "file"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "description": "Secret reference, never a value (spec §5.9, experimental)."
+    },
+    "placement": {
+      "type": "object",
+      "properties": {
+        "needs": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "assurance": {
+          "$ref": "#/$defs/assurance"
+        },
+        "spread": {
+          "type": "string",
+          "enum": [
+            "none",
+            "host",
+            "failure_domain"
+          ]
+        },
+        "affinity": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "anti_affinity": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "description": "Required capabilities and assurance (spec §5.10, experimental)."
+    },
+    "exposure": {
+      "type": "object",
+      "properties": {
+        "hostname": {
+          "type": "string"
+        },
+        "path_prefix": {
+          "type": "string"
+        },
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "http",
+            "tcp"
+          ]
+        },
+        "tls": {
+          "type": "string",
+          "enum": [
+            "acme",
+            "internal",
+            "passthrough"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "hostname",
+        "port"
+      ],
+      "description": "Publication at the edge (spec §5.11, experimental)."
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "manifest_version": {
+          "$ref": "#/$defs/manifest_version"
+        },
+        "kind": {
+          "const": "service"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "http",
+            "cli",
+            "batch",
+            "eventloop",
+            "custom"
+          ]
+        },
+        "artifact": {
+          "$ref": "#/$defs/artifact"
+        },
+        "capability": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "consumes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/consumption"
+          }
+        },
+        "provides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "readiness": {
+          "$ref": "#/$defs/readiness"
+        },
+        "security": {
+          "$ref": "#/$defs/security"
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "volumes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/volume"
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "replicas": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+$"
+            }
+          ]
+        },
+        "autoscaling": {
+          "$ref": "#/$defs/autoscaling"
+        },
+        "health_check": {
+          "$ref": "#/$defs/health_check"
+        },
+        "metrics": {
+          "$ref": "#/$defs/metrics"
+        },
+        "logging": {
+          "$ref": "#/$defs/logging"
+        },
+        "storage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/storage_volume"
+          }
+        },
+        "backup": {
+          "$ref": "#/$defs/backup"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/secret"
+          }
+        },
+        "placement": {
+          "$ref": "#/$defs/placement"
+        },
+        "exposure": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/exposure"
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "manifest_version",
+        "name",
+        "runtime"
+      ],
+      "description": "kind: service — a deployable unit, or a provider when it declares a capability (spec §5). The parser accepts any runtime string; the spec lists these values."
+    },
+    "pattern": {
+      "type": "object",
+      "properties": {
+        "manifest_version": {
+          "const": "1.1"
+        },
+        "kind": {
+          "const": "pattern"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "version": {
+          "type": "string"
+        },
+        "extends": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "lattice": {
+          "type": "object",
+          "properties": {
+            "levels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number"
+                ]
+              }
+            }
+          },
+          "patternProperties": {
+            "^x-": {}
+          },
+          "additionalProperties": false,
+          "required": [
+            "levels"
+          ]
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "level": {
+                "type": "string"
+              },
+              "categories": {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              },
+              "boundary": {
+                "type": "string",
+                "enum": [
+                  "firewall",
+                  "diode"
+                ]
+              }
+            },
+            "patternProperties": {
+              "^x-": {}
+            },
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "level"
+            ]
+          }
+        },
+        "assurance": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/assurance"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "hard",
+                  "soft"
+                ]
+              },
+              "weight": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+$"
+                  }
+                ]
+              },
+              "expr": {
+                "type": "string",
+                "description": "Constraint expression (spec §6.5); its grammar is checked by hamac validate (E052), not by this schema."
+              }
+            },
+            "patternProperties": {
+              "^x-": {}
+            },
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "expr"
+            ]
+          }
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "minimize": {
+                "type": "string"
+              },
+              "maximize": {
+                "type": "string"
+              },
+              "priority": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+$"
+                  }
+                ]
+              },
+              "weight": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+$"
+                  }
+                ]
+              }
+            },
+            "patternProperties": {
+              "^x-": {}
+            },
+            "additionalProperties": false,
+            "oneOf": [
+              {
+                "required": [
+                  "minimize"
+                ],
+                "not": {
+                  "required": [
+                    "maximize"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "maximize"
+                ],
+                "not": {
+                  "required": [
+                    "minimize"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "manifest_version",
+        "kind",
+        "name",
+        "version"
+      ],
+      "description": "kind: pattern — a list of constraints on the topology (spec §6). Requires manifest_version 1.1."
+    },
+    "stack": {
+      "type": "object",
+      "properties": {
+        "manifest_version": {
+          "$ref": "#/$defs/manifest_version"
+        },
+        "kind": {
+          "const": "stack"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "accept_experimental": {
+          "type": "boolean"
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "replicas": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+$"
+                  }
+                ]
+              },
+              "consumes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string"
+                    }
+                  },
+                  "patternProperties": {
+                    "^x-": {}
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "name",
+                    "provider"
+                  ]
+                }
+              }
+            },
+            "patternProperties": {
+              "^x-": {}
+            },
+            "additionalProperties": false,
+            "required": [
+              "ref"
+            ]
+          }
+        },
+        "infrastructure": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "manifest_version",
+        "kind",
+        "name"
+      ],
+      "description": "kind: stack (spec §7)."
+    },
+    "infrastructure": {
+      "type": "object",
+      "properties": {
+        "manifest_version": {
+          "$ref": "#/$defs/manifest_version"
+        },
+        "kind": {
+          "const": "infrastructure"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "backend": {
+          "type": "string"
+        },
+        "minimum_requirements": {
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            },
+            "total_ram": {
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            "total_cpu": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                }
+              ]
+            }
+          },
+          "patternProperties": {
+            "^x-": {}
+          },
+          "additionalProperties": false
+        },
+        "proposed_topology": {
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^-?[0-9]+$"
+                      }
+                    ]
+                  },
+                  "ram": {
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  },
+                  "cpu": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^-?[0-9]+$"
+                      }
+                    ]
+                  },
+                  "boot": {
+                    "type": "string"
+                  },
+                  "os": {
+                    "type": "object",
+                    "properties": {
+                      "image": {
+                        "type": "string"
+                      },
+                      "sha256": {
+                        "type": "string"
+                      }
+                    },
+                    "patternProperties": {
+                      "^x-": {}
+                    },
+                    "additionalProperties": false
+                  },
+                  "isolated": {
+                    "type": "boolean"
+                  },
+                  "provisioning_profile": {
+                    "type": "string"
+                  }
+                },
+                "patternProperties": {
+                  "^x-": {}
+                },
+                "additionalProperties": false,
+                "required": [
+                  "role"
+                ]
+              }
+            },
+            "network": {
+              "type": "object",
+              "properties": {
+                "segments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "cidr": {
+                        "type": "string"
+                      },
+                      "vlan": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^-?[0-9]+$"
+                          }
+                        ]
+                      }
+                    },
+                    "patternProperties": {
+                      "^x-": {}
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "cidr"
+                    ]
+                  }
+                },
+                "firewall": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^\\s*(ALLOW|DENY)\\s+\\S+\\s+->\\s+\\S+(\\s*\\(.*\\))?\\s*$"
+                  }
+                }
+              },
+              "patternProperties": {
+                "^x-": {}
+              },
+              "additionalProperties": false
+            }
+          },
+          "patternProperties": {
+            "^x-": {}
+          },
+          "additionalProperties": false
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "certificate": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "manifest_version",
+        "kind",
+        "name",
+        "backend"
+      ],
+      "description": "kind: infrastructure — the planner's output (spec §8). The parser accepts any backend string."
+    },
+    "provisioning_profile": {
+      "type": "object",
+      "properties": {
+        "manifest_version": {
+          "$ref": "#/$defs/manifest_version"
+        },
+        "kind": {
+          "const": "provisioning_profile"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "os": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "format": {
+              "type": "string"
+            },
+            "family": {
+              "type": "string"
+            },
+            "raw_zst_url": {
+              "type": "string"
+            },
+            "raw_zst_sha256": {
+              "type": "string"
+            },
+            "bmap_url": {
+              "type": "string"
+            }
+          },
+          "patternProperties": {
+            "^x-": {}
+          },
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "url",
+            "sha256",
+            "format"
+          ]
+        },
+        "bundles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "params": {
+                "type": "object"
+              }
+            },
+            "patternProperties": {
+              "^x-": {}
+            },
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ]
+          }
+        },
+        "cloud_init_extra": {},
+        "assurance": {
+          "$ref": "#/$defs/assurance"
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "manifest_version",
+        "kind",
+        "name",
+        "os"
+      ],
+      "description": "kind: provisioning_profile (provisioning spec, and spec §9)."
+    },
+    "bundle": {
+      "type": "object",
+      "properties": {
+        "manifest_version": {
+          "$ref": "#/$defs/manifest_version"
+        },
+        "kind": {
+          "const": "bundle"
+        },
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "int",
+                  "bool",
+                  "list[string]",
+                  "list[int]",
+                  "object"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              }
+            },
+            "patternProperties": {
+              "^x-": {}
+            },
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ]
+          }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "install",
+            "converge"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false,
+      "required": [
+        "manifest_version",
+        "kind",
+        "name"
+      ],
+      "description": "kind: bundle (provisioning spec, and spec §9)."
+    }
+  }
+}
