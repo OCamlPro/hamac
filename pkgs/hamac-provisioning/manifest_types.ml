@@ -4,7 +4,7 @@
 (** Manifest types for hamac.
 
     Structured OCaml types corresponding to the three manifest kinds
-    defined in doc/MANIFEST_SPEC.md. *)
+    defined in doc/typst/manifest-spec.typ. *)
 
 (* ============================================================ *)
 (* Common types                                                  *)
@@ -237,7 +237,7 @@ type infrastructure_manifest = {
 (* ============================================================ *)
 (* kind: provisioning_profile (+ kind: bundle)                   *)
 (* ============================================================ *)
-(* Cf. doc/PROVISIONING_SPEC.md                                  *)
+(* Cf. doc/typst/provisioning-spec.typ                                  *)
 
 (** YAML value brut (params bundle, cloud_init_extra, etc.). *)
 type yaml_value = Yaml.value
@@ -257,7 +257,7 @@ type os_image_spec = {
                                   (bmaptool copy), vide si absent — le qcow2
                                   ci-dessus reste la référence, consommée
                                   directement par les VMs. Cf. §3.1 de
-                                  PROVISIONING_SPEC.md. *)
+                                  provisioning-spec.typ. *)
   os_raw_zst_sha256: string; (** Hash du raw.zst, vide si os_raw_zst_url l'est *)
   os_bmap_url: string;       (** URL du .bmap associé, vide si absent *)
 } [@@deriving show]

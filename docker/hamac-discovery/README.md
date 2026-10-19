@@ -58,5 +58,5 @@ docker push registry.ocamlpro.com/ocamlpro/hamac/hamac-discovery:latest
 
 ## Voir aussi
 
-- [`doc/PROVISIONING_SPEC.md`](../../doc/PROVISIONING_SPEC.md) : spec REST
+- [`doc/typst/provisioning-spec.typ`](../../doc/typst/provisioning-spec.typ) : spec REST
 - [`doc/OCPSI_DEPLOY_PLAN.md`](../../doc/OCPSI_DEPLOY_PLAN.md) : déploiement

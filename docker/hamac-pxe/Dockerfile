@@ -109,7 +109,7 @@ RUN git clone https://github.com/ipxe/ipxe.git /usr/src/ipxe \
 # ---- Stage : build from-source statique de qemu-img (fallback bmaptool) ----
 # `qemu-img` sert de fallback dans pxe-build/init pour les profils/initrd
 # pas encore migrés au chemin bmaptool (raw.zst + .bmap dérivés à l'avance,
-# cf. doc/PROVISIONING_SPEC.md §3.1) — c'est le SEUL usage : conversion
+# cf. doc/typst/provisioning-spec.typ §3.1) — c'est le SEUL usage : conversion
 # qcow2->raw purement locale, jamais de réseau/TLS. Le paquet apt
 # `qemu-utils` embarquerait ~20 paquets de dépendances transitives (surtout
 # TLS/PKCS#11 pour le support NBD-over-TLS, hors sujet ici — testé et

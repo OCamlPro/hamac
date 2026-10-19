@@ -60,7 +60,7 @@ type service = {
 
 (** Provisioning record pushed by hamac for a given MAC address.
     Cloud-init et iPXE sont déjà rendus (le discovery ne sait pas ce qu'est
-    un bundle, cf. doc/PROVISIONING_SPEC.md section 7.1). *)
+    un bundle, cf. doc/typst/provisioning-spec.typ section 7.1). *)
 type provisioning_record = {
   pr_profile_name: string;
   pr_cloud_init: string;        (* YAML, préfixé par #cloud-config *)
@@ -68,7 +68,7 @@ type provisioning_record = {
   pr_os_image_url: string;
   pr_os_image_sha256: string;
   pr_os_format: string;
-  pr_os_raw_zst_url: string;      (* "" si absent, cf. PROVISIONING_SPEC.md §3.1 *)
+  pr_os_raw_zst_url: string;      (* "" si absent, cf. provisioning-spec.typ §3.1 *)
   pr_os_raw_zst_sha256: string;
   pr_os_bmap_url: string;
   pr_created_at: float;
@@ -524,7 +524,7 @@ let handle_cloud_init id =
   | Some node ->
       (* Si un provisioning_record existe pour la MAC de ce nœud (poussé
          par hamac), il prend le dessus sur le cloud-init K3s historique.
-         Cf. doc/PROVISIONING_SPEC.md section 7.3. *)
+         Cf. doc/typst/provisioning-spec.typ section 7.3. *)
       let mac_key = normalize_mac node.mac_address in
       let cloud_init = match Hashtbl.find_opt provisioning mac_key with
         | Some r -> r.pr_cloud_init

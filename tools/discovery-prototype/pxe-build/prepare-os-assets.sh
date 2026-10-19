@@ -6,7 +6,7 @@
 # embarquer qemu-utils complet dans l'initrd hamac-pxe pour convertir un
 # qcow2 en direct forcerait une vingtaine de paquets de dépendances
 # transitives (TLS/PKCS#11 pour l'essentiel, hors sujet pour une conversion
-# locale) — cf. doc/PROVISIONING_SPEC.md §3.1 et
+# locale) — cf. doc/typst/provisioning-spec.typ §3.1 et
 # doc/HAMAC_PXE_FREEZE_INVESTIGATION.md pour le contexte de cette décision.
 # `pxe-build/init` écrit alors le disque via `bmaptool copy` (blkdiscard +
 # décompression zstd à la volée), qemu-img (buildé statiquement from-source)

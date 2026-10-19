@@ -114,13 +114,19 @@ single network and does not isolate zones (it warns about it).
 `hamac-discovery` runs alongside a PXE stack (`docker/hamac-pxe`, dnsmasq proxy
 DHCP + TFTP + iPXE). A machine boots over PXE, fetches its cloud-init from the
 discovery server (keyed by MAC), and the OS image is written to disk. See
-[`doc/PROVISIONING_SPEC.md`](doc/PROVISIONING_SPEC.md) for the full contract
+[`doc/typst/provisioning-spec.typ`](doc/typst/provisioning-spec.typ) for the full contract
 (image formats, `bmaptool` write path, first-boot resize).
 
 ## Documentation
 
+The reference documents are written in [Typst](https://typst.app) and built as
+PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and keeps them
+as the `documents` artifact of the run.
+
+- [`doc/typst/manifest-spec.typ`](doc/typst/manifest-spec.typ) — manifest format specification (1.1, draft).
+- [`doc/typst/provisioning-spec.typ`](doc/typst/provisioning-spec.typ) — provisioning profile & disk-write spec.
+- [`doc/typst/control-plane.typ`](doc/typst/control-plane.typ) — round-based control plane (design proposal).
 - [`doc/HAMAC_ROADMAP.md`](doc/HAMAC_ROADMAP.md) — milestones.
-- [`doc/PROVISIONING_SPEC.md`](doc/PROVISIONING_SPEC.md) — provisioning profile & disk-write spec.
 
 ## Funding
 

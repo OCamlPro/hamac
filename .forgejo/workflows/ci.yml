@@ -105,6 +105,67 @@ jobs:
           opam exec -- dune exec -- hamac provision-dryrun \
             --profile=provisioning-profiles/dev-workstation-demo.yaml
 
+  # Documents officiels (spécifications, manuels, livrables) : sources Typst
+  # dans doc/typst/, PDF non versionnés. Le job échoue au moindre avertissement
+  # de typst : une police ou un fichier absent ici veut dire que la CI produit
+  # un autre document que celui que l'auteur a relu.
+  documents:
+    runs-on: docker
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      TYPST_VERSION: "0.15.1"
+      TYPST_SHA256: a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c
+    steps:
+      # Les polices de la charte : Liberation Sans pour le texte, DejaVu Sans
+      # Mono pour le code.
+      - name: Paquets système et polices
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates curl xz-utils make \
+            fonts-liberation2 fonts-dejavu-core
+
+      - name: typst ${{ env.TYPST_VERSION }}
+        run: |
+          set -eux
+          curl -fsSL -o /tmp/typst.tar.xz \
+            "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz"
+          echo "${TYPST_SHA256}  /tmp/typst.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/typst.tar.xz -C /tmp
+          install -m 755 /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+          typst --version
+
+      - name: Checkout (URL publique, authentifié)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu   # pas de -x : ne pas logger le token
+          PUB="https://forge.ocamlpro.com"
+          git config --global --add safe.directory "$PWD"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
+          git init -q .
+          git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
+          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          git checkout -q -f FETCH_HEAD
+          echo "checked out: $(git log --oneline -1)"
+
+      - name: Compilation des documents
+        run: |
+          set -eux
+          make -C doc check
+          make -C doc
+          ls -l doc/typst/*.pdf
+
+      # Même action que le dépôt apam, qui la résout par le proxy
+      # code.forgejo.org sans encombre.
+      - name: Publication des PDF
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: documents
+          path: doc/typst/*.pdf
+
   # Construit l'image du serveur de découverte et vérifie qu'elle démarre.
   # Tourne sur le label `dind`, seul environnement où le daemon Docker est
   # disponible (cf. CLAUDE.md : pas de `container:` au niveau job).
@@ -176,7 +237,7 @@ jobs:
           cp -r templates/bundles     docker/hamac-discovery/bundles
           cp -r provisioning-profiles docker/hamac-discovery/profiles
           # Les images OS dérivées (raw.zst + .bmap) ne sont pas générées ici :
-          # cf. doc/PROVISIONING_SPEC.md §3.1. Le Dockerfile les COPY, donc le
+          # cf. doc/typst/provisioning-spec.typ §3.1. Le Dockerfile les COPY, donc le
           # répertoire doit exister même vide.
           mkdir -p docker/hamac-discovery/images
           docker build --build-arg "VCS_REF=${GITHUB_SHA}" \

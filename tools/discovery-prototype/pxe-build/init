@@ -247,7 +247,7 @@ fi
 # ============================================
 # Le discovery server peut avoir un record poussé par hamac via
 # POST /provisioning/<mac>. S'il existe, il prend le dessus sur
-# $INSTALL_MODE (cf. doc/PROVISIONING_SPEC.md section 8).
+# $INSTALL_MODE (cf. doc/typst/provisioning-spec.typ section 8).
 
 echo ""
 echo "[*] Checking hamac provisioning record for $MAC..."
@@ -274,7 +274,7 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
     OS_SHA256=$(extract_str os_image_sha256)
     OS_FORMAT=$(extract_str os_format)
     # Assets dérivés pour install physique via bmaptool (cf.
-    # PROVISIONING_SPEC.md §3.1) : "" si le profil ne les fournit pas.
+    # provisioning-spec.typ §3.1) : "" si le profil ne les fournit pas.
     OS_RAW_ZST_URL=$(extract_str os_raw_zst_url)
     OS_RAW_ZST_SHA256=$(extract_str os_raw_zst_sha256)
     OS_BMAP_URL=$(extract_str os_bmap_url)
@@ -299,7 +299,7 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
     # disponible dans cette initrd ET que le profil fournit les deux URLs
     # ; sinon fallback silencieux sur le chemin qcow2/raw historique
     # (initrd pas encore reconstruite avec bmaptool, ou profil pas encore
-    # migré) — cf. PROVISIONING_SPEC.md §3.1.
+    # migré) — cf. provisioning-spec.typ §3.1.
     USE_BMAP=0
     if [ -n "$OS_RAW_ZST_URL" ] && [ -n "$OS_BMAP_URL" ] && command -v bmaptool >/dev/null 2>&1; then
         USE_BMAP=1
@@ -311,7 +311,7 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
     # serveur HTTP local, octet pour octet identique) et vérifie chaque
     # bloc individuellement contre le `.bmap` pendant la copie — plus fort
     # qu'un sha256 global sur un fichier qu'on aurait téléchargé nous-mêmes
-    # d'abord. `os_raw_zst_sha256` reste dans le schéma (PROVISIONING_SPEC.md
+    # d'abord. `os_raw_zst_sha256` reste dans le schéma (provisioning-spec.typ
     # §3.1) pour audit/outillage externe, mais n'est plus utilisé ici.
     #
     # Chemin qcow2/raw (fallback, USE_BMAP=0) : téléchargement local puis

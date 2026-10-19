@@ -40,7 +40,7 @@ COPY discovery_server.exe /usr/local/bin/hamac-discovery
 COPY bundles  /usr/share/hamac/bundles
 COPY profiles /usr/share/hamac/profiles
 
-# Images OS dérivées (raw.zst + .bmap, cf. doc/PROVISIONING_SPEC.md §3.1 et
+# Images OS dérivées (raw.zst + .bmap, cf. doc/typst/provisioning-spec.typ §3.1 et
 # tools/discovery-prototype/pxe-build/prepare-os-assets.sh) : générées et
 # copiées par la CI (build:hamac-discovery-image), PAS dans
 # /var/lib/hamac-discovery/images (le défaut du code, `images_dir`/

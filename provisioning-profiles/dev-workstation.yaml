@@ -33,7 +33,7 @@ os:
   # (qemu-img convert -O raw | zstd | bmaptool create). Optionnels : si
   # absents ou si l'initrd hamac-pxe déployée ne connaît pas encore
   # bmaptool, pxe-build/init retombe sur url/format/sha256 ci-dessus via
-  # qemu-img. Cf. PROVISIONING_SPEC.md §3.1.
+  # qemu-img. Cf. provisioning-spec.typ §3.1.
   raw_zst_url: ""
   raw_zst_sha256: ""
   bmap_url: ""

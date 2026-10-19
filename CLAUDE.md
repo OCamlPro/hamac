@@ -8,13 +8,25 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
 
 ## Où chercher (contrats, specs, état du projet)
 
-- **`doc/PROVISIONING_SPEC.md`** — **LE contrat** du provisioning : format du manifeste
+- **`doc/typst/provisioning-spec.typ`** — **LE contrat** du provisioning : format du manifeste
   `provisioning_profile`, gestion de l'image OS, chemin d'écriture disque (qcow2 canonique →
   `raw.zst` + `.bmap`, écriture via `bmaptool`, fallback `qemu-img` statique), resize au premier
   boot. À lire en premier pour comprendre le comportement de provisioning.
+- **`doc/typst/manifest-spec.typ`** — spécification du format de manifeste (1.1, brouillon) :
+  `kind`, champs, stabilité, treillis et patrons, catalogue des erreurs du validateur.
+- **`doc/typst/control-plane.typ`** — modèle du plan de contrôle à tours (proposition).
 - **`doc/HAMAC_ROADMAP.md`** — jalons et état d'avancement.
 - Les manifestes consommés sont des `*.sieste.yml` (kinds : `service`, `stack`,
   `infrastructure`, `provisioning_profile`, `bundle`).
+
+## Documents officiels : Typst
+
+Les spécifications, manuels et livrables sont écrits en **Typst** (`doc/typst/*.typ`, thème
+commun `doc/typst/theme.typ` aux couleurs de la charte, pied de financement automatique) et
+construits en PDF par `make -C doc` ; `make -C doc check` échoue au moindre avertissement.
+Les PDF ne sont **pas versionnés** : la CI les produit. README, CONTRIBUTING, roadmap et
+notes de travail restent en Markdown. Typst installé par snap ne peut pas écrire dans
+`/tmp` : compiler vers un fichier sous `doc/`.
 
 ## Packages (OCaml, dépendances 100 % opam publiques)
 

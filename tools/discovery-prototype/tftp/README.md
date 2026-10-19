@@ -85,7 +85,7 @@ cp "${SRC}/jbd2/jbd2.ko.xz" "lib/modules/${KVER}/kernel/fs/jbd2/"
 # Add zstd + bmaptool + python3 (minimal + stdlib) + their real runtime
 # deps, for writing OS images via `bmaptool copy` instead of embarking
 # qemu-utils whole (~20 transitive packages, mostly TLS/PKCS#11, irrelevant
-# to local qcow2->raw conversion — see doc/PROVISIONING_SPEC.md §3.1 and
+# to local qcow2->raw conversion — see doc/typst/provisioning-spec.typ §3.1 and
 # HAMAC_PXE_FREEZE_INVESTIGATION.md). `blkdiscard` is already in the base
 # netboot initrd, nothing to add for it. Set determined empirically (via
 # readelf -d tracing + a real bmaptool create/copy round-trip test), not

@@ -4,7 +4,7 @@
 (** Client HTTP qui pousse un [rendered_profile] vers le discovery server.
 
     Endpoint cible : POST {discovery_url}/provisioning/<mac>
-    Cf. doc/PROVISIONING_SPEC.md section 7.2. *)
+    Cf. doc/typst/provisioning-spec.typ section 7.2. *)
 
 open Lwt.Infix
 

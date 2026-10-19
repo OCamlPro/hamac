@@ -12,7 +12,7 @@
     4. Émettre le YAML final préfixé par [#cloud-config] et un script iPXE
        minimal pointant vers l'OS image.
 
-    Cf. [doc/PROVISIONING_SPEC.md]. *)
+    Cf. [doc/typst/provisioning-spec.typ]. *)
 
 open Manifest_types
 
