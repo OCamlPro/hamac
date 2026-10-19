@@ -2,27 +2,31 @@
 
 # Provenance des logos
 
-Ces logos répondent à l'obligation de communication du **règlement de l'AAP
-Hyper Open X, §3.4.3**, qui impose deux mentions et leurs logos :
+Ces logos répondent à deux obligations de communication cumulées :
 
-1. « Ce projet a été financé par le gouvernement dans le cadre de France 2030 »,
-   accompagnée du **logo France 2030** ;
-2. « Financé par l'Union européenne - Next Generation EU dans le cadre du plan
-   France Relance », accompagnée du **logo France Relance – Union européenne**.
+- le **contrat d'aide Hyper Open X** (clauses particulières, article 4) impose
+  la mention « Ce projet a été financé par le Gouvernement dans le cadre du plan
+  France 2030 opéré par Cap Digital et financé par l'Union européenne –
+  NextGeneration EU », accompagnée des **logos France 2030, NextGenerationEU et
+  Cap Digital** ;
+- le **règlement de l'AAP Hyper Open X, §3.4.3**, impose deux mentions
+  distinctes : « Ce projet a été financé par le gouvernement dans le cadre de
+  France 2030 », avec le **logo France 2030**, et « Financé par l'Union
+  européenne - Next Generation EU dans le cadre du plan France Relance », avec
+  le **logo France Relance – Union européenne**.
 
-Le règlement **n'exige pas de logo Cap Digital** : Cap Digital opère l'appel à
-projets, mais seuls les logos de l'État et de l'Union européenne sont requis.
-(Le plan d'action opérationnel annexé au contrat en mentionnait un troisième ;
-c'est une formulation d'OCamlPro, plus large que l'obligation réelle.)
+Les trois mentions et les quatre logos sont reproduits ensemble, ce qui satisfait
+les deux textes.
 
-Ce sont des marques de leurs titulaires respectifs, reproduites au titre de cette
-obligation ; elles ne sont pas couvertes par la licence AGPL-3.0 du dépôt.
+Ce sont des marques de leurs titulaires respectifs, reproduites au titre de ces
+obligations ; elles ne sont pas couvertes par la licence AGPL-3.0 du dépôt.
 
 | Fichier | Source | Récupéré le |
 |---|---|---|
 | `france-2030.png` | Logo France 2030, version couleur sur fond blanc, publiée par le ministère de l'Agriculture — <https://agriculture.gouv.fr/media/134336> | 2026-09-14 |
 | `france-relance.png` | Logo France Relance, version principale (vert sur fond blanc, drapeaux UE et France), kit de communication France Relance miroité par la préfecture de Loire-Atlantique — `loire-atlantique.gouv.fr/contenu/telechargement/47857/312838/file/logo France Relance vert.pdf`, converti du PDF en PNG | 2026-09-14 |
 | `finance-par-union-europeenne-nextgenerationeu.png` | Emblème européen avec la mention « Financé par l'Union européenne — NextGenerationEU », version française RGB/POS, kit officiel de la Commission européenne — <https://ec.europa.eu/regional_policy/sources/information-sources/logo-download-center/nextgenerationeu_fr.zip> | 2026-09-14 |
+| `cap-digital.png` | Logo Cap Digital Paris Region, version principale (blanc sur fond rose `#ED1D4F`), kit officiel publié dans l'espace presse de Cap Digital — <https://www.capdigital.com/wp-content/uploads/2018/03/logo-cap-digital.zip> (`logo_Cap_Digital_HD_RVB.png`, 1658×601), redimensionné à 530×192 | 2026-09-30 |
 
 L'emblème européen seul est conservé en plus du logo France Relance : le
 règlement européen sur la facilité pour la reprise et la résilience impose
