@@ -159,6 +159,55 @@ explicitement **déléguée à Hamac** plutôt que hand-rollée deux fois.
 **À retirer côté SI une fois livré** : l'intérim D5 (`failover=manual` + sonde
 `clusterHealthService` → Zulip `adminsys`).
 
+## Milestone 12 — Durcissement des postes de developpement
+
+**Objectif** : que le provisionnement d'un poste de developpement livre une
+machine dont la posture de securite ne depend pas de ce que son utilisateur
+en fait ensuite.
+
+Motivation : un poste qui travaille hors du reseau du site est raccorde a des
+reseaux que la societe n'administre pas. La seule protection a ce niveau est
+le pare-feu local du poste, qui doit donc etre active et configure, et dont
+l'etat doit pouvoir etre verifie. Le chiffrement de disque, de son cote, ne
+protege un poste perdu que si son secret lui est propre.
+
+Le provisionnement est le point ou ces deux points se traitent une fois pour
+toutes, au lieu d'etre laisses a l'installation manuelle.
+
+- [ ] Profil `dev_workstation` : pare-feu local active et configure par defaut,
+      politique par defaut en refus entrant, services reseau du poste
+      restreints a ce qui est necessaire
+- [ ] Chiffrement de disque integral pose a l'installation, avec un secret
+      **distinct par poste**, genere au provisionnement
+- [ ] Remise du secret de chiffrement au coffre de la societe, jamais dans le
+      profil ni dans le depot
+- [ ] Compte d'administration a secret propre au poste, pas de compte commun
+- [ ] `hamac provision verify <mac>` : etat du pare-feu, du chiffrement et des
+      services exposes, pour que la conformite d'un poste se constate au lieu
+      de se supposer
+
+### Ce que le provisionnement ne couvre pas
+
+Le profil s'applique aux installations qu'il produit. Le parc deja en service
+garde sa configuration tant qu'il n'est pas repris, par reinstallation ou par
+remediation. Cette reprise est une operation d'exploitation, pas une
+fonctionnalite de l'outil, mais elle conditionne l'effet du jalon : un profil
+irreprochable applique a un seul poste neuf sur dix ne change pas la posture
+du parc.
+
+### Hors du perimetre de Hamac
+
+Deux points relevent de la charte informatique et non de l'outil :
+
+- un salarie qui installe son propre systeme sur sa machine de developpement
+  sort du profil provisionne, et engage sa responsabilite sur la posture de
+  securite de la machine ;
+- pour un poste servant a des developpements de securite, l'installation d'un
+  systeme autre que celui provisionne est interdite.
+
+Hamac doit en revanche rendre la premiere situation **detectable** : un poste
+qui ne correspond plus a son profil doit pouvoir etre identifie comme tel.
+
 ---
 
 ## Financement
