@@ -1,0 +1,14 @@
+# E041-requete-a-travers-une-diode
+manifest_version: "1.1"
+kind: service
+name: analyst
+runtime: http
+artifact:
+  path: registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image
+security:
+  zone: high
+consumes:
+  - name: feed
+    service: sensor

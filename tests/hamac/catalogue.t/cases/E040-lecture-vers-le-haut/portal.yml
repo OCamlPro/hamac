@@ -1,0 +1,14 @@
+# E040-lecture-vers-le-haut
+manifest_version: "1.1"
+kind: service
+name: portal
+runtime: http
+artifact:
+  path: registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image
+security:
+  zone: public
+consumes:
+  - name: v
+    service: vault

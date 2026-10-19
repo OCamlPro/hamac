@@ -1,0 +1,11 @@
+# E015-quantite-invalide
+manifest_version: "1.1"
+kind: service
+name: web
+runtime: http
+artifact:
+  path: registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image
+resources:
+  memory_limit: 1GB

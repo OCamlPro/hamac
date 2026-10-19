@@ -1,0 +1,13 @@
+# E032-taille-absente
+manifest_version: "1.1"
+kind: service
+name: web
+runtime: http
+artifact:
+  path: registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image
+storage:
+  - name: data
+    mount: /data
+    class: replicated

@@ -1,0 +1,14 @@
+# E044-route-au-dessus-de-la-zone
+manifest_version: "1.1"
+kind: service
+name: web
+runtime: http
+artifact:
+  path: registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image
+security:
+  zone: internal
+  route_labels:
+    - route: /vault
+      classification: secure

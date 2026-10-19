@@ -50,7 +50,8 @@ and set =
   | Set_of of string * term               (** [hosts_of(s)] *)
 [@@deriving show]
 
-(** A parse or type error, at a character offset of the source. *)
+(** A parse error, at a character offset of the source, or a type error
+    (offset -1). *)
 type error = { offset: int; message: string }
 
 exception Fail of error
@@ -301,21 +302,23 @@ let fields = [
   Host, "memory", Quantity_s; Host, "cpu", Quantity_s;
 ]
 
-(* A string literal stands for a name of an enumerated sort: a level, a
-   category, an assurance value, a capability. *)
+(* A string literal stands for a name: of a level, a category, an assurance
+   value, a capability, or of a zone, a service, a host. *)
+let named = [Level; Category; Axis; String_s; Zone; Service; Host]
+
 let compatible a b =
   a = b
-  || (a = String_s && List.mem b [Level; Category; Axis; String_s])
-  || (b = String_s && List.mem a [Level; Category; Axis; String_s])
+  || (a = String_s && List.mem b named)
+  || (b = String_s && List.mem a named)
   || (a = Int_s && b = Quantity_s) || (a = Quantity_s && b = Int_s)
 
 let ordered = function
   | Int_s | Quantity_s | Level | Axis | String_s -> true
   | _ -> false
 
-(* Offsets are not tracked through the AST: a type error is reported at the
-   start of the expression, with a message naming the culprit. *)
-let tfail fmt = fail 0 fmt
+(* Offsets are not tracked through the AST: a type error has offset -1 and a
+   message naming the culprit. *)
+let tfail fmt = fail (-1) fmt
 
 let rec type_term env (t : term) : sort =
   match t with

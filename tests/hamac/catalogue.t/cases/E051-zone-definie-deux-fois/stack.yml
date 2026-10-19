@@ -1,0 +1,8 @@
+# E051-zone-definie-deux-fois
+manifest_version: "1.1"
+kind: stack
+name: demo
+accept_experimental: true
+patterns: [a, b]
+services:
+  - ref: web.yml

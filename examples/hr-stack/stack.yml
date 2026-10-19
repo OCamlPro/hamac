@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+#
+# Exemple du format 1.1 : une petite application RH, ses zones et ses
+# exigences données par un patron, et non par Hamac.
+#
+#   hamac validate --strict examples/hr-stack/*.yml
+#   hamac plan examples/hr-stack/*.yml
+
+manifest_version: "1.1"
+kind: stack
+name: hr
+metadata:
+  description: "Application RH : portail public, API RH, consolidation"
+patterns: [exemple-rh]
+accept_experimental: true
+services:
+  - ref: portal.sieste.yml
+  - ref: hr-api.sieste.yml
+  - ref: payroll-report.sieste.yml

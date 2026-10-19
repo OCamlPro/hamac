@@ -1,0 +1,4 @@
+# E005-kind-inconnu
+manifest_version: "1.1"
+kind: widget
+name: w

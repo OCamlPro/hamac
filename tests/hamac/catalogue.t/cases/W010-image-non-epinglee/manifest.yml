@@ -1,0 +1,9 @@
+# W010-image-non-epinglee
+manifest_version: "1.1"
+kind: service
+name: web
+runtime: http
+artifact:
+  path: registry.example.org/web:latest
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image

@@ -1,0 +1,14 @@
+# E035-port-expose-absent
+manifest_version: "1.1"
+kind: service
+name: web
+runtime: http
+artifact:
+  path: registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image
+ports:
+  - container: 8080
+exposure:
+  - hostname: web.example.org
+    port: 9090

@@ -1,0 +1,8 @@
+# E051-zone-definie-deux-fois
+manifest_version: "1.1"
+kind: pattern
+name: b
+version: "1.0.0"
+zones:
+  - name: rh
+    level: secure

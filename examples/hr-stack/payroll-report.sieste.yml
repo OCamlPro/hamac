@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+#
+# Consolidation mensuelle : lit l'API RH depuis la même zone. Ses rapports
+# vont dans le stockage objet, et le volume local n'est qu'un cache
+# reconstructible.
+
+manifest_version: "1.1"
+kind: service
+name: payroll-report
+runtime: batch
+
+artifact:
+  path: registry.example.org/rh/payroll-report@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: oci-image
+
+consumes:
+  - name: api
+    service: hr-api
+    inject:
+      HR_API_URL: "http://{host}:{port}"
+
+security:
+  zone: rh
+
+storage:
+  - name: cache
+    mount: /var/cache/report
+    class: local
+    size: 5Gi
+    rebuild: none
+  - name: scratch
+    mount: /tmp/work
+    class: ephemeral
+
+resources:
+  memory_limit: 1Gi
+  cpu_limit: "2"

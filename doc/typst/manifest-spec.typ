@@ -147,8 +147,9 @@ remplacés à la résolution. `{{` et `}}` produisent des accolades littérales.
     [`provides`, `environment`, `readiness` d'un provider],
   [`{consumer.name}`], [nom du service consommateur], [`inputs` d'un provider],
   [`{service_name}`], [nom du service courant], [partout dans un service],
-  [`{<clé>}`], [valeur `provides.<clé>` du service consommé],
-    [`consumes[].inject`],
+  [`{<clé>}`], [valeur `provides.<clé>` du provider ou du service consommé ;
+    pour un service, aussi `{host}`, `{port}` et `{service_name}`, qui le
+    désignent], [`consumes[].inject`],
   [`{secret.<nom>}`], [référence à un secret déclaré (@secrets)
     #experimental], [`environment`, `consumes[].inject`],
 )
@@ -319,8 +320,8 @@ Chaque entrée déclare une dépendance *et* le flux réseau qu'elle ouvre.
 - Seuls les flux déclarés sont ouverts, vers les seuls ports déclarés du
   consommé. Tout autre trafic entre zones est refusé ; le filtrage est avec
   état.
-- Si la frontière entre les deux zones est une diode (@frontieres), le flux
-  ne peut pas être une requête (#code("E041")).
+- Si les deux zones diffèrent et que l'une d'elles a une frontière `diode`
+  (@frontieres), le flux ne peut pas être une requête (#code("E041")).
 
 Capacités normalisées en 1.1 : `database`, `cache`, `queue`,
 `object-storage`, `search`, `identity`. Un provider #peut en déclarer
@@ -733,7 +734,7 @@ dans la base de confiance.
 ```
 expr     ::= quant | impl
 quant    ::= ("forall" | "exists") IDENT "in" set ["where" expr] ":" expr
-impl     ::= disj ["=>" impl]
+impl     ::= disj ["=>" expr]
 disj     ::= conj { "or" conj }
 conj     ::= neg { "and" neg }
 neg      ::= "not" neg | cmp
@@ -779,6 +780,11 @@ un ensemble minimal de contraintes en conflit.
   [`moves`], [entier], [répliques déplacées par rapport à la topologie
     courante],
 )
+
+Un littéral chaîne (`"site"`, `"rh"`) désigne un nom : de niveau, de
+catégorie, de valeur d'assurance, de capacité, de zone, de service ou
+d'hôte ; il se compare à tout terme de ces sortes. Les noms de domaines
+(`services`, `hosts`…) sont aussi des ensembles utilisables après `in`.
 
 Une expression mal typée, une fonction inconnue ou un identifiant non lié :
 #code("E052"), avec la position dans l'expression.
@@ -826,9 +832,11 @@ infrastructure: infra/si-exemple.infra.yml
 #tableau((auto, 1fr),
   [Champ], [Règle],
   [`patterns`], [noms des patrons appliqués (@pattern) ; absent :
-    `hamac-default`],
+    `hamac-default`. Un patron est cherché parmi les fichiers donnés à la
+    commande, puis dans `./patterns/` et `~/.hamac/patterns/`, ainsi que
+    ceux qu'il étend (#code("E021") s'il est introuvable)],
   [`accept_experimental`], [`true` supprime #code("W001") pour toute la
-    stack],
+    stack, dès qu'elle est validée avec ses services],
   [`services[].ref`], [chemin d'un manifeste `service`, relatif à la stack
     (#code("E021") s'il est introuvable)],
   [`services[].replicas`], [surcharge de `replicas`],
@@ -852,20 +860,20 @@ avant tout déploiement.
   [Champ], [Règle],
   [`backend`], [`physical` · `incus` · `qemu` · `kubernetes` ·
     `docker-compose`],
-  [`minimum_requirements`], [`min_nodes`, `total_ram`, `total_cpu`],
+  [`minimum_requirements`], [`nodes`, `total_ram`, `total_cpu`],
   [`proposed_topology.nodes[]`], [`role`, `count`, `ram`, `cpu`, `boot`,
-    `os_image`, `os_sha256`, `isolated`, `provisioning_profile`],
-  [`proposed_topology.segments[]`], [`name`, `cidr`, `vlan`],
-  [`proposed_topology.firewall[]`], [règles textuelles
+    `os` (`image`, `sha256`), `isolated`, `provisioning_profile`],
+  [`proposed_topology.network.segments[]`], [`name`, `cidr`, `vlan`],
+  [`proposed_topology.network.firewall[]`], [règles textuelles
     `ALLOW|DENY <zone> -> <zone> [(détail)]` ; un détail `a -> b` désigne le
     flux déclaré qui justifie la règle],
   [`warnings`], [liste de chaînes],
   [`certificate`], [#experimental ; référence au certificat de résolution],
 )
 
-Chaque règle `ALLOW` #doit porter le flux qui la justifie (#code("E045")).
-Une règle sans justification n'est pas une erreur de syntaxe mais un défaut de
-traçabilité, que le validateur refuse.
+Chaque règle `ALLOW` #doit porter le flux qui la justifie (#code("E045"),
+vérifié sur le manifeste seul). Une règle sans justification n'est pas une
+erreur de syntaxe mais un défaut de traçabilité, que le validateur refuse.
 
 = `kind: provisioning_profile` et `kind: bundle` <provisioning>
 
@@ -887,11 +895,17 @@ tous #experimental :
 == Trois étages
 
 + *Syntaxe et types* — manifeste seul : YAML valide, champs connus, types,
-  formats. Commande : `hamac validate <fichiers…>`.
-+ *Références* — ensemble de manifestes : `ref` résolus, providers trouvés,
-  gabarits liés, zones définies. Commande : `hamac validate` sur une stack.
-+ *Sémantique* — stack et patrons, puis parc : treillis, cohérence des
-  étiquettes, contraintes des patrons. Commande : `hamac plan`.
+  formats, cohérence interne. Commande : `hamac validate <fichiers…>`.
++ *Références* — ensemble de manifestes : `ref` résolus, patrons composés,
+  providers trouvés, gabarits liés, zones définies.
++ *Sémantique* — stack et patrons, puis parc : treillis, flux, cohérence des
+  étiquettes, contraintes des patrons.
+
+`hamac validate` applique les étages 2 et 3 dès qu'une stack figure parmi
+les fichiers donnés : la stack, ses services, ses patrons et les providers
+trouvés forment l'ensemble vérifié. `hamac plan` traite toujours les fichiers
+donnés comme une stack, implicite si aucune n'est fournie, avant de calculer
+la topologie.
 
 Chaque diagnostic donne un identifiant, le fichier, le *chemin YAML*
 (`security.route_labels.1.classification`) et un message. Une erreur (`E…`)
@@ -900,9 +914,10 @@ fait échouer la commande ; un avertissement (`W…`) ne la fait échouer qu'ave
 
 == Catalogue
 
-Chaque code est couvert par au moins un manifeste de
-`tests/manifests/invalid/`. Le validateur #doit tous les refuser, et #doit
-accepter tous ceux d'`examples/`.
+Chaque code est couvert par un cas de `tests/hamac/catalogue.t/cases/`,
+dont le nom commence par le code. Le validateur #doit tous les refuser (avec
+`--strict` pour les avertissements) en émettant ce code, et #doit accepter
+les exemples d'`examples/` ; la suite de tests et la CI le vérifient.
 
 #tableau((auto, auto, 1fr),
   [Code], [Étage], [Condition],
@@ -923,7 +938,8 @@ accepter tous ceux d'`examples/`.
   code("E014"), [1], [requête de ressource supérieure à sa limite],
   code("E015"), [1], [quantité ou unité invalide],
   code("E016"), [1], [`autoscaling` incohérent, ou `replicas < 1`],
-  code("E020"), [2], [gabarit invalide, ou référence non liée],
+  code("E020"), [1–2], [gabarit invalide, ou référence non liée : secret
+    non déclaré (1), clé absente des `provides`, service hors de la stack (2)],
   code("E021"), [2], [`ref` de stack introuvable],
   code("E022"), [2], [surcharge de `consumes` sans entrée correspondante],
   code("E023"), [2], [aucun provider pour une `capability`, ou plusieurs sans
@@ -939,12 +955,13 @@ accepter tous ceux d'`examples/`.
   code("E042"), [2], [zone inconnue des patrons de la stack],
   code("E043"), [1], [étiquette de route `public` combinée à une exigence],
   code("E044"), [3], [étiquette de route au-dessus de la zone du service],
-  code("E045"), [3], [règle `ALLOW` sans flux justificatif],
+  code("E045"), [1], [règle `ALLOW` sans flux justificatif],
   code("E050"), [2], [treillis de patrons incompatibles],
   code("E051"), [2], [zone définie deux fois avec des étiquettes
     différentes],
   code("E052"), [1], [expression de contrainte mal formée ou mal typée],
-  code("E060"), [3], [contraintes insatisfiables, avec explication],
+  code("E060"), [3], [contraintes insatisfiables, avec explication ; émis par
+    le solveur du planner, pas encore livré : ce code n'a pas de cas en 1.1],
   code("W001"), [1], [champ expérimental sans `accept_experimental`],
   code("W002"), [1], [forme dépréciée, avec son remplaçant],
   code("W010"), [1], [image OCI non épinglée par empreinte],

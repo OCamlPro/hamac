@@ -537,7 +537,8 @@ let parse_zone_decl cx path v =
 
 let constraint_error path (e : Constraint_lang.error) =
   error ~code:"E052" path
-    (Printf.sprintf "%s (at character %d)" e.message (e.offset + 1))
+    (if e.offset < 0 then e.message
+     else Printf.sprintf "%s (at character %d)" e.message (e.offset + 1))
 
 let parse_constraint cx path v =
   let* fields = obj cx path

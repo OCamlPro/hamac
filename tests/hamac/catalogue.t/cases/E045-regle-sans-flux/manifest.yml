@@ -1,0 +1,10 @@
+# E045-regle-sans-flux
+manifest_version: "1.1"
+kind: infrastructure
+name: lab
+backend: incus
+proposed_topology:
+  nodes: []
+  network:
+    firewall:
+      - "ALLOW public -> internal"
