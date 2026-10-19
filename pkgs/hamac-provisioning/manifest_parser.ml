@@ -253,11 +253,22 @@ let metadata_of cx path fields =
 (* kind: service                                                 *)
 (* ============================================================ *)
 
+(** E007 unless [value] is one of [allowed]. *)
+let one_of path what allowed value =
+  if List.mem value allowed then Ok ()
+  else error path (Printf.sprintf "%s '%s' (expected: %s)" what value (String.concat ", " allowed))
+
+let artifact_formats =
+  ["oci-image"; "native-linux-amd64"; "native-linux-arm64"; "incus-vm-image"; "incus-system-image"]
+
+let runtimes = ["http"; "cli"; "batch"; "eventloop"; "custom"]
+
 let parse_artifact cx path v =
   let* fields = obj cx path [ f "path"; f "sha256"; f "format" ] v in
   let* path_val = req_string path "path" fields in
   let* sha256 = req_string path "sha256" fields in
   let* format = req_string path "format" fields in
+  let* () = one_of (path @ ["format"]) "format" artifact_formats format in
   Ok { path = path_val; sha256; format }
 
 let parse_port cx path v =
@@ -481,6 +492,7 @@ let parse_service_manifest cx path fields =
   let* name = parse_name cx path fields in
   let* metadata = metadata_of cx path fields in
   let* runtime = req_string path "runtime" fields in
+  let* () = one_of (path @ ["runtime"]) "runtime" runtimes runtime in
   let* artifact = parse_opt "artifact" fields path (parse_artifact cx) in
   let* capability = opt_string path "capability" fields in
   let* inputs = opt_map path "inputs" fields in
