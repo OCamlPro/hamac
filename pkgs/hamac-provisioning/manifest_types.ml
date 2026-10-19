@@ -3,8 +3,8 @@
 
 (** Manifest types for hamac.
 
-    Structured OCaml types corresponding to the three manifest kinds
-    defined in doc/typst/manifest-spec.typ. *)
+    Structured OCaml types for the manifest kinds defined in
+    doc/typst/manifest-spec.typ (format 1.1). *)
 
 (* ============================================================ *)
 (* Common types                                                  *)
@@ -16,11 +16,23 @@ type artifact = {
   format: string;           (** native-linux-amd64 | oci-image | ... *)
 } [@@deriving show]
 
+type metadata = {
+  description: string option;
+  labels: (string * string) list;
+  annotations: (string * string) list;
+} [@@deriving show]
+
+let no_metadata = { description = None; labels = []; annotations = [] }
+
 type port = {
-  host: int;
+  host: int option;         (** deprecated in 1.1: publication goes through [exposure] *)
   container: int;
   protocol: string;         (** tcp | udp *)
 } [@@deriving show]
+
+(** Host-side port of a port: the deprecated [host] field if given, the
+    container port otherwise. *)
+let port_host (p : port) = Option.value p.host ~default:p.container
 
 type volume = {
   host_path: string;
@@ -28,14 +40,76 @@ type volume = {
   read_only: bool;
 } [@@deriving show]
 
+(** Authorization of a route: the subject's level must be at least
+    [classification], it must hold every category of [categories], and at
+    least one role of [required_clearance] when that list is not empty. A
+    [public] route requires no token. *)
 type route_label = {
   route: string;
+  methods: string list;           (** empty = every method *)
+  public: bool;
+  classification: string option;  (** a level of the lattice *)
+  categories: string list;
   required_clearance: string list;
 } [@@deriving show]
 
 type security = {
-  zone: string;              (** public | internal | secure | custom *)
+  zone: string;              (** a zone of the stack's patterns *)
   route_labels: route_label list;
+} [@@deriving show]
+
+(* ---- Storage, secrets, placement, exposure (experimental in 1.1) ---- *)
+
+type storage_volume = {
+  st_name: string;
+  mount: string;
+  st_class: string;          (** ephemeral | local | replicated *)
+  size: string option;
+  rebuild: string option;    (** from-backup | from-object | from-replica | none *)
+} [@@deriving show]
+
+type backup_policy = {
+  schedule: string option;
+  retention: (string * int) list;
+  pre: string list;
+  post: string list;
+  verify: string;            (** none | restore-test *)
+} [@@deriving show]
+
+type secret_generation = {
+  gen_kind: string;          (** alpha | alnum *)
+  gen_length: int;
+} [@@deriving show]
+
+type secret_decl = {
+  sec_name: string;
+  sec_ref: string option;    (** <backend>:<path>[#<key>] *)
+  generate: secret_generation option;
+  rotate: string option;
+  sec_as: string;            (** env | file *)
+} [@@deriving show]
+
+(** Minimum per assurance axis; [None] imposes nothing on that axis. *)
+type assurance = {
+  boot: string option;       (** none < provider-vtpm < confidential-vm < measured-tpm2 *)
+  operator: string option;   (** any < eu < secnumcloud < self *)
+  physical: string option;   (** third-party < dedicated-rack < site *)
+} [@@deriving show]
+
+type placement = {
+  needs: string list;
+  pl_assurance: assurance option;
+  spread: string;            (** none | host | failure_domain *)
+  affinity: string list;
+  anti_affinity: string list;
+} [@@deriving show]
+
+type exposure = {
+  hostname: string;
+  path_prefix: string;
+  exp_port: int;
+  exp_protocol: string;      (** http | tcp *)
+  tls: string;               (** acme | internal | passthrough *)
 } [@@deriving show]
 
 type resources = {
@@ -75,6 +149,7 @@ type consumption = {
   capability: string option;  (** database, cache, queue, storage *)
   service: string option;     (** reference to another service *)
   inject: (string * string) list;
+  mode: string;               (** request | push (push: experimental) *)
 } [@@deriving show]
 
 type signature = {
@@ -114,6 +189,57 @@ type service_manifest = {
   health_check: health_check option;
   metrics: metrics option;
   logging: logging option;
+  metadata: metadata;
+  storage: storage_volume list;
+  backup: backup_policy option;
+  secrets: secret_decl list;
+  placement: placement option;
+  exposure: exposure list;
+} [@@deriving show]
+
+(* ============================================================ *)
+(* kind: pattern                                                 *)
+(* ============================================================ *)
+
+type lattice_decl = {
+  levels: string list;       (** from the least to the most sensitive *)
+  lat_categories: string list;
+} [@@deriving show]
+
+type zone_decl = {
+  zname: string;
+  zlevel: string;
+  zcategories: string list;
+  boundary: string;          (** firewall | diode *)
+} [@@deriving show]
+
+type constraint_decl = {
+  cid: string;
+  cdescription: string;
+  severity: string;          (** hard | soft *)
+  weight: int option;
+  expr_src: string;
+  expr: Constraint_lang.expr;
+} [@@deriving show]
+
+type objective = {
+  direction: string;         (** minimize | maximize *)
+  term_src: string;
+  term: Constraint_lang.term;
+  priority: int;
+  oweight: int option;
+} [@@deriving show]
+
+type pattern_manifest = {
+  pat_manifest_version: string;
+  pat_name: string;
+  pat_version: string;
+  extends: string list;
+  lattice: lattice_decl option;
+  zones: zone_decl list;
+  pat_assurance: (string * assurance) list;   (** zone name → minimum *)
+  constraints: constraint_decl list;
+  objectives: objective list;
 } [@@deriving show]
 
 (* ============================================================ *)
@@ -134,6 +260,8 @@ and stack_consume_override = {
 type stack_manifest = {
   manifest_version: string;
   name: string;
+  patterns: string list;           (** empty = the built-in hamac-default *)
+  accept_experimental: bool;
   services: stack_service_ref list;
   infrastructure: string option;   (** path to infrastructure manifest *)
 } [@@deriving show]
@@ -232,6 +360,7 @@ type infrastructure_manifest = {
   minimum_requirements: infra_requirements option;
   proposed_topology: infra_topology option;
   warnings: string list;
+  certificate: string option;      (** experimental: resolution certificate *)
 } [@@deriving show]
 
 (* ============================================================ *)
@@ -275,6 +404,7 @@ type provisioning_profile_manifest = {
   pp_os: os_image_spec;
   pp_bundles: bundle_ref list;
   pp_cloud_init_extra: yaml_value option;
+  pp_assurance: assurance option;  (** experimental: what an installed machine offers *)
 } [@@deriving show]
 
 (** Spécification d'un paramètre déclaré côté bundle.
@@ -293,6 +423,7 @@ type bundle_manifest = {
   bdl_description: string;
   bdl_params: bundle_param_spec list;
   bdl_depends_on: string list;
+  bdl_lifecycle: string;           (** install | converge (experimental) *)
   (* Le contenu (packages, users, runcmd...) vit désormais dans le(s)
      template(s) cloud-init du bundle (cloud-init[.<family>].yaml.j2),
      plus dans des champs packages/post_install séparés. *)
@@ -305,6 +436,7 @@ type bundle_manifest = {
 type manifest =
   | MService of service_manifest
   | MStack of stack_manifest
+  | MPattern of pattern_manifest
   | MInfrastructure of infrastructure_manifest
   | MProvisioningProfile of provisioning_profile_manifest
   | MBundle of bundle_manifest

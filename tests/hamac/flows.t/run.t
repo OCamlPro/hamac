@@ -81,14 +81,14 @@ Une lecture vers le haut est refusée : `portal` (zone public) ne peut pas
 consommer `payroll` (zone secure).
 
   $ hamac plan portal-read-up.sieste.yml payroll.sieste.yml
-  hamac: [ERROR] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
+  hamac: [ERROR] portal-read-up.sieste.yml: consumes.0: [E040] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
   [1]
   $ hamac simulate portal-read-up.sieste.yml payroll.sieste.yml
-  hamac: [ERROR] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
+  hamac: [ERROR] [E040] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
   [1]
 
 Un flux vers un service absent de la stack est une erreur.
 
   $ hamac plan reporting-unknown.sieste.yml web_api.sieste.yml
-  hamac: [ERROR] reporting: consumes 'ledger': unknown service 'ledger' (not part of this stack)
+  hamac: [ERROR] reporting-unknown.sieste.yml: consumes.0: [E020] reporting: consumes 'ledger': unknown service 'ledger' (not part of this stack)
   [1]

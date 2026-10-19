@@ -144,7 +144,7 @@ let generate_node_init_script
 
     (* Port flags — offset host port by replica index to avoid conflicts *)
     let port_flags = List.map (fun (p : port) ->
-      Printf.sprintf "-p %d:%d" (p.host + idx) p.container
+      Printf.sprintf "-p %d:%d" (port_host p + idx) p.container
     ) svc.ports |> String.concat " " in
 
     (match svc.artifact with
@@ -191,14 +191,14 @@ type placement = {
 let service_endpoint (svc : service_manifest) : string * string =
   let host = node_name (Planner.service_zone svc) 0 in
   match svc.ports with
-  | p :: _ -> (host, string_of_int p.host)
+  | p :: _ -> (host, string_of_int (port_host p))
   | [] -> (host, "")
 
 (** Host port range a service occupies on a node: replicas on the same node
     get consecutive host ports (see [generate_node_init_script]). *)
 let service_port_range (svc : service_manifest) : (int * int) option =
   match svc.ports with
-  | p :: _ -> Some (p.host, p.host + Planner.service_max_replicas svc - 1)
+  | p :: _ -> Some (port_host p, port_host p + Planner.service_max_replicas svc - 1)
   | [] -> None
 
 (** Simple round-robin placement within a zone *)

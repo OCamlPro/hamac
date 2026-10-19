@@ -80,7 +80,7 @@ let load_dir (registry : t) (dir : Fpath.t) : (int, string) result =
       Ok !count
 
 (** Load from default search paths *)
-let load_defaults (registry : t) : unit =
+let load_defaults ?(verbose = true) (registry : t) : unit =
   let search_paths = [
     Fpath.v "./providers";
     Fpath.v "./sieste-providers";
@@ -93,7 +93,7 @@ let load_defaults (registry : t) : unit =
   List.iter (fun dir ->
     match load_dir registry dir with
     | Ok 0 -> ()
-    | Ok n -> Logs.app (fun m -> m "Loaded %d provider(s) from %a" n Fpath.pp dir)
+    | Ok n -> if verbose then Logs.app (fun m -> m "Loaded %d provider(s) from %a" n Fpath.pp dir)
     | Error msg -> Logs.debug (fun m -> m "Cannot load providers from %a: %s" Fpath.pp dir msg)
   ) search_paths
 

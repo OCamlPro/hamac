@@ -135,7 +135,7 @@ type plan = {
 
 (** Generate an infrastructure proposal from service manifests and the
     flows they declare (already checked by {!Flows.declared}). *)
-let plan ~(name : string) ~(flows : Flows.flow list) (services : service_manifest list) : plan =
+let plan ?lattice ~(name : string) ~(flows : Flows.flow list) (services : service_manifest list) : plan =
   let zones = compute_zones services in
   let warnings = ref [] in
 
@@ -168,7 +168,7 @@ let plan ~(name : string) ~(flows : Flows.flow list) (services : service_manifes
   ) zones in
 
   (* Firewall rules *)
-  let firewall = Flows.firewall_rules (List.map (fun z -> z.zone_name) zones) flows in
+  let firewall = Flows.firewall_rules ?lattice (List.map (fun z -> z.zone_name) zones) flows in
 
   let infrastructure = {
     manifest_version = "1.0";
@@ -187,6 +187,7 @@ let plan ~(name : string) ~(flows : Flows.flow list) (services : service_manifes
       firewall;
     };
     warnings = List.rev !warnings;
+    certificate = None;
   } in
 
   { infrastructure; zones; warnings = List.rev !warnings }

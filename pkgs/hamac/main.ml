@@ -16,6 +16,9 @@ let kind_label = function
     Printf.sprintf "service (name=%s, runtime=%s)" s.name s.runtime
   | MStack s ->
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
+  | MPattern p ->
+    Printf.sprintf "pattern (name=%s, version=%s, %d zones, %d constraints)"
+      p.pat_name p.pat_version (List.length p.zones) (List.length p.constraints)
   | MInfrastructure i ->
     Printf.sprintf "infrastructure (name=%s, backend=%s)" i.name i.backend
   | MProvisioningProfile p ->
@@ -64,9 +67,9 @@ let load_services_and_overrides () =
 
 (** Flows the services declare between each other, checked against the
     zone lattice (no read up). Any invalid declaration stops the command. *)
-let checked_flows services =
-  let flows, errors = Flows.declared services in
-  List.iter (fun err -> Logs.err (fun m -> m "%s" err)) errors;
+let checked_flows ?lattice services =
+  let flows, errors = Flows.declared ?lattice services in
+  List.iter (fun err -> Logs.err (fun m -> m "%s" (Flows.error_to_string err))) errors;
   if errors <> [] then exit 1;
   flows
 
@@ -74,30 +77,54 @@ let checked_flows services =
 (* Commands                                                      *)
 (* ============================================================ *)
 
-let run_validate () =
-  let ok = ref true in
-  List.iter (fun path ->
-    let fpath = Fpath.v path in
-    match Hamac_provisioning.Manifest_parser.load_file fpath with
-    | Error msg ->
-      Logs.err (fun m -> m "%s" msg);
-      ok := false
-    | Ok (manifest, warnings) ->
-      Logs.app (fun m -> m "%a: %s" Fpath.pp fpath (kind_label manifest));
-      List.iter (fun w ->
-        Logs.warn (fun m -> m "  %s" w)
-      ) warnings
-  ) !manifest_files;
-  if not !ok then exit 1
+(** Report findings: errors as errors, warnings as warnings. Returns
+    (errors, warnings). *)
+let report (findings : Stack_check.finding list) =
+  let module D = Hamac_provisioning.Diagnostic in
+  List.fold_left (fun (e, w) (file, (d : D.t)) ->
+    match d.severity with
+    | D.Error -> Logs.err (fun m -> m "%s: %s" file (D.to_string d)); (e + 1, w)
+    | D.Warning -> Logs.warn (fun m -> m "%s: %s" file (D.to_string d)); (e, w + 1))
+    (0, 0) findings
 
+let quiet_providers () =
+  let registry = Provider_registry.create () in
+  Provider_registry.load_defaults ~verbose:false registry;
+  Provider_registry.all_providers registry
+
+(** [hamac validate]: stage 1 on every file; stages 2 and 3 as well when a
+    stack is among them (its references, patterns, zones, providers and
+    flows). *)
+let run_validate ~strict () =
+  let given = List.map Stack_check.load !manifest_files in
+  List.iter (fun (l : Stack_check.loaded) ->
+    Option.iter (fun m -> Logs.app (fun f -> f "%s: %s" l.file (kind_label m))) l.manifest)
+    given;
+  let findings =
+    if Stack_check.stacks_of given = [] then
+      List.concat_map (fun (l : Stack_check.loaded) -> List.map (fun d -> (l.file, d)) l.diags) given
+    else
+      let _, _, findings = Stack_check.run ~providers:(quiet_providers ()) given in
+      findings
+  in
+  let errors, warnings = report findings in
+  if errors > 0 || (strict && warnings > 0) then exit 1
+
+(** [hamac plan]: the given files form a stack (stages 1 to 3), then the
+    topology is inferred under the stack's lattice. *)
 let run_plan () =
-  let services, _overrides = load_services_and_overrides () in
+  let given = List.map Stack_check.load !manifest_files in
+  let ls, lattice, findings = Stack_check.run ~providers:(quiet_providers ()) given in
+  let errors = List.filter (fun (_, d) -> Hamac_provisioning.Diagnostic.is_error d) findings in
+  let _ = report errors in
+  if errors <> [] then exit 1;
+  let services = List.map snd (Stack_check.services_of ls) in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
   end;
-  let flows = checked_flows services in
-  let plan = Planner.plan ~name:"stack" ~flows services in
+  let flows, _ = Flows.declared ~lattice services in
+  let plan = Planner.plan ~lattice ~name:"stack" ~flows services in
   Planner.display_plan plan
 
 let run_resolve () =
@@ -388,9 +415,20 @@ let files_seed_term run =
   in
   Term.(const go $ files_arg $ seed_arg $ debug_arg)
 
-let validate_term = files_term run_validate
+let strict_arg =
+  let doc = "Fail on warnings too, not only on errors." in
+  Arg.(value & flag & info ["strict"] ~doc)
+
 let validate_cmd =
-  Cmd.v (Cmd.info "validate" ~doc:"Validate manifest files.") validate_term
+  let go files strict debug =
+    set_debug debug;
+    manifest_files := files;
+    run_validate ~strict ()
+  in
+  Cmd.v (Cmd.info "validate"
+           ~doc:"Validate manifest files (and, for a stack, its references, \
+                 patterns, zones, providers and flows).")
+    Term.(const go $ files_arg $ strict_arg $ debug_arg)
 let plan_cmd =
   Cmd.v (Cmd.info "plan" ~doc:"Plan infrastructure from service manifests.")
     (files_term run_plan)
