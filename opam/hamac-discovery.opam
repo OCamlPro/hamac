@@ -4,6 +4,7 @@ depends: [
   "dune" {>= "3.14"}
   "cohttp-lwt-unix" {build}
   "fmt" {build}
+  "hamac-manifest" {build}
   "hamac-provisioning" {build}
   "logs" {build}
   "lwt" {build}

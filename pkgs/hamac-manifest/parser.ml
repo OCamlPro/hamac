@@ -3,7 +3,7 @@
 
 (** YAML manifest parser for hamac.
 
-    Parses manifests into [Manifest_types.manifest] values, following
+    Parses manifests into [Types.manifest] values, following
     doc/typst/manifest-spec.typ (format 1.1):
 
     - the format version is checked first, and decides which fields exist;
@@ -16,7 +16,7 @@
     type). The checks that need a complete manifest ({!check}) report every
     finding at once. *)
 
-open Manifest_types
+open Types
 
 (* ============================================================ *)
 (* Context and errors                                            *)

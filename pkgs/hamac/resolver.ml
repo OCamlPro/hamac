@@ -6,7 +6,7 @@
     Resolves service consumes to concrete providers or to other services of
     the stack, generates credentials, and substitutes injection templates. *)
 
-open Hamac_provisioning.Manifest_types
+open Hamac_manifest.Types
 
 (* ============================================================ *)
 (* Credential generation                                         *)
@@ -278,7 +278,7 @@ let resolve_consumption
 (** Resolve a consumption of another service of the stack. The consumed
     service is reached at [endpoint target] = (host, port); its [provides]
     and the [inject] templates may use {host}, {port} and {service_name}.
-    Whether the flow is allowed is checked beforehand by {!Flows.declared}. *)
+    Whether the flow is allowed is checked beforehand by {!Hamac_manifest.Flows.declared}. *)
 let resolve_service_consumption
     ~(services : service_manifest list)
     ~(endpoint : service_manifest -> string * string)

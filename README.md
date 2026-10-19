@@ -24,7 +24,8 @@ Developed by [OCamlPro](https://www.ocamlpro.com) and released under the
 | Package | Path | Role |
 |---|---|---|
 | `hamac` | `pkgs/hamac` | CLI: `validate` / `plan` / `resolve` / `simulate` / `deploy`, and `provision-*` (render + push cloud-init/iPXE to the discovery server). |
-| `hamac-provisioning` | `pkgs/hamac-provisioning` | Library: manifest parsing, provisioning-profile rendering (cloud-init + iPXE). |
+| `hamac-manifest` | `pkgs/hamac-manifest` | Library: the pivot manifest format — types, parser, coded diagnostics, security lattice, pattern constraint language, flow and stack validation. Usable on its own by any tool that reads or writes manifests. |
+| `hamac-provisioning` | `pkgs/hamac-provisioning` | Library: provisioning-profile rendering (cloud-init + iPXE). |
 | `hamac-discovery` | `pkgs/hamac-discovery` | Discovery server: stores a provisioning record per MAC and serves the aggregated cloud-init to PXE-booting machines. |
 
 ## Build

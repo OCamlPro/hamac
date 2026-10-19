@@ -12,7 +12,7 @@ let manifest_files = ref []
 (* ============================================================ *)
 
 let kind_label = function
-  | Hamac_provisioning.Manifest_types.MService s ->
+  | Hamac_manifest.Types.MService s ->
     Printf.sprintf "service (name=%s, runtime=%s)" s.name s.runtime
   | MStack s ->
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
@@ -40,16 +40,16 @@ let load_services_and_overrides () =
   let overrides = ref [] in
   List.iter (fun path ->
     let fpath = Fpath.v path in
-    match Hamac_provisioning.Manifest_parser.load_file fpath with
+    match Hamac_manifest.Parser.load_file fpath with
     | Error msg ->
       Logs.err (fun m -> m "%s" msg);
       exit 1
-    | Ok (Hamac_provisioning.Manifest_types.MService svc, _) ->
+    | Ok (Hamac_manifest.Types.MService svc, _) ->
       services := svc :: !services
-    | Ok (Hamac_provisioning.Manifest_types.MStack stk, _) ->
+    | Ok (Hamac_manifest.Types.MStack stk, _) ->
       (* Extract overrides from stack manifest *)
-      List.iter (fun (sref : Hamac_provisioning.Manifest_types.stack_service_ref) ->
-        let svc_overrides = List.map (fun (o : Hamac_provisioning.Manifest_types.stack_consume_override) ->
+      List.iter (fun (sref : Hamac_manifest.Types.stack_service_ref) ->
+        let svc_overrides = List.map (fun (o : Hamac_manifest.Types.stack_consume_override) ->
           (o.consume_name, o.provider)
         ) sref.consumes_override in
         if svc_overrides <> [] then begin
@@ -68,8 +68,8 @@ let load_services_and_overrides () =
 (** Flows the services declare between each other, checked against the
     zone lattice (no read up). Any invalid declaration stops the command. *)
 let checked_flows ?lattice services =
-  let flows, errors = Flows.declared ?lattice services in
-  List.iter (fun err -> Logs.err (fun m -> m "%s" (Flows.error_to_string err))) errors;
+  let flows, errors = Hamac_manifest.Flows.declared ?lattice services in
+  List.iter (fun err -> Logs.err (fun m -> m "%s" (Hamac_manifest.Flows.error_to_string err))) errors;
   if errors <> [] then exit 1;
   flows
 
@@ -79,8 +79,8 @@ let checked_flows ?lattice services =
 
 (** Report findings: errors as errors, warnings as warnings. Returns
     (errors, warnings). *)
-let report (findings : Stack_check.finding list) =
-  let module D = Hamac_provisioning.Diagnostic in
+let report (findings : Hamac_manifest.Stack_check.finding list) =
+  let module D = Hamac_manifest.Diagnostic in
   List.fold_left (fun (e, w) (file, (d : D.t)) ->
     match d.severity with
     | D.Error -> Logs.err (fun m -> m "%s: %s" file (D.to_string d)); (e + 1, w)
@@ -96,15 +96,15 @@ let quiet_providers () =
     stack is among them (its references, patterns, zones, providers and
     flows). *)
 let run_validate ~strict () =
-  let given = List.map Stack_check.load !manifest_files in
-  List.iter (fun (l : Stack_check.loaded) ->
+  let given = List.map Hamac_manifest.Stack_check.load !manifest_files in
+  List.iter (fun (l : Hamac_manifest.Stack_check.loaded) ->
     Option.iter (fun m -> Logs.app (fun f -> f "%s: %s" l.file (kind_label m))) l.manifest)
     given;
   let findings =
-    if Stack_check.stacks_of given = [] then
-      List.concat_map (fun (l : Stack_check.loaded) -> List.map (fun d -> (l.file, d)) l.diags) given
+    if Hamac_manifest.Stack_check.stacks_of given = [] then
+      List.concat_map (fun (l : Hamac_manifest.Stack_check.loaded) -> List.map (fun d -> (l.file, d)) l.diags) given
     else
-      let _, _, findings = Stack_check.run ~providers:(quiet_providers ()) given in
+      let _, _, findings = Hamac_manifest.Stack_check.run ~providers:(quiet_providers ()) given in
       findings
   in
   let errors, warnings = report findings in
@@ -113,17 +113,17 @@ let run_validate ~strict () =
 (** [hamac plan]: the given files form a stack (stages 1 to 3), then the
     topology is inferred under the stack's lattice. *)
 let run_plan () =
-  let given = List.map Stack_check.load !manifest_files in
-  let ls, lattice, findings = Stack_check.run ~providers:(quiet_providers ()) given in
-  let errors = List.filter (fun (_, d) -> Hamac_provisioning.Diagnostic.is_error d) findings in
+  let given = List.map Hamac_manifest.Stack_check.load !manifest_files in
+  let ls, lattice, findings = Hamac_manifest.Stack_check.run ~providers:(quiet_providers ()) given in
+  let errors = List.filter (fun (_, d) -> Hamac_manifest.Diagnostic.is_error d) findings in
   let _ = report errors in
   if errors <> [] then exit 1;
-  let services = List.map snd (Stack_check.services_of ls) in
+  let services = List.map snd (Hamac_manifest.Stack_check.services_of ls) in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
   end;
-  let flows, _ = Flows.declared ~lattice services in
+  let flows, _ = Hamac_manifest.Flows.declared ~lattice services in
   let plan = Planner.plan ~lattice ~name:"stack" ~flows services in
   Planner.display_plan plan
 
@@ -147,8 +147,8 @@ let run_resolve () =
   if resolution.providers <> [] then begin
     Logs.app (fun m -> m "Providers to instantiate:");
     List.iter (fun (rp : Resolver.resolved_provider) ->
-      let image = match rp.provider.Hamac_provisioning.Manifest_types.artifact with
-        | Some a -> a.Hamac_provisioning.Manifest_types.path
+      let image = match rp.provider.Hamac_manifest.Types.artifact with
+        | Some a -> a.Hamac_manifest.Types.path
         | None -> "?"
       in
       Logs.app (fun m -> m "  %s (%s)" rp.instance_name image);
@@ -233,7 +233,7 @@ let run_deploy () =
   end;
 
   let _flows = checked_flows services in
-  let zones = List.sort_uniq String.compare (List.map Flows.service_zone services) in
+  let zones = List.sort_uniq String.compare (List.map Hamac_manifest.Flows.service_zone services) in
   if List.length zones > 1 then
     Logs.warn (fun m -> m "deploy generates a flat docker-compose on a single \
       network: it does not isolate the security zones (%s). Use `hamac \
@@ -273,9 +273,9 @@ let run_provision_dryrun () =
     exit 1
   | path :: _ ->
     let fpath = Fpath.v path in
-    match Hamac_provisioning.Manifest_parser.load_file fpath with
+    match Hamac_manifest.Parser.load_file fpath with
     | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-    | Ok (Hamac_provisioning.Manifest_types.MProvisioningProfile profile, _) ->
+    | Ok (Hamac_manifest.Types.MProvisioningProfile profile, _) ->
       let extra = if !provision_bundles_dir = ""
         then []
         else [Fpath.v !provision_bundles_dir]
@@ -309,9 +309,9 @@ let run_provision_push () =
     exit 1
   | path :: _ ->
     let fpath = Fpath.v path in
-    match Hamac_provisioning.Manifest_parser.load_file fpath with
+    match Hamac_manifest.Parser.load_file fpath with
     | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-    | Ok (Hamac_provisioning.Manifest_types.MProvisioningProfile profile, _) ->
+    | Ok (Hamac_manifest.Types.MProvisioningProfile profile, _) ->
       let extra = if !provision_bundles_dir = ""
         then [] else [Fpath.v !provision_bundles_dir]
       in

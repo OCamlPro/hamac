@@ -25,6 +25,7 @@
     cohttp-lwt-unix
     fmt
     fpath
+    hamac-manifest
     hamac-provisioning
     jingoo
     logs.fmt

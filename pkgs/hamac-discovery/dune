@@ -22,6 +22,7 @@
   (libraries
     cohttp-lwt-unix
     fmt
+    hamac-manifest
     hamac-provisioning
     logs
     lwt.unix

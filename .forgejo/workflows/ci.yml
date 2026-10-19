@@ -239,7 +239,7 @@ jobs:
           set -eux
           docker run --rm -v "$PWD":/src -w /src ocaml/opam:debian-12-ocaml-5.3 \
             bash -c 'sudo chown -R opam:opam /src \
-                     && opam install -y --deps-only ./opam/hamac-provisioning.opam ./opam/hamac-discovery.opam \
+                     && opam install -y --deps-only ./opam/hamac-manifest.opam ./opam/hamac-provisioning.opam ./opam/hamac-discovery.opam \
                      && opam exec -- dune build --profile=release pkgs/hamac-discovery'
 
       - name: Assemble le contexte et construit l'image

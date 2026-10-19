@@ -3,7 +3,7 @@
 
 (** Security zones, declared flows and the filtering they allow.
 
-    Zones carry labels of a Bell-LaPadula lattice ({!Hamac_provisioning.Lattice}):
+    Zones carry labels of a Bell-LaPadula lattice ({!Lattice}):
     the stack's patterns define it, the built-in one orders
     public < default < internal < secure. At the network level, opening a
     connection to a service means reading from it, so:
@@ -25,9 +25,8 @@
     (information-flow typing in SIESTE, Biscuit authorization) or by a
     filtering data diode. *)
 
-open Hamac_provisioning.Manifest_types
+open Types
 
-module Lattice = Hamac_provisioning.Lattice
 
 (** Zones of the built-in lattice, in increasing order of sensitivity. *)
 let zone_order = Lattice.builtin_levels
@@ -64,11 +63,11 @@ type flow = {
 type error = {
   service: string;
   consume_index: int;
-  diag: Hamac_provisioning.Diagnostic.t;
+  diag: Diagnostic.t;
 }
 
 let error_to_string e =
-  Printf.sprintf "[%s] %s" e.diag.Hamac_provisioning.Diagnostic.code e.diag.message
+  Printf.sprintf "[%s] %s" e.diag.Diagnostic.code e.diag.message
 
 (** Flows declared by the services of a stack, checked against the lattice.
     Returns the valid flows and one error per invalid declaration. *)
@@ -81,7 +80,7 @@ let declared ?(lattice = Lattice.default) (services : service_manifest list)
       let fail code fmt =
         Printf.ksprintf (fun message ->
           errors := { service = svc.name; consume_index = i;
-                      diag = Hamac_provisioning.Diagnostic.make code
+                      diag = Diagnostic.make code
                           ["consumes"; string_of_int i] message } :: !errors) fmt in
       match c.service with
       | None -> ()

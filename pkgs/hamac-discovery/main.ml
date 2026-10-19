@@ -1709,7 +1709,7 @@ let handle_allowed_macs_dnsmasq_hostsfile () =
 (* Catalogue de profils + modèle Machine (mode b, IT)           *)
 (* ============================================================ *)
 
-module MT = Hamac_provisioning.Manifest_types
+module MT = Hamac_manifest.Types
 
 (** Conversion Yojson (params venant de l'API REST) → Yaml.value
     (format attendu par provisioning_gen). *)
@@ -1738,7 +1738,7 @@ let load_profiles_from_dir (dir : string)
          Filename.check_suffix f ".yaml" || Filename.check_suffix f ".yml")
     |> List.filter_map (fun f ->
          let path = Fpath.v (Filename.concat dir f) in
-         match Hamac_provisioning.Manifest_parser.load_file path with
+         match Hamac_manifest.Parser.load_file path with
          | Ok (MT.MProvisioningProfile p, _) -> Some (p.MT.pp_name, p)
          | _ -> None)
   else []
@@ -1762,7 +1762,7 @@ let profile_required_params (p : MT.provisioning_profile_manifest)
   List.concat_map (fun (br : MT.bundle_ref) ->
     let bpath = Fpath.v
       (Filename.concat (Filename.concat bundles_dir br.MT.bundle_name) "bundle.yaml") in
-    match Hamac_provisioning.Manifest_parser.load_file bpath with
+    match Hamac_manifest.Parser.load_file bpath with
     | Ok (MT.MBundle b, _) -> b.MT.bdl_params
     | _ -> []
   ) p.MT.pp_bundles

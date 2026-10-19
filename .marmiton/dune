@@ -1,7 +1,7 @@
 
 (rule
   (alias opam)
-  (deps  ../opam/hamac-provisioning.opam  ../opam/hamac.opam  ../opam/hamac-discovery.opam)
+  (deps  ../opam/hamac-manifest.opam  ../opam/hamac-provisioning.opam  ../opam/hamac.opam  ../opam/hamac-discovery.opam)
   (mode promote)
   (action (with-stdout-to
     opam.rebuild

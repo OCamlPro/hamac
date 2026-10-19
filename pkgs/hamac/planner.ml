@@ -8,7 +8,7 @@
     This is the "zero touch" core — the user defines services,
     the planner figures out what infrastructure is needed. *)
 
-open Hamac_provisioning.Manifest_types
+open Hamac_manifest.Types
 
 (* ============================================================ *)
 (* Resource parsing helpers                                      *)
@@ -52,8 +52,8 @@ type zone_info = {
   total_replicas: int;
 }
 
-(** Zone of a service (default: "default"), cf. {!Flows.service_zone}. *)
-let service_zone = Flows.service_zone
+(** Zone of a service (default: "default"), cf. {!Hamac_manifest.Flows.service_zone}. *)
+let service_zone = Hamac_manifest.Flows.service_zone
 
 (** Extract memory requirement per replica in MB *)
 let service_memory_mb (svc : service_manifest) : int =
@@ -134,8 +134,8 @@ type plan = {
 }
 
 (** Generate an infrastructure proposal from service manifests and the
-    flows they declare (already checked by {!Flows.declared}). *)
-let plan ?lattice ~(name : string) ~(flows : Flows.flow list) (services : service_manifest list) : plan =
+    flows they declare (already checked by {!Hamac_manifest.Flows.declared}). *)
+let plan ?lattice ~(name : string) ~(flows : Hamac_manifest.Flows.flow list) (services : service_manifest list) : plan =
   let zones = compute_zones services in
   let warnings = ref [] in
 
@@ -168,7 +168,7 @@ let plan ?lattice ~(name : string) ~(flows : Flows.flow list) (services : servic
   ) zones in
 
   (* Firewall rules *)
-  let firewall = Flows.firewall_rules ?lattice (List.map (fun z -> z.zone_name) zones) flows in
+  let firewall = Hamac_manifest.Flows.firewall_rules ?lattice (List.map (fun z -> z.zone_name) zones) flows in
 
   let infrastructure = {
     manifest_version = "1.0";

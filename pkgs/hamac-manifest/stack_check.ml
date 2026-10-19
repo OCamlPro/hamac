@@ -4,14 +4,13 @@
 (** Validation of a set of manifests taken together: stages 2 (references)
     and 3 (semantics) of doc/typst/manifest-spec.typ, section « Validation ».
 
-    Stage 1 is per file ({!Hamac_provisioning.Manifest_parser.diagnose_file}).
+    Stage 1 is per file ({!Parser.diagnose_file}).
     Here the files form a stack — explicit, when a [kind: stack] is given,
     or implicit, for [hamac plan] on a list of services: its references are
     resolved, its patterns composed into a lattice, its zones, routes,
     providers, templates and flows checked against it. *)
 
-open Hamac_provisioning
-open Manifest_types
+open Types
 
 type loaded = {
   file: string;
@@ -23,7 +22,7 @@ type loaded = {
 type finding = string * Diagnostic.t
 
 let load file =
-  let manifest, diags = Manifest_parser.diagnose_file (Fpath.v file) in
+  let manifest, diags = Parser.diagnose_file (Fpath.v file) in
   { file; manifest; diags }
 
 let services_of (ls : loaded list) =

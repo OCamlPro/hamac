@@ -23,12 +23,28 @@
 ;; Listing packages' informations
 
 (package
+  (name hamac-manifest)
+  (allow_empty)
+  (depends
+    (bos :build)
+    (fmt :build)
+    (fpath :build)
+    (logs :build)
+    (opam-marmiton (and (>= 0.1.0) :with-dev-setup))
+    (yaml :build)
+    (ppx_deriving :build)
+    (ppx_inline_test :build)
+  )
+)
+
+(package
   (name hamac-provisioning)
   (allow_empty)
   (depends
     (bos :build)
     (fmt :build)
     (fpath :build)
+    (hamac-manifest :build)
     (jingoo :build)
     (logs :build)
     (opam-marmiton (and (>= 0.1.0) :with-dev-setup))
@@ -47,6 +63,7 @@
     (cohttp-lwt-unix :build)
     (fmt :build)
     (fpath :build)
+    (hamac-manifest :build)
     (hamac-provisioning :build)
     (jingoo :build)
     (logs :build)
@@ -64,6 +81,7 @@
   (depends
     (cohttp-lwt-unix :build)
     (fmt :build)
+    (hamac-manifest :build)
     (hamac-provisioning :build)
     (logs :build)
     (lwt :build)

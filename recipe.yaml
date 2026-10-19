@@ -3,9 +3,23 @@ build_info:
 dune:
   name: hamac
   packages:
+    # Le format pivot : types, parser, diagnostics, treillis, langage de
+    # contraintes et validation. Utilisable sans le reste de Hamac par tout
+    # outil qui lit ou produit des manifestes.
+    - name: hamac-manifest
+      kind: library
+      depends:
+        - name: yaml
+        - name: fpath
+        - name: bos
+      ppx:
+        - name: ppx_deriving
+          modules: [ppx_deriving.std]
+
     - name: hamac-provisioning
       kind: library
       depends:
+        - name: hamac-manifest
         - name: yaml
         - name: fpath
         - name: bos
@@ -17,6 +31,7 @@ dune:
     - name: hamac
       kind: executable
       depends:
+        - name: hamac-manifest
         - name: hamac-provisioning
         - name: yaml
         - name: fpath
@@ -36,6 +51,7 @@ dune:
     - name: hamac-discovery
       kind: executable
       depends:
+        - name: hamac-manifest
         - name: hamac-provisioning
         - name: cohttp-lwt-unix
         - name: lwt

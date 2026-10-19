@@ -14,7 +14,7 @@
 
     Cf. [doc/typst/provisioning-spec.typ]. *)
 
-open Manifest_types
+open Hamac_manifest.Types
 
 (* ============================================================ *)
 (* Erreurs                                                       *)
@@ -91,7 +91,7 @@ let find_bundle_dir ~(search_paths : Fpath.t list) (name : string)
 (** Charge [bundle.yaml] depuis un répertoire de bundle. *)
 let load_bundle_manifest (dir : Fpath.t) : (bundle_manifest, string) Stdlib.result =
   let manifest_path = Fpath.(dir / "bundle.yaml") in
-  match Manifest_parser.load_file manifest_path with
+  match Hamac_manifest.Parser.load_file manifest_path with
   | Error msg -> Error msg
   | Ok (MBundle b, _) -> Ok b
   | Ok _ -> Error (Printf.sprintf "%s : pas un manifest 'kind: bundle'"

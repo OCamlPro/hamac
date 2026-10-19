@@ -8,7 +8,7 @@
     Each node is a DinD container. Services are deployed inside
     nodes via docker exec. Network isolation via docker networks. *)
 
-open Hamac_provisioning.Manifest_types
+open Hamac_manifest.Types
 open Resolver
 
 (* ============================================================ *)

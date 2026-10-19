@@ -20,7 +20,9 @@ Ce document est la référence du format pivot `hamac-manifest`. Il est
 indépendant de Sieste : tout outil capable d'émettre un manifeste conforme —
 script, autre langage, générateur, assistant — pilote Hamac. Il remplace la
 description implicite que portaient jusqu'ici le code
-(`pkgs/hamac-provisioning/manifest_types.ml`) et les exemples.
+(paquet `hamac-manifest`, `pkgs/hamac-manifest/`) et les exemples. Cette
+bibliothèque est l'implémentation de référence : tout outil peut s'en servir
+pour lire et valider des manifestes, sans dépendre du reste de Hamac.
 
 Le provisioning bare-metal (`kind: provisioning_profile`, `kind: bundle`) est
 détaillé dans la spécification du provisioning

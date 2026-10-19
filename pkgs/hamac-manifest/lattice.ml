@@ -10,7 +10,7 @@
     pattern [hamac-default] applies: levels and zones public < default <
     internal < secure, no category — the semantics of format 1.0. *)
 
-open Manifest_types
+open Types
 
 type zone = {
   name: string;

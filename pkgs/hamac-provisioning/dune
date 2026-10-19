@@ -18,6 +18,7 @@
     bos
     fmt
     fpath
+    hamac-manifest
     jingoo
     logs
     yaml build_info)

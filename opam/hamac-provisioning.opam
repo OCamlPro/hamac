@@ -5,6 +5,7 @@ depends: [
   "bos" {build}
   "fmt" {build}
   "fpath" {build}
+  "hamac-manifest" {build}
   "jingoo" {build}
   "logs" {build}
   "opam-marmiton" {>= "0.1.0" & with-dev-setup}
