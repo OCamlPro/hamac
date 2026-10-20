@@ -36,7 +36,9 @@ The name **Hamac** and its logo belong to OCamlPro and are not covered by the
 AGPL, which applies to the code only. You may say that your work is based on
 Hamac, but a fork or a derived product must not use the logo or present itself
 as Hamac. The logo
-files are in [`doc/assets/logo/`](doc/assets/logo/).
+files are copied in [`doc/assets/logo/`](doc/assets/logo/) from the brand
+repository, <https://forge.ocamlpro.com/OSS/hamac-brand>, which holds the
+charter, the artwork license (CC BY-ND 4.0) and the full trademark policy.
 
 ---
 *This document summarizes the licensing intent. The [`LICENSE`](LICENSE) text and
