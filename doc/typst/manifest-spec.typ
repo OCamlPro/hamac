@@ -16,13 +16,15 @@
 
 = Objet et principes
 
-Ce document est la référence du format pivot `hamac-manifest`. Il est
-indépendant de Sieste : tout outil capable d'émettre un manifeste conforme —
-script, autre langage, générateur, assistant — pilote Hamac. Il remplace la
-description implicite que portaient jusqu'ici le code
-(paquet `hamac-manifest`, `pkgs/hamac-manifest/`) et les exemples. Cette
-bibliothèque est l'implémentation de référence : tout outil peut s'en servir
-pour lire et valider des manifestes, sans dépendre du reste de Hamac.
+Ce document définit le format pivot `hamac-manifest`. Le format est
+indépendant de Sieste : un manifeste conforme peut être écrit à la main ou
+produit par un script, un autre langage ou un générateur. Ce document
+remplace la description implicite que donnaient jusqu'ici le code et les
+exemples.
+
+L'implémentation de référence est la bibliothèque `hamac-manifest`
+(`pkgs/hamac-manifest/`). Elle permet de lire et de valider des manifestes
+sans dépendre du reste de Hamac.
 
 Le provisioning bare-metal (`kind: provisioning_profile`, `kind: bundle`) est
 détaillé dans la spécification du provisioning
@@ -31,21 +33,20 @@ l'enveloppe commune et les règles nouvelles (@provisioning).
 
 == Principes
 
-+ *L'infrastructure est inférée, pas déclarée.* Un service déclare ce dont il
-  a besoin — ressources, dépendances, sensibilité, stockage ; Hamac calcule la
-  topologie qui le satisfait. Aucun manifeste de service ne nomme une machine.
-+ *Six `kind`, plusieurs auteurs.* Le développeur écrit `service` ;
-  l'opérateur écrit `stack` et choisit des `pattern` ; le responsable de la
-  sécurité écrit ou adopte les `pattern` ; le planner produit
-  `infrastructure` ; l'administrateur du parc écrit `provisioning_profile` et
-  `bundle`.
-+ *Références, jamais valeurs, pour les secrets.* Aucun champ du format ne
-  porte un secret en clair.
-+ *Refuser plutôt que deviner.* Un champ inconnu, une référence pendante, un
-  flux qui viole le treillis : le manifeste est refusé, avec le chemin YAML de
-  l'erreur et son identifiant (@validation).
-+ *Le format est public et stable.* Une fois un champ déclaré #stable, sa
-  sémantique ne change plus dans la même version majeure (@versions).
++ *Infrastructure inférée.* Un service déclare ses besoins : ressources,
+  dépendances, sensibilité, stockage. Hamac calcule une topologie qui les
+  satisfait. Un manifeste de service ne nomme aucune machine.
++ *Un auteur par `kind`.* Le développeur écrit `service`. L'opérateur écrit
+  `stack` et choisit des `pattern`, que le responsable de la sécurité écrit ou
+  adopte. Le planner produit `infrastructure`. L'administrateur du parc écrit
+  `provisioning_profile` et `bundle`.
++ *Secrets par référence.* Aucun champ du format ne contient de secret en
+  clair.
++ *Validation stricte.* Un champ inconnu, une référence non résolue ou un flux
+  contraire au treillis entraînent le refus du manifeste. Le diagnostic donne
+  le chemin YAML et un code (@validation).
++ *Stabilité.* La sémantique d'un champ #stable ne change pas au sein d'une
+  version majeure (@versions).
 
 Les mots #doit, #doit-pas, #devrait et #peut ont le sens des RFC 2119 et 8174.
 
@@ -88,13 +89,13 @@ bundles. Le reste est #stable.
 
 == Champs inconnus et extensions
 
-- Un champ inconnu à un emplacement défini par ce document est une *erreur*
-  (#code("E003")). C'est ce qui attrape les fautes de frappe
-  (`replica: 3`).
-- Les champs dont le nom commence par `x-` sont des *extensions* : Hamac les
-  ignore et les conserve tels quels ; ils #peut apparaître à tout niveau
-  d'objet. Un générateur tiers y range ce qui lui est propre.
-- `metadata.annotations` (@enveloppe) est l'autre réceptacle libre.
+- Un champ inconnu à un emplacement défini par ce document est une erreur
+  (#code("E003")). Cette règle détecte notamment les fautes de frappe, comme
+  `replica: 3`.
+- Les champs dont le nom commence par `x-` sont des extensions. Ils
+  #peut apparaître dans tout objet ; Hamac les ignore et les conserve. Un
+  générateur tiers peut y placer ses propres données.
+- `metadata.annotations` (@enveloppe) accepte aussi des données libres.
 
 = Enveloppe commune <enveloppe>
 
@@ -160,15 +161,15 @@ remplacés à la résolution. `{{` et `}}` produisent des accolades littérales.
   l'option `--seed` le rend reproductible pour les tests.
 - Une expression inconnue, ou une clé absente du `provides` consommé, est une
   erreur (#code("E020")).
-- Une valeur `{secret.x}` n'est *jamais* écrite dans un fichier généré : elle
-  est injectée au démarrage par l'agent (@secrets).
+- La valeur d'un `{secret.x}` n'est écrite dans aucun fichier généré.
+  L'agent l'injecte au démarrage du service (@secrets).
 
 = `kind: service` <service>
 
 Un service est une unité déployable. Un #terme[provider] est un service qui
-déclare une `capability` et des `provides` : d'autres services le consomment
-(base de données, cache, stockage objet…). Un provider est un manifeste, pas
-un greffon : ajouter un provider ne demande pas de recompiler Hamac.
+déclare une `capability` et des `provides`, et que d'autres services
+consomment : base de données, cache, stockage objet, etc. Un provider se
+décrit par un manifeste ; en ajouter un ne demande pas de recompiler Hamac.
 
 == Vue d'ensemble
 
@@ -233,7 +234,7 @@ health_check:
 #tableau((auto, 1.3fr, auto, 2fr),
   [Champ], [Type], [Stabilité], [Sémantique],
   [`runtime`], [`http` · `cli` · `batch` · `eventloop` · `custom`], stable,
-    [nature de la charge, *obligatoire* ; `http` active les sondes HTTP et
+    [nature de la charge, obligatoire ; `http` active les sondes HTTP et
     l'exposition],
   [`artifact`], [objet, @artifact], stable, [ce qui s'exécute ; obligatoire
     sauf pour un provider abstrait],
@@ -245,8 +246,8 @@ health_check:
     consommateurs],
   [`readiness`], [objet, @sondes], stable, [commande de disponibilité d'un
     provider],
-  [`consumes`], [liste, @consumes], stable, [dépendances, et *flux réseau
-    déclarés*],
+  [`consumes`], [liste, @consumes], stable, [dépendances et flux réseau
+    déclarés],
   [`security`], [objet, @security], stable, [zone et étiquettes
     d'autorisation ; absent ⇒ zone `default`],
   [`ports`], [liste, @ports], stable, [ports écoutés],
@@ -284,20 +285,20 @@ health_check:
     conteneur, binaire natif, VM ou conteneur système],
 )
 
-Le format tient lieu de « moteur d'exécution » : un artefact
-`incus-vm-image` s'exécute dans une VM, un `oci-image` dans un conteneur,
-sans autre déclaration.
+Le format détermine aussi le mode d'exécution : un artefact `incus-vm-image`
+s'exécute dans une VM, un `oci-image` dans un conteneur. Aucun autre champ ne
+le précise.
 
 == `consumes` et flux <consumes>
 
 #stable
 
-Chaque entrée déclare une dépendance *et* le flux réseau qu'elle ouvre.
+Chaque entrée déclare une dépendance et le flux réseau correspondant.
 
 #tableau((auto, 1fr, 2fr),
   [Champ], [Type], [Règle],
   [`name`], [chaîne], [unique dans le service (#code("E012"))],
-  [`capability`], [chaîne], [dépendance résolue vers *un* provider de cette
+  [`capability`], [chaîne], [dépendance résolue vers un provider de cette
     capacité],
   [`service`], [chaîne], [dépendance vers un service nommé de la stack],
   [`inject`], [table → gabarit], [variables construites à partir des
@@ -312,11 +313,11 @@ Chaque entrée déclare une dépendance *et* le flux réseau qu'elle ouvre.
   stack (#code("E023")).
 
 #regle[
-  *Treillis.* Le consommateur ouvre une connexion vers le consommé, donc le
-  _lit_. L'étiquette de la zone du consommé #doit être inférieure ou égale à
-  celle de la zone du consommateur (@treillis). Sinon le flux est une
-  *lecture vers le haut*, refusée par `hamac plan` (#code("E040")). Aucune
-  déclaration ne lève cette règle.
+  *Treillis.* Ouvrir une connexion vers un service revient à le lire.
+  L'étiquette de la zone du consommé #doit donc être inférieure ou égale à
+  celle de la zone du consommateur (@treillis). Dans le cas contraire, le flux
+  est une lecture vers le haut, refusée (#code("E040")). Aucun champ ne permet
+  de déroger à cette règle.
 ]
 
 - Seuls les flux déclarés sont ouverts, vers les seuls ports déclarés du
@@ -330,8 +331,8 @@ Capacités normalisées en 1.1 : `database`, `cache`, `queue`,
 d'autres.
 
 Clés `provides` normalisées pour `object-storage` : `endpoint`, `region`,
-`bucket`, `access_key`, `secret_key`. Le provider crée *un seau et une clé
-par consommateur* ; la clé n'a de droits que sur ce seau.
+`bucket`, `access_key`, `secret_key`. Le provider crée un seau et une clé
+par consommateur ; chaque clé n'a de droits que sur son seau.
 
 == `security` <security>
 
@@ -355,8 +356,8 @@ security:
   [`zone`], [chaîne], [nom d'une zone définie par les patrons de la stack
     (@treillis), sinon #code("E042"). Sans patron : zones intégrées
     `public` < `default` < `internal` < `secure`],
-  [`route_labels`], [liste], [règles d'autorisation par route, validées *en
-    bordure*],
+  [`route_labels`], [liste], [règles d'autorisation par route, vérifiées en
+    bordure],
 )
 
 Une étiquette de route :
@@ -370,10 +371,10 @@ Une étiquette de route :
     champs suivants (#code("E043"))],
   [`classification`], [niveau], [le niveau d'habilitation du sujet #doit
     être supérieur ou égal (pas de lecture vers le haut)],
-  [`categories`], [liste], [le sujet #doit les détenir *toutes* (besoin d'en
+  [`categories`], [liste], [le sujet #doit les détenir toutes (besoin d'en
     connaître)],
-  [`required_clearance`], [liste de rôles], [le sujet #doit en détenir *au
-    moins un* (disjonction)],
+  [`required_clearance`], [liste de rôles], [le sujet #doit en détenir au
+    moins un],
 )
 
 *Sémantique.* Une requête vers `route` est autorisée si et seulement si le
@@ -385,22 +386,22 @@ jeton présenté établit, pour le sujet :
   sujet ∈ `required_clearance`).
 ]
 
-Dès qu'un service déclare une étiquette, toute route qu'aucune étiquette ne
-couvre est *refusée* (liste blanche). Si plusieurs étiquettes couvrent une
+Dès qu'un service déclare une étiquette, les routes qu'aucune étiquette ne
+couvre sont refusées. Si plusieurs étiquettes couvrent une
 route, la plus spécifique s'applique : préfixe le plus long, puis méthodes
 explicites.
 
 *Cohérence avec la zone.* La classification d'une route #doit-pas dépasser
 le niveau de la zone du service, et ses catégories #doit être incluses dans
-celles de la zone (#code("E044")) : un service ne détient pas de donnée plus
-sensible que la zone où il s'exécute.
+celles de la zone (#code("E044")). Un service ne peut donc pas servir de
+données plus sensibles que sa zone.
 
-*Projection.* Le provider Biscuit traduit ces étiquettes en règles Datalog :
-comparaison d'entiers pour le niveau, une vérification par catégorie,
-jointure pour la disjonction de rôles. La validation a lieu en bordure (Sozu),
-avant que la requête n'atteigne le service. La correction de cette traduction
-— tout accès permis par le treillis est accepté, tout accès interdit est
-refusé — est une obligation de preuve du provider, pas du format.
+*Mise en œuvre.* Le provider Biscuit traduit ces étiquettes en règles
+Datalog : une comparaison d'entiers pour le niveau, une vérification par
+catégorie et une jointure pour les rôles. La vérification a lieu en bordure,
+dans Sozu, avant que la requête n'atteigne le service. Il revient au provider
+d'établir que cette traduction est correcte, c'est-à-dire qu'elle accepte
+exactement les accès permis par le treillis.
 
 #note[
   *Compatibilité 1.0.* `required_clearance` y était obligatoire et seul. Un
@@ -445,11 +446,11 @@ refusé — est une obligation de preuve du provider, pas du format.
 #experimental
 
 #regle[
-  *S3 d'abord.* Les fichiers, pièces jointes et artefacts d'un service
-  #devrait aller dans un stockage objet, consommé par
+  *Stockage objet par défaut.* Les fichiers, pièces jointes et artefacts d'un
+  service #devrait être placés dans un stockage objet, consommé par
   `consumes: - capability: object-storage` (@consumes). Un service sans état
-  local se déplace librement. `storage` ne décrit que ce qui doit rester un
-  système de fichiers.
+  local peut être déplacé sans contrainte. `storage` décrit uniquement les
+  données qui doivent rester sur un système de fichiers.
 ]
 
 ```yaml
@@ -474,14 +475,14 @@ backup:
   [Champ], [Règle],
   [`name`], [unique dans le service (#code("E012"))],
   [`mount`], [chemin absolu (#code("E031"))],
-  [`class`], [`ephemeral` : perdu au redémarrage ; `local` : sur le nœud,
-    perdu avec lui ; `replicated` : *le service réplique lui-même* ses
-    données entre répliques, comme PostgreSQL sous Patroni],
+  [`class`], [`ephemeral` : perdu au redémarrage ; `local` : stocké sur le
+    nœud, perdu avec lui ; `replicated` : le service réplique lui-même ses
+    données entre ses répliques, comme PostgreSQL sous Patroni],
   [`size`], [quantité ; obligatoire hors `ephemeral` (#code("E032"))],
   [`rebuild`], [pour `local` : `from-backup` · `from-object` · `from-replica`
-    · `none` — comment reconstruire le volume sur un autre nœud. `none`
-    déclare le service *non relocalisable* : le planner ne le déplacera pas,
-    et le dit],
+    · `none`. Indique comment reconstruire le volume sur un autre nœud. Avec
+    `none`, le service n'est pas relocalisable : le planner ne le déplace pas
+    et le signale],
   [`backup.schedule`], [expression cron],
   [`backup.retention`], [nombre d'instantanés conservés par période],
   [`backup.consistency`], [`pre` / `post` : commandes exécutées dans le
@@ -490,9 +491,8 @@ backup:
     chaque cycle],
 )
 
-Un volume `local` sans `backup` ni `rebuild` explicite est refusé
-(#code("E033")) : une donnée dont la perte n'a pas été décidée ne doit pas
-pouvoir se perdre par défaut.
+Un volume `local` sans `backup` ni `rebuild` est refusé (#code("E033")) : le
+sort de ses données en cas de perte du nœud doit être déclaré.
 
 == `secrets` <secrets>
 
@@ -544,23 +544,22 @@ placement:
   [Champ], [Règle],
   [`needs`], [capacités que le nœud #doit offrir, telles que l'inventaire
     les déclare],
-  [`assurance`], [minimum par axe (@assurance), *en plus* de ce qu'exige la
-    zone],
+  [`assurance`], [minimum par axe (@assurance), qui s'ajoute à l'exigence de
+    la zone],
   [`spread`], [`none` · `host` · `failure_domain` : répartition des
     répliques],
   [`affinity`, `anti_affinity`], [noms de services à rapprocher ou à
     séparer],
 )
 
-Un service #doit-pas nommer une machine : le format n'a pas de contrainte de
-placement par nom d'hôte.
+Le format ne prévoit pas de placement par nom d'hôte.
 
 == `exposure` <exposure>
 
 #experimental
 
-Publie un port du service *en bordure* : c'est le seul moyen d'être joignable
-depuis l'extérieur de sa zone sans flux déclaré.
+Publie un port du service en bordure. Sans flux déclaré, c'est la seule
+façon de rendre un service joignable depuis l'extérieur de sa zone.
 
 #tableau((auto, 1fr),
   [Champ], [Règle],
@@ -574,14 +573,14 @@ depuis l'extérieur de sa zone sans flux déclaré.
 Un service exposé en `http` qui porte des `route_labels` voit chaque requête
 validée par la bordure selon @security.
 
-= `kind: pattern` — patrons et contraintes <pattern>
+= `kind: pattern` : patrons et contraintes <pattern>
 
 Un #terme[patron] est une liste de contraintes sur la topologie. La topologie
 que Hamac calcule pour une stack #doit satisfaire toutes les contraintes dures
-de tous ses patrons. Les valeurs propres à une organisation — niveaux, zones,
-exigences de stockage et d'assurance — vivent dans des patrons, jamais dans
-Hamac : le même moteur sert un commerce de proximité et un laboratoire
-d'évaluation, seuls les patrons changent.
+de ses patrons. Les choix propres à une organisation (niveaux, zones,
+exigences de stockage et d'assurance) sont définis dans des patrons ; Hamac
+n'en fixe aucun. Des organisations aux besoins très différents utilisent donc
+le même outil avec des patrons différents.
 
 ```yaml
 manifest_version: "1.1"
@@ -648,12 +647,12 @@ objectives:
 
 #stable
 
-- `lattice.levels` : les niveaux, *du moins au plus sensible* ; ordre total.
+- `lattice.levels` : les niveaux, du moins au plus sensible ; ordre total.
 - `lattice.categories` : les catégories de besoin d'en connaître.
 - Une #terme[étiquette] est un couple (niveau, ensemble de catégories), et
   (n#sub[1], C#sub[1]) ≤ (n#sub[2], C#sub[2]) si et seulement si
-  n#sub[1] ≤ n#sub[2] et C#sub[1] ⊆ C#sub[2]. C'est un treillis :
-  Bell-LaPadula avec compartiments.
+  n#sub[1] ≤ n#sub[2] et C#sub[1] ⊆ C#sub[2]. Cet ordre définit un treillis,
+  celui du modèle Bell-LaPadula avec compartiments.
 - Une #terme[zone] a un nom, une étiquette (`level`, et `categories` incluses
   dans `lattice.categories`) et, optionnellement, une frontière
   (`boundary`, @frontieres).
@@ -661,13 +660,13 @@ objectives:
   si étiquette(zone(_s_)) ≤ étiquette(zone(_c_)) (@consumes).
 
 *Composition.* Quand une stack utilise plusieurs patrons, leurs treillis
-#doit être identiques ou l'un #doit étendre l'autre — mêmes niveaux dans le
-même ordre, catégories en sur-ensemble —, sinon #code("E050"). Une zone de
-même nom définie deux fois avec des étiquettes différentes : #code("E051").
+#doit être identiques, ou l'un #doit étendre l'autre : mêmes niveaux dans le
+même ordre, et catégories incluses. Sinon, #code("E050"). Une même zone
+définie deux fois avec des étiquettes différentes produit #code("E051").
 
 *Sans patron,* une stack utilise le patron intégré `hamac-default` : niveaux et
 zones `public` < `default` < `internal` < `secure`, sans catégorie ni
-contrainte. C'est exactement la sémantique de la version 1.0.
+contrainte. Cette sémantique est celle de la version 1.0.
 
 == Frontières de zone <frontieres>
 
@@ -675,8 +674,8 @@ contrainte. C'est exactement la sémantique de la version 1.0.
   [`boundary`], [Sens],
   [`firewall` (défaut)], [filtrage avec état ; les flux déclarés ouvrent des
     connexions],
-  [`diode`], [passerelle *unidirectionnelle* du bas vers le haut : rien ne
-    sort de la zone vers une zone moins sensible],
+  [`diode`], [passerelle unidirectionnelle, du bas vers le haut : aucune
+    donnée ne sort de la zone vers une zone moins sensible],
 )
 
 À travers une diode, aucune requête ne peut recevoir de réponse. Un
@@ -685,10 +684,10 @@ contrainte. C'est exactement la sémantique de la version 1.0.
 consommateur reçoit (réplication, flux d'événements, fichiers). Un `consumes`
 de mode `request` qui traverse une diode est refusé (#code("E041")).
 
-Une zone derrière une diode a son propre plan de contrôle : un contrôleur
-extérieur n'en recevrait pas les rapports. Hamac produit une infrastructure
-par enclave ; les manifestes signés montent par la diode, l'état n'en descend
-que par une déclassification explicite.
+Une zone derrière une diode a son propre plan de contrôle, puisqu'un
+contrôleur extérieur n'en recevrait pas les rapports. Hamac produit une
+infrastructure par enclave. Les manifestes signés entrent par la diode ;
+l'état de l'enclave n'en sort que par une déclassification explicite.
 
 == Axes d'assurance <assurance>
 
@@ -703,8 +702,8 @@ Trois axes à valeurs ordonnées, fixés par le format en 1.1 :
   [`physical`], [`third-party` < `dedicated-rack` < `site`],
 )
 
-Un nœud *offre* une valeur par axe — déclarée par l'inventaire, constatée par
-`hamac verify` ; une zone ou un service *exige* un minimum. Un placement est
+Un nœud offre une valeur par axe, déclarée par l'inventaire et constatée par
+`hamac verify`. Une zone ou un service exige un minimum. Un placement est
 admissible si et seulement si l'offre est au moins égale à l'exigence sur
 chaque axe. Le bloc `assurance` d'un patron associe à un nom de zone
 l'exigence de cette zone ; un axe absent n'impose rien.
@@ -721,15 +720,15 @@ l'exigence de cette zone ; un axe absent n'impose rien.
 #experimental
 
 Une contrainte a un `id` unique dans le patron, une `description`, une
-`severity` — `hard` (défaut) ou `soft` —, un `weight` pour les `soft`, et une
-expression `expr` dans le langage ci-dessous.
+`severity` (`hard` par défaut, ou `soft`), un `weight` pour les contraintes
+`soft`, et une expression `expr` écrite dans le langage ci-dessous.
 
-*Modèle.* Une expression porte sur une *topologie candidate* : les ensembles
+*Modèle.* Une expression porte sur une topologie candidate : les ensembles
 finis `services`, `zones`, `hosts`, `flows`, `volumes`, et les fonctions qui
-les relient. Hamac instancie les quantificateurs sur le parc et la stack
-réels, puis confie le problème à un solveur. Toute solution est revérifiée
-par un vérificateur indépendant avant d'être acceptée : le solveur n'est pas
-dans la base de confiance.
+les relient. Hamac instancie les quantificateurs sur le parc et la stack,
+puis confie le problème à un solveur. Un vérificateur indépendant contrôle
+chaque solution avant qu'elle soit retenue ; la correction du résultat ne
+dépend donc pas de celle du solveur.
 
 *Grammaire.*
 
@@ -753,10 +752,10 @@ DOMAIN   ::= "services" | "zones" | "hosts" | "flows" | "volumes"
 QUANTITY ::= INT ("Ki" | "Mi" | "Gi" | "Ti" | "m")
 ```
 
-L'arithmétique est *linéaire* : un produit a toujours un facteur constant. Il
-n'y a ni récursion ni quantification sur des ensembles d'ensembles. Le langage
-reste donc *décidable* sur domaine fini, et une contradiction s'explique par
-un ensemble minimal de contraintes en conflit.
+L'arithmétique est linéaire : un produit a toujours un facteur constant. Le
+langage n'a ni récursion ni quantification sur des ensembles d'ensembles. Il
+est donc décidable sur un domaine fini, et une contradiction peut être
+expliquée par un ensemble minimal de contraintes en conflit.
 
 *Fonctions de base.*
 
@@ -797,20 +796,19 @@ Une expression mal typée, une fonction inconnue ou un identifiant non lié :
 
 `objectives` est une liste de `minimize: <terme>` ou `maximize: <terme>`, avec
 une `priority` (1 = la plus importante). L'optimisation est
-*lexicographique* par priorité ; à priorité égale, les termes sont sommés
+lexicographique par priorité ; à priorité égale, les termes sont sommés
 selon leur `weight`. Les contraintes `soft` entrent dans l'objectif comme des
 pénalités pondérées.
 
 == Résultat de la résolution
 
 - *Satisfiable* : la topologie retenue est écrite dans un
-  `kind: infrastructure` (@infrastructure), accompagnée d'un *certificat* —
-  patrons, parc, solution, verdict du vérificateur.
+  `kind: infrastructure` (@infrastructure), avec un certificat qui réunit les
+  patrons, le parc, la solution et le verdict du vérificateur.
 - *Insatisfiable* : Hamac rapporte un ensemble minimal de contraintes en
   conflit, chacune avec son patron, son `id` et les chemins YAML des
-  déclarations qui l'activent, et la *liste de courses* : ce qu'il faudrait
-  ajouter au parc pour lever le conflit, quand c'est calculable
-  (#code("E060")).
+  déclarations concernées (#code("E060")). Quand c'est possible, il indique
+  aussi les ressources à ajouter au parc pour lever le conflit.
 
 = `kind: stack` <stack>
 
@@ -853,10 +851,9 @@ infrastructure: infra/si-exemple.infra.yml
 
 #stable
 
-Un manifeste d'infrastructure est *la sortie* du planner, éventuellement
-relue et figée par un opérateur. Il reste lisible et modifiable à la main ;
-une infrastructure modifiée est revérifiée contre les patrons de la stack
-avant tout déploiement.
+Un manifeste d'infrastructure est produit par le planner. Un opérateur peut
+le relire, le figer ou le modifier ; une infrastructure modifiée est
+revérifiée contre les patrons de la stack avant tout déploiement.
 
 #tableau((auto, 1fr),
   [Champ], [Règle],
@@ -873,9 +870,8 @@ avant tout déploiement.
   [`certificate`], [#experimental ; référence au certificat de résolution],
 )
 
-Chaque règle `ALLOW` #doit porter le flux qui la justifie (#code("E045"),
-vérifié sur le manifeste seul). Une règle sans justification n'est pas une
-erreur de syntaxe mais un défaut de traçabilité, que le validateur refuse.
+Chaque règle `ALLOW` #doit indiquer le flux déclaré qui la justifie
+(#code("E045"), vérifié sur le manifeste seul).
 
 = `kind: provisioning_profile` et `kind: bundle` <provisioning>
 
@@ -884,10 +880,10 @@ tous #experimental :
 
 - *Cycle de vie d'un bundle* : `lifecycle: install` (défaut ; appliqué une
   fois, au premier démarrage) ou `lifecycle: converge` (appliqué à
-  l'installation *et* en cours de vie par l'agent). Un bundle `converge`
-  #doit décrire un état, pas une séquence : il est appliqué de façon
-  idempotente, et un écart constaté est une *dérive*. C'est ce qui permet
-  d'adopter une machine que Hamac n'a pas installée.
+  l'installation, puis en cours de vie par l'agent). Un bundle `converge`
+  #doit décrire un état à atteindre ; il est appliqué de façon idempotente,
+  et tout écart constaté est signalé comme une dérive. Ce mode permet de
+  prendre en charge une machine que Hamac n'a pas installée.
 - *Assurance offerte* : un profil #peut déclarer `assurance:` (@assurance),
   ce que garantit une machine installée par lui. Une machine adoptée la
   constate par `hamac verify`.
@@ -896,12 +892,12 @@ tous #experimental :
 
 == Trois étages
 
-+ *Syntaxe et types* — manifeste seul : YAML valide, champs connus, types,
-  formats, cohérence interne. Commande : `hamac validate <fichiers…>`.
-+ *Références* — ensemble de manifestes : `ref` résolus, patrons composés,
-  providers trouvés, gabarits liés, zones définies.
-+ *Sémantique* — stack et patrons, puis parc : treillis, flux, cohérence des
-  étiquettes, contraintes des patrons.
++ *Syntaxe et types*, sur un manifeste seul : YAML valide, champs connus,
+  types, formats, cohérence interne. Commande : `hamac validate <fichiers…>`.
++ *Références*, sur un ensemble de manifestes : `ref` résolus, patrons
+  composés, providers trouvés, gabarits liés, zones définies.
++ *Sémantique*, sur la stack et ses patrons, puis sur le parc : treillis,
+  flux, cohérence des étiquettes, contraintes des patrons.
 
 `hamac validate` applique les étages 2 et 3 dès qu'une stack figure parmi
 les fichiers donnés : la stack, ses services, ses patrons et les providers
@@ -909,7 +905,7 @@ trouvés forment l'ensemble vérifié. `hamac plan` traite toujours les fichiers
 donnés comme une stack, implicite si aucune n'est fournie, avant de calculer
 la topologie.
 
-Chaque diagnostic donne un identifiant, le fichier, le *chemin YAML*
+Chaque diagnostic donne un code, le fichier, le chemin YAML
 (`security.route_labels.1.classification`) et un message. Une erreur (`E…`)
 fait échouer la commande ; un avertissement (`W…`) ne la fait échouer qu'avec
 `--strict`.
@@ -963,7 +959,8 @@ les exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     différentes],
   code("E052"), [1], [expression de contrainte mal formée ou mal typée],
   code("E060"), [3], [contraintes insatisfiables, avec explication ; émis par
-    le solveur du planner, pas encore livré : ce code n'a pas de cas en 1.1],
+    le solveur du planner, qui n'est pas encore livré ; ce code n'a donc pas de
+    cas en 1.1],
   code("W001"), [1], [champ expérimental sans `accept_experimental`],
   code("W002"), [1], [forme dépréciée, avec son remplaçant],
   code("W010"), [1], [image OCI non épinglée par empreinte],
