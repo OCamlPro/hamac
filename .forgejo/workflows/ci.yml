@@ -172,14 +172,34 @@ jobs:
           make -C doc
           ls -l doc/typst/*.pdf
 
-      # v3 : le serveur (Forgejo 15, API Gitea 1.22) ne parle pas le protocole
-      # d'artefacts de la v4 (« Failed to CreateArtifact: Unexpected token »,
-      # constaté sur hamac-brand le 2026-10-21).
+      # Le service d'artefacts des runners n'est pas joignable depuis les jobs
+      # (404 servi par un Express, quelle que soit la version de
+      # upload-artifact : constaté le 2026-10-21). Les PDF vont donc au
+      # registre de paquets générique de Forgejo, comme l'image : une adresse
+      # stable par commit, et « latest ».
       - name: Publication des PDF
-        uses: https://code.forgejo.org/forgejo/upload-artifact@v3
-        with:
-          name: documents
-          path: doc/typst/*.pdf
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master'
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+        run: |
+          set -eu   # pas de -x : ne pas logger le token
+          if [ -z "${REGISTRY_TOKEN:-}" ]; then
+            echo "REGISTRY_TOKEN absent : les PDF construit(s) et vérifié(s), publication ignorée."
+            echo "Pour publier : créer ce secret avec le droit write:package."
+            exit 0
+          fi
+          USER="${REGISTRY_USER:-$GITHUB_ACTOR}"
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          BASE="https://forge.ocamlpro.com/api/packages/${OWNER}/generic/hamac-docs"
+          for f in doc/typst/*.pdf; do
+            n=$(basename "$f")
+            curl -fsS -u "$USER:$REGISTRY_TOKEN" --upload-file "$f" "$BASE/${GITHUB_SHA}/$n"
+            # Une version de paquet est immuable : « latest » est remplacé.
+            curl -sS -o /dev/null -u "$USER:$REGISTRY_TOKEN" -X DELETE "$BASE/latest/$n" || true
+            curl -fsS -u "$USER:$REGISTRY_TOKEN" --upload-file "$f" "$BASE/latest/$n"
+            echo "publié : $BASE/latest/$n"
+          done
 
   # Construit l'image du serveur de découverte et vérifie qu'elle démarre.
   # Tourne sur le label `dind`, seul environnement où le daemon Docker est

@@ -121,8 +121,9 @@ discovery server (keyed by MAC), and the OS image is written to disk. See
 ## Documentation
 
 The reference documents are written in [Typst](https://typst.app) and built as
-PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and keeps them
-as the `documents` artifact of the run.
+PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and, on
+`master`, publishes them to the forge's package registry:
+<https://forge.ocamlpro.com/OSS/-/packages/generic/hamac-docs/latest>.
 
 - [`doc/typst/manifest-spec.typ`](doc/typst/manifest-spec.typ) — manifest format specification (1.1, draft).
 - [`doc/schema/hamac-manifest-1.1.schema.json`](doc/schema/hamac-manifest-1.1.schema.json) — JSON Schema of the format (syntax and types), for editors and third-party generators.
