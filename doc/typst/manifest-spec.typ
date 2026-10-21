@@ -5,8 +5,8 @@
 
 #show: document-officiel.with(
   titre: "Spécification du format de manifeste",
-  sous-titre: [Le format pivot `hamac-manifest` : ce qu'un service, un patron,
-    une stack et une infrastructure déclarent, et ce que Hamac en vérifie.],
+  sous-titre: [Description des manifestes Hamac et des vérifications
+    effectuées à leur chargement.],
   nature: "Spécification",
   version: "1.1",
   date: "2026-10-19",
