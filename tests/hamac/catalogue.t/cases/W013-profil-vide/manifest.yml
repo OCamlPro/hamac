@@ -1,0 +1,9 @@
+# W013-profil-vide
+manifest_version: "1.1"
+kind: provisioning_profile
+name: vide
+os:
+  image: debian-13-amd64
+  url: https://example.org/debian-13.qcow2
+  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  format: qcow2

@@ -59,66 +59,21 @@ de cette spécification.
                   │  - applique bundles                │
                   └────────────────────────────────────┘"))
 
-= Nouveau kind : `provisioning_profile`
+= Profil de provisioning
 
-Profil autonome, réutilisable entre plusieurs nœuds. Il vit dans un fichier
-YAML séparé.
-
-```yaml
-manifest_version: "1.0"
-kind: provisioning_profile
-name: dev-workstation
-
-os:
-  image: debian-12-amd64
-  url: https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
-  sha256: 7e08e8e8e8e8...
-  format: qcow2                  # qcow2 | raw | iso | netinstall
-
-bundles:
-  - name: dev-workstation
-    params:
-      username: julien
-      ssh_public_keys:
-        - "ssh-ed25519 AAAA..."
-      dotfiles_repo: https://github.com/julien/dotfiles
-
-cloud_init_extra:                # raw cloud-init pour cas spéciaux
-  runcmd:
-    - echo "Provisioned by hamac" > /etc/motd
-  timezone: Europe/Paris
-```
-
-#heading(level: 2, numbering: none)[Champs]
-
-#tableau((auto, auto, auto, 1fr),
-  [Champ], [Type], [Obligatoire], [Description],
-  [`manifest_version`], [string], [oui], [Toujours `"1.0"` pour cette version],
-  [`kind`], [string], [oui], [Toujours `provisioning_profile`],
-  [`name`], [string], [oui], [Identifiant unique, snake-case],
-  [`os`], [object], [oui], [Image OS de base (voir @bloc-os)],
-  [`bundles`], [list], [non], [Bundles à appliquer dans l'ordre (voir @bundles)],
-  [`cloud_init_extra`], [object], [non], [Fragment cloud-init fusionné en dernier],
-)
+Le format des manifestes `kind: provisioning_profile` et `kind: bundle` est
+défini par la spécification du format de manifeste
+(`doc/typst/manifest-spec.typ`, sections `kind: provisioning_profile` et
+`kind: bundle`). Ce document décrit la façon dont Hamac les applique.
 
 == Bloc `os` <bloc-os>
 
-#tableau((auto, auto, auto, 1fr),
-  [Champ], [Type], [Obligatoire], [Description],
-  [`image`], [string], [oui], [Identifiant logique (humain)],
-  [`url`], [string], [oui], [URL téléchargeable de l'image — référence
-    canonique, consommée directement par les VM],
-  [`sha256`], [string], [oui], [Hash pour vérification],
-  [`format`], [string], [oui], [`qcow2` | `raw` | `iso` | `netinstall`],
-  [`raw_zst_url`], [string], [non], [URL d'une image disque raw compressée en
-    zstd, dérivée de `url` à l'avance (voir ci-dessous)],
-  [`raw_zst_sha256`], [string], [non], [Hash du `raw_zst_url`],
-  [`bmap_url`], [string], [non], [URL du `.bmap` (carte de blocs,
-    `bmaptool create`) associé au `raw_zst_url`],
-)
-
-`netinstall` signifie : on télécharge un initrd/kernel Debian standard et on
-lance un preseed.
+Les champs du bloc `os` sont définis par la spécification du format. Le
+`qcow2` désigné par `url` est l'image de référence ; `raw_zst_url`,
+`raw_zst_sha256` et `bmap_url` désignent une copie dérivée, utilisée pour
+écrire le disque d'une machine physique (ci-dessous). Avec le format
+`netinstall`, Hamac télécharge un noyau et un initrd Debian d'installation et
+lance une installation automatisée (preseed).
 
 === Écriture des images « bloc » (`qcow2` / `raw`) sur le disque
 
@@ -197,61 +152,19 @@ _transport_ (compressé, sparse) qui doit être « déplié » en raw avant d'ê
 
 = Bundles <bundles>
 
-Un bundle est un répertoire `templates/bundles/<name>/` contenant :
-
-```
-templates/bundles/dev-workstation/
-├── bundle.yaml              # Métadonnées + paramètres acceptés
-├── cloud-init.snippet.yaml.j2   # Fragment cloud-init mergé dans le profile
-└── post-install/            # Scripts à exécuter dans l'OS provisionné
-    ├── 10-dotfiles.sh
-    └── 20-docker.sh
-```
-
-== `bundle.yaml`
-
-```yaml
-manifest_version: "1.0"
-kind: bundle
-name: dev-workstation
-version: "0.1.0"
-description: "Poste de dev minimal : SSH, docker, dotfiles"
-
-# Paramètres acceptés (validés par hamac avant push)
-params:
-  username:
-    type: string
-    required: true
-  ssh_public_keys:
-    type: list[string]
-    required: true
-  dotfiles_repo:
-    type: string
-    required: false
-
-# Dépendances système (paquets installés via cloud-init)
-packages:
-  - git
-  - docker.io
-  - vim
-  - curl
-
-# Bundles qui doivent être appliqués avant celui-ci
-depends_on: []
-
-# Scripts post-install à lancer (ordre lexicographique)
-post_install:
-  - post-install/10-dotfiles.sh
-  - post-install/20-docker.sh
-```
+Un bundle est un répertoire `templates/bundles/<name>/` qui contient son
+manifeste `bundle.yaml` et un gabarit de fragment cloud-init ; le format est
+défini par la spécification du format de manifeste.
 
 == Fragment cloud-init
 
-Gabarit Jinja2 qui produit un fragment de cloud-init. Les variables
-disponibles sont celles déclarées dans `params`.
+Le gabarit Jinja2 `cloud-init.yaml.j2` (ou sa variante
+`cloud-init.<family>.yaml.j2` pour la famille d'OS du profil) produit un
+fragment de cloud-init. Il reçoit les valeurs des `params` données par le
+profil.
 
 ```jinja2
-{# cloud-init.snippet.yaml.j2 #}
+{# cloud-init.yaml.j2 #}
 users:
   - name: {{ params.username }}
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -411,7 +324,6 @@ K3s, mais consulte d'abord `/provisioning/<mac>` s'il est présent.
       cloud-init au premier démarrage (`growpart` + `resize_rootfs`) ;
     - `netinstall` → preseed Debian ; `debootstrap` → amorçage direct ;
   - entre dans le système installé (chroot) et y applique cloud-init ;
-  - lance les `post-install/*.sh` ;
   - redémarre.
 + La machine démarre sur l'OS installé → cloud-init s'applique au premier
   démarrage → utilisateur créé avec sa clé SSH → dotfiles installés.

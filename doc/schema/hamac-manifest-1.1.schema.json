@@ -268,7 +268,7 @@
         "sha256",
         "format"
       ],
-      "description": "What runs (spec §5.3). The parser takes any string for format; the spec lists these values."
+      "description": "What runs (spec, kind: service, artifact)."
     },
     "consumption": {
       "type": "object",
@@ -1668,7 +1668,12 @@
               "$ref": "#/$defs/sha256"
             },
             "format": {
-              "type": "string"
+              "enum": [
+                "qcow2",
+                "raw",
+                "iso",
+                "netinstall"
+              ]
             },
             "family": {
               "type": "string"

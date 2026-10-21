@@ -6,10 +6,8 @@
     Pipeline :
     1. Pour chaque [bundle_ref] du profil, charger [bundle.yaml] et le snippet
        cloud-init Jinja2, le rendre avec les paramètres fournis.
-    2. Pour chaque script post_install, le rendre Jinja2 et préparer son
-       injection dans le cloud-init via [write_files] + [runcmd].
-    3. Merger tous les fragments cloud-init + [cloud_init_extra] du profil.
-    4. Émettre le YAML final préfixé par [#cloud-config] et un script iPXE
+    2. Merger tous les fragments cloud-init + [cloud_init_extra] du profil.
+    3. Émettre le YAML final préfixé par [#cloud-config] et un script iPXE
        minimal pointant vers l'OS image.
 
     Cf. [doc/typst/provisioning-spec.typ]. *)

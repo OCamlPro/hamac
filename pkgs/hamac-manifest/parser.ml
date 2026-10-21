@@ -723,6 +723,7 @@ let parse_os_image_spec cx path v =
   let* os_url = req_string path "url" fields in
   let* os_sha256 = req_string path "sha256" fields in
   let* os_format = req_string path "format" fields in
+  let* () = one_of (path @ ["format"]) "format" ["qcow2"; "raw"; "iso"; "netinstall"] os_format in
   (* défaut : famille apt (debian/ubuntu) *)
   let* os_family = string_or path "family" fields ~default:"debian" in
   (* Assets dérivés pour install physique (bmaptool) — optionnels, vides si
@@ -1059,7 +1060,7 @@ let check_profile cx (pp : provisioning_profile_manifest) =
   if not (is_sha256 pp.pp_os.os_sha256) then
     note cx "E011" ["os"; "sha256"] "expected 64 hexadecimal characters (SHA-256)";
   if pp.pp_bundles = [] && pp.pp_cloud_init_extra = None then
-    note cx "W002" ["bundles"]
+    note cx "W013" ["bundles"]
       "no bundles and no cloud_init_extra: nothing will happen at provision time";
   List.iter (fun (i, n) ->
     note cx "E012" ["bundles"; string_of_int i; "name"] (Printf.sprintf "bundle '%s' listed twice" n))

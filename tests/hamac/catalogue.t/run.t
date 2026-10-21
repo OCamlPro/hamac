@@ -51,3 +51,4 @@ et les manifestes qu'elle référence, validés ensemble.
   manifest.yml: artifact.path: [W010] OCI image 'registry.example.org/web:latest' is not pinned by digest (@sha256:…)
   manifest.yml: health_check.timeout: [W011] timeout is not shorter than interval
   manifest.yml: environment.DB_PASSWORD: [W012] looks like a literal secret: declare it in 'secrets'
+  manifest.yml: bundles: [W013] no bundles and no cloud_init_extra: nothing will happen at provision time

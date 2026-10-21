@@ -26,11 +26,6 @@ L'implémentation de référence est la bibliothèque `hamac-manifest`
 (`pkgs/hamac-manifest/`). Elle permet de lire et de valider des manifestes
 sans dépendre du reste de Hamac.
 
-Le provisioning bare-metal (`kind: provisioning_profile`, `kind: bundle`) est
-détaillé dans la spécification du provisioning
-(`doc/typst/provisioning-spec.typ`) ; ce document n'en reprend que
-l'enveloppe commune et les règles nouvelles (@provisioning).
-
 == Principes
 
 + *Infrastructure inférée.* Un service déclare ses besoins : ressources,
@@ -873,20 +868,128 @@ revérifiée contre les patrons de la stack avant tout déploiement.
 Chaque règle `ALLOW` #doit indiquer le flux déclaré qui la justifie
 (#code("E045"), vérifié sur le manifeste seul).
 
-= `kind: provisioning_profile` et `kind: bundle` <provisioning>
+= `kind: provisioning_profile` <provisioning-profile>
 
-Format défini par la spécification du provisioning. Ajouts de la version 1.1,
-tous #experimental :
+#stable
 
-- *Cycle de vie d'un bundle* : `lifecycle: install` (défaut ; appliqué une
-  fois, au premier démarrage) ou `lifecycle: converge` (appliqué à
-  l'installation, puis en cours de vie par l'agent). Un bundle `converge`
-  #doit décrire un état à atteindre ; il est appliqué de façon idempotente,
-  et tout écart constaté est signalé comme une dérive. Ce mode permet de
-  prendre en charge une machine que Hamac n'a pas installée.
-- *Assurance offerte* : un profil #peut déclarer `assurance:` (@assurance),
-  ce que garantit une machine installée par lui. Une machine adoptée la
-  constate par `hamac verify`.
+Un profil de provisioning décrit le système installé sur une machine : une
+image d'OS et une liste de bundles paramétrés. Il est indépendant des machines
+qui l'utilisent ; un nœud d'infrastructure le désigne par son nom
+(`proposed_topology.nodes[].provisioning_profile`, @infrastructure). La
+spécification du provisioning (`doc/typst/provisioning-spec.typ`) décrit
+comment Hamac l'applique : démarrage PXE, rendu et fusion du cloud-init,
+écriture de l'image sur le disque.
+
+```yaml
+manifest_version: "1.1"
+kind: provisioning_profile
+name: dev-workstation
+
+os:
+  image: debian-13-amd64
+  url: https://cdimage.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
+  sha256: "…"
+  format: qcow2
+  family: debian
+
+bundles:
+  - name: dev-workstation
+    params:
+      username: devuser
+      timezone: Europe/Paris
+
+cloud_init_extra:
+  runcmd:
+    - echo "Provisioned by Hamac" > /etc/motd
+```
+
+#tableau((auto, 1fr, auto, 2fr),
+  [Champ], [Type], [Requis], [Règle],
+  [`os`], [objet], [oui], [image d'OS, voir ci-dessous],
+  [`bundles`], [liste], [non], [bundles appliqués dans l'ordre de la liste ;
+    chacun a un `name` (nom d'un `kind: bundle`) et des `params`, transmis
+    tels quels au gabarit du bundle. Un bundle listé deux fois : #code("E012")],
+  [`cloud_init_extra`], [objet], [non], [fragment cloud-init fusionné après
+    ceux des bundles],
+  [`assurance`], [objet, @assurance], [non], [#experimental ; niveaux
+    d'assurance que garantit une machine installée par ce profil],
+)
+
+Un profil sans bundle ni `cloud_init_extra` ne change rien à l'image
+installée : #code("W013").
+
+== Bloc `os`
+
+#tableau((auto, 1fr, auto, 2fr),
+  [Champ], [Type], [Requis], [Règle],
+  [`image`], [chaîne], [oui], [identifiant de l'image, à usage humain],
+  [`url`], [chaîne], [oui], [URL de l'image de référence, consommée telle
+    quelle par les VM],
+  [`sha256`], [64 caractères hexadécimaux], [oui], [empreinte de l'image
+    (#code("E011"))],
+  [`format`], [`qcow2` · `raw` · `iso` · `netinstall`], [oui], [`netinstall` :
+    noyau et initrd d'installation, suivis d'une installation automatisée],
+  [`family`], [chaîne], [non], [famille d'OS (`debian` par défaut) ; choisit
+    la variante du gabarit cloud-init des bundles],
+  [`raw_zst_url`], [chaîne], [non], [image disque brute compressée en zstd,
+    dérivée de `url`, pour l'écriture sur une machine physique],
+  [`raw_zst_sha256`], [chaîne], [non], [empreinte de `raw_zst_url`],
+  [`bmap_url`], [chaîne], [non], [carte des blocs utiles (`bmaptool create`)
+    associée à `raw_zst_url`],
+)
+
+= `kind: bundle` <bundle>
+
+#stable
+
+Un bundle est une brique réutilisable d'un profil : un répertoire
+`templates/bundles/<name>/` qui contient le manifeste `bundle.yaml` et un
+gabarit Jinja2 de fragment cloud-init.
+
+```
+templates/bundles/dev-workstation/
+├── bundle.yaml
+├── cloud-init.yaml.j2           # gabarit par défaut
+└── cloud-init.<family>.yaml.j2  # variante pour une famille d'OS (optionnel)
+```
+
+```yaml
+manifest_version: "1.1"
+kind: bundle
+name: dev-workstation
+version: "0.1.0"
+description: "Poste de développement : utilisateur, SSH, Docker"
+params:
+  username:
+    type: string
+    required: true
+  ssh_public_keys:
+    type: list[string]
+depends_on: []
+```
+
+#tableau((auto, 1fr, 2fr),
+  [Champ], [Type], [Règle],
+  [`version`], [chaîne], [version du bundle ; `0.1.0` par défaut],
+  [`description`], [chaîne], [],
+  [`params`], [table nom → spécification], [paramètres acceptés : `type`
+    (`string`, `int`, `bool`, `list[string]`, `list[int]`, `object` ; autre
+    valeur : #code("E007")) et `required` (booléen, `false` par défaut)],
+  [`depends_on`], [liste de noms], [bundles à appliquer avant celui-ci],
+  [`lifecycle`], [`install` · `converge`], [#experimental ; voir ci-dessous],
+)
+
+Le gabarit reçoit les valeurs des `params` données par le profil. Pour une
+famille d'OS donnée, Hamac prend `cloud-init.<family>.yaml.j2` s'il existe,
+sinon `cloud-init.yaml.j2`. La fusion des fragments de plusieurs bundles est
+décrite dans la spécification du provisioning.
+
+*Cycle de vie* #experimental. `lifecycle: install` (défaut) : le bundle est
+appliqué une fois, au premier démarrage. `lifecycle: converge` : il est
+appliqué à l'installation, puis en cours de vie par l'agent. Un bundle
+`converge` #doit décrire un état à atteindre ; il est appliqué de façon
+idempotente, et tout écart constaté est signalé comme une dérive. Ce mode
+permet de prendre en charge une machine que Hamac n'a pas installée.
 
 = Validation <validation>
 
@@ -967,6 +1070,8 @@ les exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   code("W011"), [1], [`health_check.timeout ≥ interval`],
   code("W012"), [1], [valeur d'environnement qui ressemble à un secret
     littéral],
+  code("W013"), [1], [profil de provisioning sans bundle ni
+    `cloud_init_extra`],
 )
 
 == Schéma JSON
@@ -989,5 +1094,7 @@ manifeste ; les étages 2 et 3 restent du ressort de `hamac validate` et
     (niveaux, catégories, rôles, routes publiques) ; `kind: pattern`
     (treillis, zones, diodes, assurance, contraintes, objectifs) ;
     `storage`, `backup`, `secrets`, `placement`, `exposure` expérimentaux ;
-    `volumes` et `ports[].host` dépréciés ; catalogue des erreurs],
+    `volumes` et `ports[].host` dépréciés ; `provisioning_profile` et
+    `bundle` décrits ici, champs `assurance` et `lifecycle` ; catalogue des
+    erreurs],
 )
