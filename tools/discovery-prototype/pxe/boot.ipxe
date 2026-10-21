@@ -1,5 +1,5 @@
 #!ipxe
-# SIESTE Infrastructure Discovery - iPXE boot script
+# Hamac discovery - iPXE boot script
 # This script registers the node with the discovery server
 
 # Set discovery server URL
@@ -7,7 +7,7 @@ set discovery_server http://10.99.0.1:8877
 
 # Get network info
 echo ============================================
-echo SIESTE Infrastructure Discovery
+echo Hamac discovery
 echo ============================================
 echo
 echo MAC Address: ${net0/mac}

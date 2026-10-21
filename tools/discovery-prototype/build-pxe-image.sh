@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build minimal PXE boot image for SIESTE discovery
+# Build minimal PXE boot image for Hamac discovery
 #
 # This creates a tiny Linux initramfs that:
 # 1. Boots via PXE
@@ -14,7 +14,7 @@ BUILD_DIR="$SCRIPT_DIR/pxe-build"
 OUTPUT_DIR="$SCRIPT_DIR/tftp"
 DISCOVERY_SERVER="${DISCOVERY_SERVER:-10.99.0.1:8877}"
 
-echo "=== SIESTE PXE Image Builder ==="
+echo "=== Hamac PXE Image Builder ==="
 echo "Discovery server: $DISCOVERY_SERVER"
 
 # Check for required tools
@@ -43,11 +43,11 @@ cat > "$BUILD_DIR/init" << 'INIT_EOF'
 /bin/busybox --install -s /bin
 
 # Set hostname
-HOSTNAME="sieste-node-$$"
+HOSTNAME="hamac-node-$$"
 hostname "$HOSTNAME"
 
 echo "============================================"
-echo "SIESTE Infrastructure Discovery Agent"
+echo "Hamac discovery agent"
 echo "============================================"
 echo ""
 
@@ -101,7 +101,7 @@ echo "  Memory: ${MEM_MB}MB"
 echo ""
 
 # Discovery server (passed via kernel command line or default)
-DISCOVERY_SERVER=$(cat /proc/cmdline | grep -oP 'sieste.discovery=\K[^\s]+' || echo "http://10.99.0.1:8877")
+DISCOVERY_SERVER=$(cat /proc/cmdline | grep -oP 'hamac.discovery=\K[^\s]+' || echo "http://10.99.0.1:8877")
 
 echo "Registering with discovery server: $DISCOVERY_SERVER"
 

@@ -24,7 +24,7 @@ if [ ! -f "$TFTP_DIR/vmlinuz" ] || [ ! -f "$TFTP_DIR/initramfs-lts" ]; then
 fi
 
 echo "============================================"
-echo "SIESTE QEMU Alpine Boot Test"
+echo "Hamac QEMU Alpine Boot Test"
 echo "============================================"
 echo ""
 echo "Kernel: $TFTP_DIR/vmlinuz"

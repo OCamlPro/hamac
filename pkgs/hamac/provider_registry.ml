@@ -47,7 +47,7 @@ let resolve (registry : t) ~(provider_name : string option) ~(capability : strin
     | Some cap -> find_by_capability registry cap
     | None -> None
 
-(** Load all .sieste.yml files from a directory into the registry *)
+(** Load all .yml files from a directory into the registry *)
 let load_dir (registry : t) (dir : Fpath.t) : (int, string) result =
   match Bos.OS.Dir.exists dir with
   | Error (`Msg msg) -> Error msg
@@ -83,7 +83,6 @@ let load_dir (registry : t) (dir : Fpath.t) : (int, string) result =
 let load_defaults ?(verbose = true) (registry : t) : unit =
   let search_paths = [
     Fpath.v "./providers";
-    Fpath.v "./sieste-providers";
   ] in
   (* Add ~/.hamac/providers if HOME is set *)
   let search_paths = match Sys.getenv_opt "HOME" with

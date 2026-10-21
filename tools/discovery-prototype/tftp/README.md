@@ -1,11 +1,11 @@
-# SIESTE PXE Boot Files
+# Hamac PXE Boot Files
 
 This directory contains the boot files for PXE network boot infrastructure discovery.
 
 ## Files (not in git - download/build locally)
 
 - `vmlinuz` - Debian netboot installer kernel
-- `initramfs-hybrid.gz` - Hybrid initramfs with kernel modules and SIESTE registration
+- `initramfs-hybrid.gz` - Hybrid initramfs with kernel modules and Hamac registration
 
 ## Setup Instructions
 
@@ -28,7 +28,7 @@ the full investigation.)
 ### 2. Build hybrid initramfs
 
 The hybrid initramfs combines Debian's kernel modules (bundled in its
-netboot `initrd.gz`, already matched to this exact kernel) with SIESTE's
+netboot `initrd.gz`, already matched to this exact kernel) with Hamac's
 custom init script — **plus a static busybox swapped in** (see note below).
 
 ```bash
@@ -130,18 +130,18 @@ chmod +x usr/bin/bmaptool usr/bin/python3.13 bin/zstd
 # see that Dockerfile's comment for why it's Alpine/musl rather than the
 # same base as the ipxe-builder stage. Build-tested end to end: static-pie
 # linked, zero NEEDED entries, `qemu-img convert` works.
-docker build --target qemu-img-builder -t qemu-img-builder-tmp /path/to/sieste/docker/hamac-pxe/
+docker build --target qemu-img-builder -t qemu-img-builder-tmp /path/to/hamac/docker/hamac-pxe/
 QIB_CID=$(docker create qemu-img-builder-tmp)
 docker cp "${QIB_CID}:/usr/src/qemu/build/qemu-img" usr/bin/qemu-img
 docker rm "${QIB_CID}"
 chmod +x usr/bin/qemu-img
 
-# Replace init with SIESTE's version
-cp /path/to/sieste/tools/discovery-prototype/pxe-build/init ./init
+# Replace init with Hamac's version
+cp /path/to/hamac/tools/discovery-prototype/pxe-build/init ./init
 chmod +x init
 
 # Rebuild initramfs
-find . | cpio -ov --format=newc | gzip -9 > /path/to/sieste/tools/discovery-prototype/tftp/initramfs-hybrid.gz
+find . | cpio -ov --format=newc | gzip -9 > /path/to/hamac/tools/discovery-prototype/tftp/initramfs-hybrid.gz
 ```
 
 ### 3. Test with QEMU
@@ -155,7 +155,7 @@ qemu-system-x86_64 \
     -m 512 \
     -kernel vmlinuz \
     -initrd initramfs-hybrid.gz \
-    -append "console=ttyS0 sieste.discovery=http://10.0.2.2:8877 rdinit=/init" \
+    -append "console=ttyS0 hamac.discovery=http://10.0.2.2:8877 rdinit=/init" \
     -net nic,model=e1000 \
     -net user \
     -nographic \

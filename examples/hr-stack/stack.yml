@@ -15,6 +15,6 @@ metadata:
 patterns: [exemple-rh]
 accept_experimental: true
 services:
-  - ref: portal.sieste.yml
-  - ref: hr-api.sieste.yml
-  - ref: payroll-report.sieste.yml
+  - ref: portal.yml
+  - ref: hr-api.yml
+  - ref: payroll-report.yml

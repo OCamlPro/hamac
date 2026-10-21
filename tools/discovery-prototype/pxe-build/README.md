@@ -1,6 +1,6 @@
-# SIESTE PXE Build - Initramfs Source
+# Hamac PXE Build - Initramfs Source
 
-This directory contains the source files for building the SIESTE infrastructure discovery initramfs.
+This directory contains the source files for building the Hamac discovery initramfs.
 
 ## Structure
 
@@ -10,7 +10,7 @@ pxe-build/
 │   └── busybox     # Static busybox (download manually)
 ├── dev/            # Device nodes (created at runtime)
 ├── etc/            # Configuration files
-├── init            # SIESTE registration init script
+├── init            # Hamac registration init script
 ├── proc/           # Mounted at runtime
 ├── root/           # Root home
 ├── sbin/           # System binaries
@@ -33,7 +33,7 @@ chmod +x busybox
 
 ```bash
 cd /path/to/pxe-build
-find . | cpio -ov --format=newc | gzip -9 > ../tftp/initramfs-sieste.gz
+find . | cpio -ov --format=newc | gzip -9 > ../tftp/initramfs-hamac.gz
 ```
 
 ## Notes

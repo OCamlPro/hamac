@@ -1,10 +1,10 @@
 #!/bin/bash
-# Test the SIESTE Discovery Server with simulated nodes
+# Test the Hamac discovery Server with simulated nodes
 # Usage: ./test-discovery.sh [server-url]
 
 SERVER="${1:-http://localhost:8877}"
 
-echo "=== SIESTE Discovery Server Test ==="
+echo "=== Hamac discovery Server Test ==="
 echo "Server: $SERVER"
 echo ""
 

@@ -308,8 +308,6 @@ découpage préserve la sémantique du tour global (§10).
 - *Niveau de preuve* — il cesse d'être une coquetterie : les invariants
   I1–I3 et la relation `k_agent < seuil_contrôleur` sont les énoncés à
   établir.
-- *Frontière Sieste / Hamac* — elle se lit ici comme la frontière entre la
-  spécification globale et sa distribution.
 - *Milestone 9* (cycle de vie, convergence) est la mise en œuvre directe de
   ce document.
 - *Milestone 11* (haute disponibilité PostgreSQL) : le scénario 4.2 est le

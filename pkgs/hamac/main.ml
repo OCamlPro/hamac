@@ -359,7 +359,7 @@ let set_debug d = if d then Logs.set_level (Some Logs.Debug)
 (* ---- Arguments partagés ---- *)
 
 let files_arg =
-  let doc = "Manifest files (.sieste.yml)." in
+  let doc = "Manifest files (.yml)." in
   Arg.(value & pos_all string [] & info [] ~docv:"FILES" ~doc)
 
 let debug_arg =
@@ -486,7 +486,7 @@ let provision_clear_cmd =
     Term.(const go $ mac_arg $ discovery_arg $ debug_arg)
 
 let main_cmd =
-  let doc = "Hamac - stack manager for SIESTE manifests." in
+  let doc = "Hamac - infrastructure orchestrator for declarative manifests." in
   Cmd.group (Cmd.info "hamac" ~doc)
     [ validate_cmd; plan_cmd; resolve_cmd; simulate_cmd; deploy_cmd; status_cmd;
       provision_dryrun_cmd; provision_push_cmd; provision_clear_cmd ]

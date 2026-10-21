@@ -96,16 +96,16 @@ jobs:
         run: |
           set -eux
           opam exec -- dune exec -- hamac validate \
-            providers/*.sieste.yml \
-            examples/enterprise-stack/*.sieste.yml \
+            providers/*.yml \
+            examples/enterprise-stack/*.yml \
             provisioning-profiles/*.yaml \
             templates/bundles/*/bundle.yaml
           # Format 1.1 : l'exemple complet doit passer sans le moindre
           # avertissement, patron, zones, routes et stockage compris.
           opam exec -- dune exec -- hamac validate --strict examples/hr-stack/*.yml
           opam exec -- dune exec -- hamac plan examples/hr-stack/*.yml
-          opam exec -- dune exec -- hamac plan examples/enterprise-stack/*.sieste.yml
-          opam exec -- dune exec -- hamac resolve examples/enterprise-stack/*.sieste.yml
+          opam exec -- dune exec -- hamac plan examples/enterprise-stack/*.yml
+          opam exec -- dune exec -- hamac resolve examples/enterprise-stack/*.yml
           opam exec -- dune exec -- hamac provision-dryrun \
             --profile=provisioning-profiles/dev-workstation-demo.yaml
 

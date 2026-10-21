@@ -5,7 +5,7 @@ Trois services répartis sur trois zones de sécurité, consommant des providers
 filtrage Bell-LaPadula (aucune de ces informations n'est écrite dans les
 manifestes de service).
 
-  $ hamac plan analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml
+  $ hamac plan analytics.yml payroll.yml web_api.yml
   Infrastructure proposal: stack-infra
   
   Minimum requirements:
@@ -45,7 +45,7 @@ manifestes de service).
 quelles, y compris leur substitution dans les URL d'injection. Sans `--seed`,
 elles viennent de /dev/urandom et changent à chaque exécution.
 
-  $ hamac resolve --seed 42 analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml
+  $ hamac resolve --seed 42 analytics.yml payroll.yml web_api.yml
   hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
   Loaded 2 provider(s) from ./providers
   Providers to instantiate:
@@ -77,7 +77,7 @@ elles viennent de /dev/urandom et changent à chaque exécution.
 `deploy` produit un docker-compose câblé : réseaux, variables injectées,
 dépendances et healthchecks portant les credentials résolus.
 
-  $ hamac deploy --seed 42 analytics.sieste.yml payroll.sieste.yml web_api.sieste.yml
+  $ hamac deploy --seed 42 analytics.yml payroll.yml web_api.yml
   hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
   Loaded 2 provider(s) from ./providers
   hamac: [WARNING] deploy generates a flat docker-compose on a single network: it does not isolate the security zones (internal, public, secure). Use `hamac simulate` to deploy with zone filtering.
@@ -98,7 +98,7 @@ Sans `--seed`, les credentials viennent de /dev/urandom : deux résolutions
 successives des mêmes manifestes ne coïncident pas. C'est le comportement par
 défaut, et c'est celui qui compte pour un déploiement réel.
 
-  $ hamac resolve analytics.sieste.yml > r1 2>&1
-  $ hamac resolve analytics.sieste.yml > r2 2>&1
+  $ hamac resolve analytics.yml > r1 2>&1
+  $ hamac resolve analytics.yml > r2 2>&1
   $ cmp -s r1 r2 && echo "identiques" || echo "differentes"
   differentes

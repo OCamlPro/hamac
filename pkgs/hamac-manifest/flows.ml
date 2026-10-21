@@ -22,7 +22,7 @@
     Writing down (a sensitive service sending data to a less sensitive
     zone, including inside the request of an allowed read-down connection)
     is not a network matter: it is controlled at the application level
-    (information-flow typing in SIESTE, Biscuit authorization) or by a
+    (information-flow typing in the source language, Biscuit authorization) or by a
     filtering data diode. *)
 
 open Types

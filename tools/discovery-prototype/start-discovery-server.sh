@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start the SIESTE Discovery Server
+# Start the Hamac discovery Server
 # Usage: ./start-discovery-server.sh [port]
 
 set -e
@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$SCRIPT_DIR/discovery-server"
 PORT="${1:-8877}"
 
-echo "=== SIESTE Discovery Server ==="
+echo "=== Hamac discovery Server ==="
 
 cd "$SERVER_DIR"
 

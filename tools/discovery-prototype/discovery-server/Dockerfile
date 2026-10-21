@@ -1,4 +1,4 @@
-# SIESTE Discovery Server
+# Hamac discovery Server
 #
 # OCaml-based REST API for node registration and discovery.
 # Simple in-memory storage for demo purposes.
@@ -42,8 +42,8 @@ RUN apk add --no-cache \
 COPY --from=builder /home/opam/discovery-server/_build/default/discovery_server.exe /usr/local/bin/discovery-server
 
 # Create non-root user
-RUN adduser -D -s /bin/sh sieste
-USER sieste
+RUN adduser -D -s /bin/sh hamac
+USER hamac
 
 EXPOSE 8877
 

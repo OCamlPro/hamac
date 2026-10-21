@@ -119,8 +119,7 @@ RUN git clone https://github.com/ipxe/ipxe.git /usr/src/ipxe \
 # Alpine/musl plutôt que la même base que ipxe-builder (Ubuntu/glibc) :
 # un lien vraiment statique avec glibc est notoirement peu fiable pour un
 # projet de la taille de QEMU (problèmes connus autour de NSS/dlopen) ;
-# musl s'y prête beaucoup mieux. C'est le même choix que
-# tools/static-build/Dockerfile pour les binaires SIESTE eux-mêmes.
+# musl s'y prête beaucoup mieux.
 #
 # N'atterrit PAS dans l'image Docker finale via COPY --from= comme
 # ipxe-builder : le binaire produit ici doit finir DANS l'initramfs

@@ -53,7 +53,7 @@ echo "[hamac-pxe] poll_interval=${POLL_INTERVAL}s"
 # (ipxe.efi / undionly.kpxe) servi par dnsmasq. iPXE refait un DHCP ; dnsmasq
 # le reconnaît (user-class "iPXE") et lui renvoie ce script, qui charge le
 # kernel + initramfs (toujours en TFTP) et boote. Le init lit /proc/cmdline
-# pour sieste.discovery= (URL publique atteignable depuis le client).
+# pour hamac.discovery= (URL publique atteignable depuis le client).
 # NB : on hardcode l'IP du serveur TFTP (= cette machine) au lieu de
 # \${next-server}. En mode proxy DHCP, le bail (et donc next-server côté
 # iPXE) vient du vrai DHCP du LAN, PAS de nous — \${next-server} pointerait
@@ -75,7 +75,7 @@ cat > /tftp/boot.ipxe <<EOF
 #!ipxe
 echo hamac-pxe : chargement du live installer...
 imgfree
-kernel tftp://$DHCP_PROXY_ADDRESS/vmlinuz console=ttyS0 console=tty0 ip=dhcp sieste.discovery=$PXE_DISCOVERY_URL
+kernel tftp://$DHCP_PROXY_ADDRESS/vmlinuz console=ttyS0 console=tty0 ip=dhcp hamac.discovery=$PXE_DISCOVERY_URL
 initrd tftp://$DHCP_PROXY_ADDRESS/initramfs.img
 imgstat
 boot

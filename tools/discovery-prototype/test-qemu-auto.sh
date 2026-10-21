@@ -28,7 +28,7 @@ if ! curl -s "$DISCOVERY_SERVER/health" >/dev/null 2>&1; then
 fi
 
 echo "============================================"
-echo "SIESTE QEMU Auto-Registration Test"
+echo "Hamac QEMU Auto-Registration Test"
 echo "============================================"
 echo ""
 echo "Discovery Server: $DISCOVERY_SERVER"

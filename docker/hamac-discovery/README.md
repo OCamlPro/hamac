@@ -14,7 +14,7 @@ Tag canonique : `registry.ocamlpro.com/ocamlpro/hamac/hamac-discovery:0.1.0` + `
 
 Le `build.sh` :
 1. Compile le binaire OCaml en release localement (`dune build --profile=release`)
-   — nécessite l'environnement opam du repo SIESTE déjà configuré
+   — nécessite l'environnement opam du dépôt hamac déjà configuré
 2. Copie le binaire dans le contexte Docker
 3. Lance `docker build` avec deux tags (`:0.1.0` + `:latest`)
 4. Nettoie l'artefact temporaire en sortie (trap)

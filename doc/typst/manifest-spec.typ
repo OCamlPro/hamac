@@ -16,9 +16,9 @@
 
 = Objet et principes
 
-Ce document définit le format pivot `hamac-manifest`. Le format est
-indépendant de Sieste : un manifeste conforme peut être écrit à la main ou
-produit par un script, un autre langage ou un générateur. Ce document
+Ce document définit le format pivot `hamac-manifest`. Un manifeste conforme
+peut être écrit à la main ou produit par un script, un langage de plus haut
+niveau ou tout autre générateur. Ce document
 remplace la description implicite que donnaient jusqu'ici le code et les
 exemples.
 
@@ -111,7 +111,7 @@ metadata:                # optionnel
   labels:                # clés/valeurs courtes, pour les sélecteurs
     team: rh
   annotations:           # texte libre, ignoré par Hamac
-    sieste.ocamlpro.com/source: "hr/api.zzz"
+    example.org/generated-from: "hr/api"
 ```
 
 #tableau((auto, 1.3fr, auto, 2fr),
@@ -821,7 +821,7 @@ name: si-exemple
 patterns: [anssi-renforce]
 accept_experimental: true
 services:
-  - ref: services/hr-api.sieste.yml
+  - ref: services/hr-api.yml
     replicas: 3
     consumes:
       - name: db

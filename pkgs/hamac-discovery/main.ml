@@ -1,7 +1,7 @@
 (* SPDX-License-Identifier: AGPL-3.0-only *)
 (* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
 
-(** SIESTE Infrastructure Discovery Server
+(** Hamac discovery server
 
     Minimal REST API for node registration, discovery, and service deployment.
     Nodes boot via PXE and register themselves with this server.
@@ -452,12 +452,12 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="%s" K3S_URL="%s" K3S_TOKEN="
 
   (* Generate cloud-init YAML *)
   Printf.sprintf {|#cloud-config
-# SIESTE Auto-generated cloud-init for %s
+# Hamac auto-generated cloud-init for %s
 # Generated at: %s
 # Role: %s
 
 hostname: %s
-fqdn: %s.sieste.local
+fqdn: %s.hamac.local
 manage_etc_hosts: true
 
 # Update and install prerequisites
@@ -472,7 +472,7 @@ packages:
 
 # Write node metadata
 write_files:
-  - path: /etc/sieste/node.json
+  - path: /etc/hamac/node.json
     content: |
       {
         "id": "%s",
@@ -484,26 +484,26 @@ write_files:
       }
     permissions: '0644'
 
-  - path: /etc/sieste/install-k3s.sh
+  - path: /etc/hamac/install-k3s.sh
     permissions: '0755'
     content: |
       #!/bin/bash
       set -e
       DISCOVERY_SERVER="${DISCOVERY_SERVER:-http://10.99.0.1:8877}"
-      echo "[SIESTE] Installing k3s for role: %s"
+      echo "[hamac] Installing k3s for role: %s"
       %s
-      echo "[SIESTE] k3s installation complete"
+      echo "[hamac] k3s installation complete"
 
 # Run k3s installation
 runcmd:
-  - echo "[SIESTE] Starting provisioning for %s"
-  - mkdir -p /etc/sieste
+  - echo "[hamac] Starting provisioning for %s"
+  - mkdir -p /etc/hamac
   - export DISCOVERY_SERVER="${DISCOVERY_SERVER:-http://10.99.0.1:8877}"
-  - /etc/sieste/install-k3s.sh
-  - echo "[SIESTE] Provisioning complete"
+  - /etc/hamac/install-k3s.sh
+  - echo "[hamac] Provisioning complete"
 
 # Final message
-final_message: "SIESTE node %s provisioned in $UPTIME seconds"
+final_message: "Hamac node %s provisioned in $UPTIME seconds"
 |}
     node.hostname
     (let t = Unix.gmtime (Unix.gettimeofday ()) in
@@ -867,7 +867,7 @@ let dashboard_html = {|<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIESTE Infrastructure Dashboard</title>
+    <title>Hamac — machines</title>
     <style>
         :root {
             --bg-primary: #0d1117;
@@ -1026,7 +1026,7 @@ let dashboard_html = {|<!DOCTYPE html>
 </head>
 <body>
     <header class="header">
-        <h1>SIESTE Infrastructure Dashboard</h1>
+        <h1>Hamac — machines</h1>
         <span id="connection-status" class="status-badge status-disconnected">Disconnected</span>
     </header>
     <div class="container">
@@ -2169,7 +2169,7 @@ let () =
     with _ -> 8877
   in
 
-  Printf.printf "=== SIESTE Infrastructure Discovery Server ===\n";
+  Printf.printf "=== Hamac discovery server ===\n";
   Printf.printf "Listening on port %d\n" port;
   Printf.printf "\n";
   Printf.printf "Endpoints:\n";

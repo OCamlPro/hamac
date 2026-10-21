@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VM_NAME="${1:-test-node}"
 DISCOVERY_SERVER="${DISCOVERY_SERVER:-http://10.99.0.1:8877}"
 
-echo "=== SIESTE Simple QEMU Test ==="
+echo "=== Hamac simple QEMU Test ==="
 echo "VM Name: $VM_NAME"
 echo "Discovery Server: $DISCOVERY_SERVER"
 echo ""

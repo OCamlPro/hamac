@@ -27,9 +27,9 @@ préconfigurés) sur n'importe quelle machine qui démarre en PXE, qu'elle fasse
 partie de l'infrastructure du SI ou non (typiquement : poste de développeur).
 
 Cette première itération vit *entièrement côté Hamac* (manifestes YAML +
-OCaml + prototype de découverte). Une future couche UI / DSL côté langage
-SIESTE pour décrire ces profils visuellement reste possible (voir
-@evolutions) mais n'est *pas* dans le périmètre de cette spécification.
+OCaml + prototype de découverte). Une couche de description de plus haut
+niveau reste possible (voir @evolutions), mais n'entre pas dans le périmètre
+de cette spécification.
 
 = Vue d'ensemble
 
@@ -429,7 +429,8 @@ K3s, mais consulte d'abord `/provisioning/<mac>` s'il est présent.
 - *Bundles avec état d'exécution* (base de données, etc.) : pas encore. Les
   services de type Zulip avec PostgreSQL viendront via les `kind: stack`
   classiques de Hamac.
-- *Exposition côté langage SIESTE* : reportée (voir @evolutions).
+- *Description depuis un langage de plus haut niveau* : reportée (voir
+  @evolutions).
 
 = Évolutions futures <evolutions>
 
@@ -440,32 +441,17 @@ K3s, mais consulte d'abord `/provisioning/<mac>` s'il est présent.
 - Diff entre deux versions d'un profil.
 - Héritage de profils (`extends: base-debian`).
 
-== Moyen terme : couche UI / DSL côté SIESTE
+== Moyen terme : description de plus haut niveau
 
-Une fois la mécanique Hamac stabilisée, le langage SIESTE pourra exposer une
-*DSL/UI* pour décrire les profils visuellement, par exemple :
+Une fois la mécanique stabilisée, un langage ou un outil de plus haut niveau
+pourra produire les profils, comme il peut déjà produire des manifestes de
+service : le format pivot le permet sans changement côté Hamac. On pourra
+alors envisager :
 
-```
-profile dev_workstation:
-  os := debian_12_cloud
-  bundles := [
-    dev_workstation_bundle {
-      username := "julien"
-      ssh_public_keys := [...]
-    }
-  ]
-```
-
-Le compilateur produirait alors le YAML attendu par Hamac. C'est cohérent avec
-l'architecture déjà choisie pour les services (`#[service]` → manifeste YAML →
-Hamac).
-
-On pourra alors envisager :
-
-- la validation typée des `params` de bundles par le système de types SIESTE ;
-- une vue web (glisser-déposer) des profils, comparable à ce qui est prévu
-  pour les clusters (typeclass `Cluster[C]`) ;
-- la génération de profils paramétriques (`for u in users: profile(u)`).
+- la validation typée des `params` de bundles ;
+- une vue web des profils ;
+- la génération de profils paramétriques, par exemple un profil par
+  utilisateur.
 
 == Long terme
 

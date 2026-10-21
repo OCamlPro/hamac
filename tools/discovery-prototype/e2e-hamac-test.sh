@@ -135,7 +135,7 @@ LOOP=$(sudo losetup --show -fP "$RAW_IMAGE" 2>&1) || {
   LOOP=""
 }
 if [ -n "$LOOP" ]; then
-  sudo mkfs.ext4 -F -L sieste-root "${LOOP}p1" >/dev/null 2>&1 || true
+  sudo mkfs.ext4 -F -L hamac-root "${LOOP}p1" >/dev/null 2>&1 || true
   sudo losetup -d "$LOOP"
 fi
 SHA256=$(sha256sum "$RAW_IMAGE" | awk '{print $1}')
@@ -225,7 +225,7 @@ qemu-system-x86_64 \
   $KVM_OPT \
   -kernel "$KERNEL" \
   -initrd "$INITRD" \
-  -append "console=ttyS0 sieste.discovery=http://${HOST_FROM_VM}:$DISCOVERY_PORT sieste.hostname=e2e-vm" \
+  -append "console=ttyS0 hamac.discovery=http://${HOST_FROM_VM}:$DISCOVERY_PORT hamac.hostname=e2e-vm" \
   -drive file="$VM_DISK",format=qcow2,if=virtio \
   -netdev user,id=net0,hostfwd=tcp::$SSH_PORT-:22 \
   -device e1000,netdev=net0,mac="$VM_MAC" \

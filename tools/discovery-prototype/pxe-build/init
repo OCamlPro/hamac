@@ -1,16 +1,16 @@
 #!/bin/busybox sh
 
-# SIESTE Infrastructure Zero-Touch Provisioning Agent
+# Hamac zero-touch provisioning agent
 # PXE boot → Register → Install Proxmox VE → Join Cluster → Ready
 #
 # Kernel command line options:
-#   sieste.discovery=URL     - Discovery server URL (default: http://10.0.2.2:8877)
-#   sieste.hostname=NAME     - Node hostname
-#   sieste.role=ROLE         - Node role: pve-master | pve-node | worker (default: pve-node)
-#   sieste.install=MODE      - Install mode: proxmox | debian | none (default: none)
-#   sieste.disk=DEVICE       - Target disk (default: auto-detect)
-#   sieste.cluster=NAME      - Proxmox cluster name (default: sieste-cluster)
-#   sieste.master=IP         - Master node IP for cluster join
+#   hamac.discovery=URL     - Discovery server URL (default: http://10.0.2.2:8877)
+#   hamac.hostname=NAME     - Node hostname
+#   hamac.role=ROLE         - Node role: pve-master | pve-node | worker (default: pve-node)
+#   hamac.install=MODE      - Install mode: proxmox | debian | none (default: none)
+#   hamac.disk=DEVICE       - Target disk (default: auto-detect)
+#   hamac.cluster=NAME      - Proxmox cluster name (default: hamac-cluster)
+#   hamac.master=IP         - Master node IP for cluster join
 
 set -e
 
@@ -27,13 +27,13 @@ set -e
 parse_cmdline() {
     for word in $(cat /proc/cmdline); do
         case "$word" in
-            sieste.hostname=*) HOSTNAME="${word#sieste.hostname=}" ;;
-            sieste.discovery=*) DISCOVERY_SERVER="${word#sieste.discovery=}" ;;
-            sieste.role=*) NODE_ROLE="${word#sieste.role=}" ;;
-            sieste.install=*) INSTALL_MODE="${word#sieste.install=}" ;;
-            sieste.disk=*) TARGET_DISK="${word#sieste.disk=}" ;;
-            sieste.cluster=*) CLUSTER_NAME="${word#sieste.cluster=}" ;;
-            sieste.master=*) MASTER_IP="${word#sieste.master=}" ;;
+            hamac.hostname=*) HOSTNAME="${word#hamac.hostname=}" ;;
+            hamac.discovery=*) DISCOVERY_SERVER="${word#hamac.discovery=}" ;;
+            hamac.role=*) NODE_ROLE="${word#hamac.role=}" ;;
+            hamac.install=*) INSTALL_MODE="${word#hamac.install=}" ;;
+            hamac.disk=*) TARGET_DISK="${word#hamac.disk=}" ;;
+            hamac.cluster=*) CLUSTER_NAME="${word#hamac.cluster=}" ;;
+            hamac.master=*) MASTER_IP="${word#hamac.master=}" ;;
         esac
     done
 }
@@ -44,7 +44,7 @@ DISCOVERY_SERVER=""
 NODE_ROLE="pve-node"
 INSTALL_MODE="none"
 TARGET_DISK=""
-CLUSTER_NAME="sieste-cluster"
+CLUSTER_NAME="hamac-cluster"
 MASTER_IP=""
 
 parse_cmdline
@@ -56,7 +56,7 @@ hostname "$HOSTNAME"
 
 echo ""
 echo "============================================"
-echo "  SIESTE Zero-Touch Provisioning"
+echo "  Hamac zero-touch provisioning"
 echo "============================================"
 echo "Hostname: $HOSTNAME"
 echo "Role: $NODE_ROLE"
@@ -642,7 +642,7 @@ grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=proxm
 update-grub
 
 # Set root password (change in production!)
-echo "root:sieste123" | chpasswd
+echo "root:hamac123" | chpasswd
 
 # Enable SSH
 systemctl enable ssh
@@ -737,7 +737,7 @@ EOF
 
     debian)
         echo "[*] Debian installation mode - not yet implemented"
-        echo "[*] Use sieste.install=proxmox for full installation"
+        echo "[*] Use hamac.install=proxmox for full installation"
         exec /bin/sh
         ;;
 

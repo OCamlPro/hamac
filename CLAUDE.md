@@ -1,9 +1,9 @@
 # hamac — repère pour Claude Code / contributeurs
 
-**hamac** est un orchestrateur d'infrastructure pour les manifestes **SIESTE** : il lit des
-manifestes déclaratifs `*.sieste.yml`, résout les dépendances de services vers des providers,
+**hamac** est un orchestrateur d'infrastructure : il lit des
+manifestes déclaratifs `*.yml`, résout les dépendances de services vers des providers,
 et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OCaml, AGPL-3.0
-(+ licence commerciale). Extrait de `OCamlPro/sieste` ; **dépôt canonique sur Forgejo**
+(+ licence commerciale). **Dépôt canonique sur Forgejo**
 (`forge.ocamlpro.com/OSS/hamac`), GitHub est un **miroir read-only**.
 
 ## Où chercher (contrats, specs, état du projet)
@@ -16,7 +16,7 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
   `kind`, champs, stabilité, treillis et patrons, catalogue des erreurs du validateur.
 - **`doc/typst/control-plane.typ`** — modèle du plan de contrôle à tours (proposition).
 - **`doc/HAMAC_ROADMAP.md`** — jalons et état d'avancement.
-- Les manifestes consommés sont des `*.sieste.yml` (kinds : `service`, `stack`,
+- Les manifestes consommés sont des `*.yml` (kinds : `service`, `stack`,
   `infrastructure`, `provisioning_profile`, `bundle`).
 
 ## Documents officiels : Typst

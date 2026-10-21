@@ -11,8 +11,8 @@
 
 > **Canonical repository:** https://forge.ocamlpro.com/OSS/hamac — the GitHub repository is a read-only mirror. Please file issues and merge requests on Forgejo.
 
-**Hamac** is an infrastructure orchestrator for **SIESTE** manifests. It reads
-declarative `.sieste.yml` manifests describing services and infrastructure,
+**Hamac** is an infrastructure orchestrator. It reads
+declarative YAML manifests describing services and infrastructure,
 resolves their dependencies to concrete providers, and provisions/deploys them —
 including **bare-metal provisioning over PXE**.
 
@@ -49,13 +49,13 @@ example manifests it ships.
 
 ```sh
 # Validate / plan / resolve manifests
-hamac validate examples/enterprise-stack/*.sieste.yml
-hamac plan     examples/enterprise-stack/*.sieste.yml
-hamac resolve  examples/enterprise-stack/*.sieste.yml
+hamac validate examples/enterprise-stack/*.yml
+hamac plan     examples/enterprise-stack/*.yml
+hamac resolve  examples/enterprise-stack/*.yml
 
 # Credentials come from the system CSPRNG. --seed makes them reproducible for
 # tests and demos, and therefore predictable: never use it for a real deployment.
-hamac resolve --seed 42 examples/enterprise-stack/*.sieste.yml
+hamac resolve --seed 42 examples/enterprise-stack/*.yml
 
 # Bare-metal provisioning
 hamac provision-dryrun --profile=provisioning-profiles/dev-workstation-demo.yaml

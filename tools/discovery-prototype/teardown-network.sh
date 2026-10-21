@@ -1,13 +1,13 @@
 #!/bin/bash
-# Remove SIESTE discovery network bridge
+# Remove Hamac discovery network bridge
 # Run as root: sudo ./teardown-network.sh
 
 set -e
 
-BRIDGE="virbr-sieste"
+BRIDGE="virbr-hamac"
 SUBNET="10.99.0.0/24"
 
-echo "=== SIESTE Discovery Network Teardown ==="
+echo "=== Hamac discovery Network Teardown ==="
 
 # Remove iptables rules
 iptables -t nat -D POSTROUTING -s "$SUBNET" ! -d "$SUBNET" -j MASQUERADE 2>/dev/null || true

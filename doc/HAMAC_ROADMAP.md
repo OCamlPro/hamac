@@ -1,6 +1,6 @@
 # Hamac — Roadmap
 
-Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure est inferee a partir des contraintes des services, pas ecrite a la main.
+Stack manager pour manifestes déclaratifs. Approche "zero touch" : l'infrastructure est inferee a partir des contraintes des services, pas ecrite a la main.
 
 ## Milestone 1 — Parser et validation ✅
 
@@ -35,7 +35,7 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 - [x] Cablage automatique : networks, env vars injectees, depends_on
 - [x] Healthchecks avec credentials resolus (readiness → healthcheck)
 - [x] Limites de ressources (memory, cpu)
-- [x] Commande `hamac deploy <services.sieste.yml>`
+- [x] Commande `hamac deploy <services.yml>`
 - [ ] Commande `hamac status` (via `docker compose ps`) — differe
 - [ ] Commande `hamac destroy` (via `docker compose down`) — differe
 
@@ -64,7 +64,7 @@ Stack manager pour manifestes SIESTE. Approche "zero touch" : l'infrastructure e
 - [x] Reseaux docker isoles par zone de securite (subnets distincts)
 - [x] Zone `secure` marquee `internal: true` (pas d'acces externe)
 - [x] Providers dans la zone de leur consommateur
-- [x] Commande `hamac simulate <services.sieste.yml>` avec affichage du placement
+- [x] Commande `hamac simulate <services.yml>` avec affichage du placement
 - [x] Scripts d'init idempotents (restart sans conflit de noms)
 - [x] Filtrage inter-zones dans les noeuds : iptables avec etat (INPUT/OUTPUT et DOCKER-USER), adresses fixes des noeuds sur chaque reseau de zone
 - [x] Validation de bout en bout : lecture vers le bas declaree ouverte, lecture vers le haut et port non declare bloques

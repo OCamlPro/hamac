@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build a minimal test disk image for SIESTE provisioning tests
+# Build a minimal test disk image for Hamac provisioning tests
 #
 # This creates a small (~50MB) bootable image with:
 # - A single ext4 partition
@@ -15,7 +15,7 @@ OUTPUT_DIR="$SCRIPT_DIR/images"
 IMAGE_NAME="${1:-test-minimal.img}"
 IMAGE_SIZE="${2:-100M}"
 
-echo "=== SIESTE Test Image Builder ==="
+echo "=== Hamac test image Builder ==="
 echo "Output: $OUTPUT_DIR/$IMAGE_NAME"
 echo "Size: $IMAGE_SIZE"
 echo ""
@@ -75,7 +75,7 @@ if [ ! -b "$PART" ]; then
 fi
 
 echo "[*] Creating ext4 filesystem on $PART..."
-mkfs.ext4 -L sieste-root "$PART"
+mkfs.ext4 -L hamac-root "$PART"
 
 # Mount and populate
 echo "[*] Mounting filesystem..."
@@ -88,7 +88,7 @@ mkdir -p "$MOUNT_DIR"/var/log
 
 # Create minimal /etc files
 cat > "$MOUNT_DIR/etc/fstab" << 'EOF'
-# /etc/fstab - SIESTE minimal image
+# /etc/fstab - Hamac minimal image
 /dev/root   /           ext4    defaults,noatime    0 1
 proc        /proc       proc    defaults            0 0
 sysfs       /sys        sysfs   defaults            0 0
@@ -96,17 +96,17 @@ devtmpfs    /dev        devtmpfs defaults           0 0
 EOF
 
 cat > "$MOUNT_DIR/etc/hostname" << 'EOF'
-sieste-node
+hamac-node
 EOF
 
 cat > "$MOUNT_DIR/etc/hosts" << 'EOF'
 127.0.0.1   localhost
-127.0.1.1   sieste-node
+127.0.1.1   hamac-node
 EOF
 
 # Create a marker file for testing
-cat > "$MOUNT_DIR/etc/sieste-image" << EOF
-SIESTE Test Image
+cat > "$MOUNT_DIR/etc/hamac-image" << EOF
+Hamac test image
 Built: $(date -Iseconds)
 Version: 0.1.0
 EOF
@@ -116,13 +116,13 @@ mkdir -p "$MOUNT_DIR/var/lib/cloud/seed/nocloud"
 cat > "$MOUNT_DIR/var/lib/cloud/seed/nocloud/meta-data" << 'EOF'
 # Placeholder - will be replaced during provisioning
 instance-id: placeholder
-local-hostname: sieste-node
+local-hostname: hamac-node
 EOF
 
 cat > "$MOUNT_DIR/var/lib/cloud/seed/nocloud/user-data" << 'EOF'
 #cloud-config
 # Placeholder - will be replaced during provisioning
-hostname: sieste-node
+hostname: hamac-node
 EOF
 
 # Cleanup

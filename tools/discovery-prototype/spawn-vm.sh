@@ -1,5 +1,5 @@
 #!/bin/bash
-# Spawn a test VM with PXE boot for SIESTE discovery prototype
+# Spawn a test VM with PXE boot for Hamac discovery prototype
 # Usage: ./spawn-vm.sh <vm-name> [memory-mb] [cpus]
 
 set -e
@@ -7,13 +7,13 @@ set -e
 VM_NAME="${1:-test-node}"
 MEMORY="${2:-512}"
 CPUS="${3:-1}"
-BRIDGE="virbr-sieste"
+BRIDGE="virbr-hamac"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VM_DIR="$SCRIPT_DIR/vms"
 DISK="$VM_DIR/$VM_NAME.qcow2"
 
-echo "=== SIESTE Discovery - Spawning VM: $VM_NAME ==="
+echo "=== Hamac discovery - Spawning VM: $VM_NAME ==="
 
 # Check if bridge exists
 if ! ip link show "$BRIDGE" &>/dev/null; then

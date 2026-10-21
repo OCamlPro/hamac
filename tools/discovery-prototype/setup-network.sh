@@ -1,14 +1,14 @@
 #!/bin/bash
-# Setup isolated network bridge for SIESTE discovery prototype
+# Setup isolated network bridge for Hamac discovery prototype
 # Run as root: sudo ./setup-network.sh
 
 set -e
 
-BRIDGE="virbr-sieste"
+BRIDGE="virbr-hamac"
 SUBNET="10.99.0.0/24"
 GATEWAY="10.99.0.1"
 
-echo "=== SIESTE Discovery Network Setup ==="
+echo "=== Hamac discovery Network Setup ==="
 
 # Check if bridge already exists
 if ip link show "$BRIDGE" &>/dev/null; then

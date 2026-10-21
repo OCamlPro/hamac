@@ -1,9 +1,9 @@
 #!/bin/bash
-# Stop dnsmasq for SIESTE discovery prototype
+# Stop dnsmasq for Hamac discovery prototype
 
-PID_FILE="/tmp/sieste-dnsmasq.pid"
+PID_FILE="/tmp/hamac-dnsmasq.pid"
 
-echo "=== SIESTE Discovery - Stopping dnsmasq ==="
+echo "=== Hamac discovery - Stopping dnsmasq ==="
 
 if [ -f "$PID_FILE" ]; then
     PID=$(cat "$PID_FILE")
@@ -18,5 +18,5 @@ if [ -f "$PID_FILE" ]; then
     fi
 else
     echo "PID file not found, trying pkill..."
-    pkill -f "dnsmasq.*sieste" || echo "No dnsmasq process found"
+    pkill -f "dnsmasq.*hamac" || echo "No dnsmasq process found"
 fi

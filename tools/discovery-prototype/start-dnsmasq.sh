@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start dnsmasq for SIESTE discovery prototype
+# Start dnsmasq for Hamac discovery prototype
 # Run as root: sudo ./start-dnsmasq.sh
 
 set -e
@@ -7,9 +7,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONF="$SCRIPT_DIR/dnsmasq.conf"
 TFTP_DIR="$SCRIPT_DIR/tftp"
-PID_FILE="/tmp/sieste-dnsmasq.pid"
+PID_FILE="/tmp/hamac-dnsmasq.pid"
 
-echo "=== SIESTE Discovery - Starting dnsmasq ==="
+echo "=== Hamac discovery - Starting dnsmasq ==="
 
 # Check if already running
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then

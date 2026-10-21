@@ -30,7 +30,7 @@ fi
 DISCOVERY_URL="${DISCOVERY_URL:-http://10.0.2.2:8877}"
 
 echo "============================================"
-echo "SIESTE QEMU Direct Boot Test"
+echo "Hamac QEMU Direct Boot Test"
 echo "============================================"
 echo ""
 echo "Kernel: $TFTP_DIR/vmlinuz"
@@ -50,7 +50,7 @@ echo ""
 qemu-system-x86_64 \
     -kernel "$TFTP_DIR/vmlinuz" \
     -initrd "$TFTP_DIR/initrd.img" \
-    -append "console=ttyS0 sieste.discovery=$DISCOVERY_URL" \
+    -append "console=ttyS0 hamac.discovery=$DISCOVERY_URL" \
     -m 256M \
     -nographic \
     -no-reboot \

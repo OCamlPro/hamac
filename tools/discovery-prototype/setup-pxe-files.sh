@@ -1,5 +1,5 @@
 #!/bin/bash
-# Setup PXE boot files for SIESTE discovery prototype
+# Setup PXE boot files for Hamac discovery prototype
 # Downloads syslinux/pxelinux and creates boot configuration
 
 set -e
@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TFTP_DIR="$SCRIPT_DIR/tftp"
 PXELINUX_DIR="$TFTP_DIR/pxelinux.cfg"
 
-echo "=== SIESTE Discovery - Setting up PXE files ==="
+echo "=== Hamac discovery - Setting up PXE files ==="
 
 mkdir -p "$TFTP_DIR"
 mkdir -p "$PXELINUX_DIR"
@@ -52,13 +52,13 @@ done
 
 # Create simple PXE boot menu
 cat > "$PXELINUX_DIR/default" << 'EOF'
-DEFAULT sieste-register
+DEFAULT hamac-register
 TIMEOUT 30
 PROMPT 0
 
-LABEL sieste-register
+LABEL hamac-register
     KERNEL vmlinuz
-    APPEND initrd=initrd.img ip=dhcp sieste.discovery=http://10.99.0.1:8877/register quiet
+    APPEND initrd=initrd.img ip=dhcp hamac.discovery=http://10.99.0.1:8877/register quiet
 
 LABEL local
     LOCALBOOT 0

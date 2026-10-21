@@ -1,4 +1,4 @@
-# SIESTE Infrastructure Discovery & Provisioning Prototype
+# Hamac discovery and provisioning prototype
 
 Local prototype for testing PXE-based zero-touch infrastructure provisioning using QEMU/KVM.
 
@@ -20,7 +20,7 @@ Local prototype for testing PXE-based zero-touch infrastructure provisioning usi
 │         │            │  - /config       │           │                       │
 │         │            └──────────────────┘           │                       │
 │         └───────────────────┴───────────────────────┘                       │
-│                    virbr-sieste (10.99.0.0/24)                              │
+│                    virbr-hamac (10.99.0.0/24)                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -43,7 +43,7 @@ Local prototype for testing PXE-based zero-touch infrastructure provisioning usi
                                      │
                                      ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│  3. IMAGE DOWNLOAD (if sieste.install=yes)                                  │
+│  3. IMAGE DOWNLOAD (if hamac.install=yes)                                  │
 ├────────────────────────────────────────────────────────────────────────────┤
 │  GET /images/<name> → download pre-built OS image (gzipped)                │
 │  → write to disk with dd                                                    │
@@ -127,7 +127,7 @@ qemu-system-x86_64 \
   -m 2048 -smp 2 \
   -drive file=/tmp/node1-disk.qcow2,format=qcow2 \
   -boot n \
-  -append "sieste.install=yes sieste.role=control-plane sieste.hostname=master1" \
+  -append "hamac.install=yes hamac.role=control-plane hamac.hostname=master1" \
   ...
 
 # 5. After reboot, node will have k3s installed
@@ -154,12 +154,12 @@ The initramfs accepts these kernel parameters:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sieste.discovery=URL` | Discovery server URL | `http://10.0.2.2:8877` |
-| `sieste.hostname=NAME` | Node hostname | `sieste-node-$$` |
-| `sieste.role=ROLE` | Node role: `control-plane` or `worker` | `worker` |
-| `sieste.install=yes` | Enable OS installation | `no` |
-| `sieste.disk=DEVICE` | Target disk device | auto-detect |
-| `sieste.image=URL` | OS image URL (overrides config) | from server |
+| `hamac.discovery=URL` | Discovery server URL | `http://10.0.2.2:8877` |
+| `hamac.hostname=NAME` | Node hostname | `hamac-node-$$` |
+| `hamac.role=ROLE` | Node role: `control-plane` or `worker` | `worker` |
+| `hamac.install=yes` | Enable OS installation | `no` |
+| `hamac.disk=DEVICE` | Target disk device | auto-detect |
+| `hamac.image=URL` | OS image URL (overrides config) | from server |
 
 ## Files
 
@@ -177,7 +177,7 @@ The initramfs accepts these kernel parameters:
 
 ## Network Configuration
 
-- Bridge: `virbr-sieste`
+- Bridge: `virbr-hamac`
 - Subnet: `10.99.0.0/24`
 - Gateway/Discovery: `10.99.0.1`
 - DHCP range: `10.99.0.100-10.99.0.200`
@@ -188,7 +188,7 @@ The initramfs accepts these kernel parameters:
 - QEMU/KVM
 - dnsmasq
 - bridge-utils (for brctl)
-- OCaml with cohttp-lwt-unix (already in sieste dependencies)
+- OCaml with cohttp-lwt-unix (already among Hamac dependencies)
 
 ## Cloud-Init Configuration
 
