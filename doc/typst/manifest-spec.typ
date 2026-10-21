@@ -193,13 +193,13 @@ consumes:
       S3_SECRET_KEY: "{secret_key}"
 
 security:
-  zone: internal
+  zone: rh
   route_labels:
     - route: /health
       public: true
     - route: /employees/salaries
-      classification: confidential
-      categories: [finance]
+      classification: internal
+      categories: [rh]
       required_clearance: [comptable, admin]
 
 ports:
@@ -335,14 +335,14 @@ par consommateur ; chaque clé n'a de droits que sur son seau.
 
 ```yaml
 security:
-  zone: internal
+  zone: rh
   route_labels:
     - route: /health
       public: true
     - route: /employees/salaries
       methods: [GET]
-      classification: confidential
-      categories: [finance]
+      classification: internal
+      categories: [rh]
       required_clearance: [comptable, admin]
 ```
 
