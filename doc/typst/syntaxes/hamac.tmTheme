@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Thème de coloration aux couleurs de la charte Hamac, pour fond clair. -->
+<plist version="1.0">
+<dict>
+  <key>name</key><string>Hamac</string>
+  <key>settings</key>
+  <array>
+    <dict><key>settings</key><dict>
+      <key>foreground</key><string>#192e50</string>
+      <key>background</key><string>#f4f6f8</string>
+    </dict></dict>
+    <dict><key>name</key><string>Commentaires</string>
+      <key>scope</key><string>comment</string>
+      <key>settings</key><dict><key>foreground</key><string>#7d8c9b</string><key>fontStyle</key><string>italic</string></dict></dict>
+    <dict><key>name</key><string>Chaînes</string>
+      <key>scope</key><string>string</string>
+      <key>settings</key><dict><key>foreground</key><string>#2f7d32</string></dict></dict>
+    <dict><key>name</key><string>Trous et échappements</string>
+      <key>scope</key><string>constant.other.placeholder, constant.character.escape</string>
+      <key>settings</key><dict><key>foreground</key><string>#b3601a</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Mots-clés et directives</string>
+      <key>scope</key><string>keyword, storage</string>
+      <key>settings</key><dict><key>foreground</key><string>#b3601a</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Opérateur de règle</string>
+      <key>scope</key><string>keyword.operator.rule</string>
+      <key>settings</key><dict><key>foreground</key><string>#b3261e</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>En-têtes de bloc, clés YAML</string>
+      <key>scope</key><string>entity.name.type, entity.name.tag</string>
+      <key>settings</key><dict><key>foreground</key><string>#192e50</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Attributs déclarés</string>
+      <key>scope</key><string>support.type.property-name</string>
+      <key>settings</key><dict><key>foreground</key><string>#3a5f94</string></dict></dict>
+    <dict><key>name</key><string>Accès aux attributs</string>
+      <key>scope</key><string>variable.other.member</string>
+      <key>settings</key><dict><key>foreground</key><string>#3a5f94</string><key>fontStyle</key><string>italic</string></dict></dict>
+    <dict><key>name</key><string>Variables</string>
+      <key>scope</key><string>variable.parameter, variable</string>
+      <key>settings</key><dict><key>foreground</key><string>#1d6f6a</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Prédicats</string>
+      <key>scope</key><string>entity.name.function, support.function</string>
+      <key>settings</key><dict><key>foreground</key><string>#192e50</string></dict></dict>
+    <dict><key>name</key><string>Nombres et constantes du langage</string>
+      <key>scope</key><string>constant.numeric, constant.language</string>
+      <key>settings</key><dict><key>foreground</key><string>#8a3fa0</string></dict></dict>
+    <dict><key>name</key><string>Constantes</string>
+      <key>scope</key><string>constant.other</string>
+      <key>settings</key><dict><key>foreground</key><string>#192e50</string></dict></dict>
+  </array>
+</dict>
+</plist>

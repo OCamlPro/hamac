@@ -1,0 +1,60 @@
+%YAML 1.2
+---
+# Coloration syntaxique du langage de manifestes Hamac et de l'ASP (clingo).
+# Utilisée par Typst (blocs ```hamac et ```asp) ; compatible Sublime Text et
+# bat.
+name: Hamac
+file_extensions: [hamac, asp, lp]
+scope: source.hamac
+
+contexts:
+  main:
+    - match: '%.*$'
+      scope: comment.line.percentage.hamac
+    - match: '"'
+      scope: punctuation.definition.string.begin.hamac
+      push: string
+    # Directives et agrégats : #minimize, #count…
+    - match: '#[a-z]+\b'
+      scope: keyword.control.directive.hamac
+    - match: '\b(module|import|predicate|domain)\b'
+      scope: keyword.declaration.hamac
+    - match: '\b(not|this)\b'
+      scope: keyword.other.hamac
+    - match: ':-|:~'
+      scope: keyword.operator.rule.hamac
+    # En-tête de bloc : « service hr_api { », « route "/health" { »
+    - match: '^(\s*)([a-z][a-zA-Z0-9_]*)(\s+)(?=[a-z"][^{}:]*\{)'
+      captures:
+        2: entity.name.type.block.hamac
+    # Accès à un attribut : P.user, this.provider
+    - match: '(?<=[A-Za-z0-9_)])(\.)([a-z][a-zA-Z0-9_]*)'
+      captures:
+        2: variable.other.member.hamac
+    # Variables : majuscule ou souligné initial
+    - match: '\b[A-Z_][A-Za-z0-9_]*\b'
+      scope: variable.parameter.hamac
+    # Prédicats et termes fonctionnels : nom suivi de « ( »
+    - match: '\b[a-z][a-zA-Z0-9_]*(?=\()'
+      scope: entity.name.function.hamac
+    # Premier mot d'une instruction dans un bloc : l'attribut déclaré, en
+    # début de ligne ou juste après l'accolade d'un bloc écrit sur une ligne
+    - match: '(^\s*|(?<=\{)\s*|(?<=\.)\s+)([a-z][a-zA-Z0-9_]*)\b(?!\()'
+      captures:
+        2: support.type.property-name.hamac
+    - match: '\b\d+\b'
+      scope: constant.numeric.hamac
+    - match: '\b[a-z][a-zA-Z0-9_]*\b'
+      scope: constant.other.symbol.hamac
+    - match: '[{}]'
+      scope: punctuation.section.block.hamac
+
+  string:
+    - meta_scope: string.quoted.double.hamac
+    - match: '\\.'
+      scope: constant.character.escape.hamac
+    - match: '~'
+      scope: constant.other.placeholder.hamac
+    - match: '"'
+      scope: punctuation.definition.string.end.hamac
+      pop: true
