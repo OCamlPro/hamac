@@ -16,8 +16,8 @@
     <dict><key>name</key><string>Chaînes</string>
       <key>scope</key><string>string</string>
       <key>settings</key><dict><key>foreground</key><string>#2f7d32</string></dict></dict>
-    <dict><key>name</key><string>Trous et échappements</string>
-      <key>scope</key><string>constant.other.placeholder, constant.character.escape</string>
+    <dict><key>name</key><string>Accolades d'interpolation et échappements</string>
+      <key>scope</key><string>punctuation.section.interpolation, constant.character.escape</string>
       <key>settings</key><dict><key>foreground</key><string>#b3601a</string><key>fontStyle</key><string>bold</string></dict></dict>
     <dict><key>name</key><string>Mots-clés et directives</string>
       <key>scope</key><string>keyword, storage</string>

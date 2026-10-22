@@ -11,6 +11,12 @@ contexts:
   main:
     - match: '%.*$'
       scope: comment.line.percentage.hamac
+    # fmt("…{P.user}…") : chaîne interpolée
+    - match: '\b(fmt)(\()(")'
+      captures:
+        1: entity.name.function.hamac
+        3: string.quoted.double.hamac punctuation.definition.string.begin.hamac
+      push: fstring
     - match: '"'
       scope: punctuation.definition.string.begin.hamac
       push: string
@@ -53,8 +59,35 @@ contexts:
     - meta_scope: string.quoted.double.hamac
     - match: '\\.'
       scope: constant.character.escape.hamac
-    - match: '~'
-      scope: constant.other.placeholder.hamac
     - match: '"'
       scope: punctuation.definition.string.end.hamac
       pop: true
+
+  fstring:
+    - meta_scope: string.quoted.double.interpolated.hamac
+    - match: '\{\{|\}\}'
+      scope: constant.character.escape.hamac
+    - match: '\{'
+      scope: punctuation.section.interpolation.begin.hamac
+      push: interpolation
+    - match: '\\.'
+      scope: constant.character.escape.hamac
+    - match: '"'
+      scope: punctuation.definition.string.end.hamac
+      pop: true
+
+  interpolation:
+    - clear_scopes: 1
+    - meta_scope: meta.interpolation.hamac
+    - match: '\}'
+      scope: punctuation.section.interpolation.end.hamac
+      pop: true
+    - match: '\bthis\b'
+      scope: keyword.other.hamac
+    - match: '(\.)([a-z][a-zA-Z0-9_]*)'
+      captures:
+        2: variable.other.member.hamac
+    - match: '\b[A-Z_][A-Za-z0-9_]*\b'
+      scope: variable.parameter.hamac
+    - match: '\b[a-z][a-zA-Z0-9_]*\b'
+      scope: constant.other.symbol.hamac
