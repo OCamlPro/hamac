@@ -61,3 +61,32 @@ s'il n'en a trouvé aucun.
          [OPTION]… [FILES]…
   hamac: option --time-limit: "-1" is not a non-negative number of seconds
   [124]
+
+Les contraintes et objectifs des patrons s'ajoutent à hamac.lp. Une
+contrainte hard qu'aucun placement ne satisfait est nommée, avec ses
+témoins.
+
+  $ hamac plan quorum.loaf 2>&1 | grep -v W001
+  hamac: [ERROR] plan: no placement of the services satisfies the constraint quorum of pattern p (web)
+
+Un objectif passe avant la minimisation des nœuds, et une contrainte soft de
+priorité moindre ne l'emporte pas sur lui : violée, elle donne un
+avertissement par témoin.
+
+  $ hamac plan objective.loaf 2>&1 | grep -v W001 | sed -n '/^Proposed/,/^$/p;/WARNING/p'
+  Proposed topology:
+    3x node [a] — 4096Mi RAM, 4 CPU
+  
+  hamac: [WARNING] soft constraint compact of pattern p ((a,3)) is violated
+
+Une déclaration sans ses deux-points, une erreur de syntaxe ou un prédicat
+qu'aucune règle ne définit donnent E052, à la déclaration ; les erreurs de
+syntaxe arrêtent clingo avant le grounding.
+
+  $ hamac validate malformed.loaf 2>&1 | grep E052
+  hamac: [ERROR] malformed.loaf:10:22: [E052] constraint colon of p: expected 'terms : body'
+  hamac: [ERROR] malformed.loaf:11:23: [E052] constraint syntax of p: syntax error, unexpected +
+  $ sed -i '/constraint syntax/d' malformed.loaf
+  $ hamac validate malformed.loaf 2>&1 | grep E052
+  hamac: [ERROR] malformed.loaf:10:22: [E052] constraint colon of p: expected 'terms : body'
+  hamac: [ERROR] malformed.loaf:11:3: [E052] minimize "1, H : usde(H)" of p: atom does not occur in any rule head: usde(H)

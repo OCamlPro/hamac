@@ -427,11 +427,6 @@ let service cx s : service_manifest =
 (* kind: pattern                                                 *)
 (* ============================================================ *)
 
-let constraint_error cx ?loc (e : Constraint_lang.error) =
-  note cx ?loc "E052" []
-    (if e.offset < 0 then e.message
-     else Printf.sprintf "%s (at character %d)" e.message (e.offset + 1))
-
 let pattern cx pt : pattern_manifest =
   let k = "pattern" in
   let p = [pt] in
@@ -453,26 +448,22 @@ let pattern cx pt : pattern_manifest =
       (z, Option.get (assurance_of (List.filter_map (function
          | [z'; a; l] when const z' = z -> Some (const a, l) | _ -> None) rows))))
       zone_names in
-  let constraints = F.list1 cx k p "constraint" Fun.id |> List.filter_map (fun c ->
+  (* The rules of constraints and objectives are checked by the planner,
+     with its program (E052). *)
+  let constraints = F.list1 cx k p "constraint" Fun.id |> List.map (fun c ->
     let q = [pt; c] in
-    let expr_src = F.req1 cx k q "constraint.expr" str in
-    match Constraint_lang.check_constraint expr_src with
-    | Error e -> constraint_error cx ?loc:(F.loc cx k q "constraint.expr") e; None
-    | Ok expr ->
-      Some { cid = const c;
-             cdescription = Option.value (F.opt1 cx k q "constraint.description" str) ~default:"";
-             severity = Option.value (F.opt1 cx k q "constraint.severity" const) ~default:"hard";
-             weight = F.opt1 cx k q "constraint.weight" int;
-             expr_src; expr }) in
-  let objectives direction = F.list1 cx k p direction Fun.id |> List.filter_map (fun t ->
+    { cid = const c;
+      cdescription = Option.value (F.opt1 cx k q "constraint.description" str) ~default:"";
+      severity = Option.value (F.opt1 cx k q "constraint.severity" const) ~default:"hard";
+      weight = Option.value (F.opt1 cx k q "constraint.weight" int) ~default:1;
+      cpriority = Option.value (F.opt1 cx k q "constraint.priority" int) ~default:1;
+      violation = F.req1 cx k q "constraint.violation" str;
+      cloc = F.loc cx k q "constraint.violation" }) in
+  let objectives direction = F.list1 cx k p direction Fun.id |> List.map (fun t ->
     let q = [pt; t] in
-    let term_src = str t in
-    match Constraint_lang.check_objective term_src with
-    | Error e -> constraint_error cx ?loc:(F.loc cx k q direction) e; None
-    | Ok term ->
-      Some { direction; term_src; term;
-             priority = Option.value (F.opt1 cx k q (direction ^ ".priority") int) ~default:1;
-             oweight = F.opt1 cx k q (direction ^ ".weight") int }) in
+    { direction; element = str t;
+      priority = Option.value (F.opt1 cx k q (direction ^ ".priority") int) ~default:1;
+      oloc = F.loc cx k q direction }) in
   { pat_name = name pt;
     pat_version = None;  (* that of its module: set by load *)
     lattice; zones; pat_assurance; constraints;

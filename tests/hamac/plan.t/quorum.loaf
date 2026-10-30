@@ -1,0 +1,20 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+% Chaque service sur trois nœuds au moins : web n'a que deux répliques.
+pattern p {
+  levels [low].
+  zone a { level low. }
+  constraint quorum {
+    violation "S : deployed(S), #count { H : on(S, H) } < 3".
+  }
+}
+
+service web {
+  runtime http.
+  zone a.
+  replicas 2.
+}

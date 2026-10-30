@@ -42,14 +42,15 @@ notes de travail restent en Markdown. Typst installé par snap ne peut pas écri
 - **`pkgs/hamac-manifest`** — bibliothèque du format pivot, utilisable seule : `Types`,
   `Loaf_source` (chargeur LOAF → `Types`, vocabulaire trouvé par dune-site ou
   `HAMAC_VOCABULARY`), `Checks` (contrôles d'un manifeste que le vocabulaire n'exprime pas),
-  `Diagnostic`, `Lattice` (treillis composé depuis les patrons), `Constraint_lang` (langage
-  des contraintes), `Flows` (flux déclarés, règles de filtrage), `Stack_check` (chargement
-  d'un ensemble, validation de l'étage 3). Tout code qui lit ou valide un
+  `Diagnostic`, `Lattice` (treillis composé depuis les patrons), `Flows` (flux déclarés,
+  règles de filtrage), `Stack_check` (chargement d'un ensemble, validation de l'étage 3). Tout code qui lit ou valide un
   manifeste passe par elle.
 - **`pkgs/hamac-clingo`** — bibliothèque : liaison OCaml de libclingo (API C du solveur ASP
   clingo, stubs C `clingo_stubs.c`), sans dépendance à Hamac. Le planificateur
   (`pkgs/hamac/planner.ml`) résout avec elle la forme ASP des manifestes (`Loaf_source.asp`)
-  augmentée de `pkgs/hamac/hamac.lp` (placement des répliques, embarqué dans l'exécutable).
+  augmentée de `pkgs/hamac/hamac.lp` (placement des répliques, embarqué dans l'exécutable)
+  et des règles des contraintes et objectifs des patrons, écrites en ASP sur les prédicats
+  que `hamac.lp` publie (`Planner.pattern_rules`, contrôlées par `Planner.check` : E052).
 - **`pkgs/hamac-provisioning`** — bibliothèque : rendu du provisioning (cloud-init + iPXE,
   `provisioning_gen.ml`).
 - **`pkgs/hamac-discovery`** — serveur de découverte : stocke un enregistrement de provisioning

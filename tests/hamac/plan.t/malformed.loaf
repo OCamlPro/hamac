@@ -1,0 +1,18 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+pattern p {
+  levels [low].
+  zone a { level low. }
+  constraint colon { violation "used(H)". }
+  constraint syntax { violation "H : used(H), H ++ 1". }
+  minimize "1, H : usde(H)".
+}
+
+service web {
+  runtime http.
+  zone a.
+}

@@ -25,7 +25,7 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   examples/hr-stack/portal.loaf: service (name=portal, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
-  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple-rh, version=1.0.0, 3 zones, 3 constraints)
+  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple-rh, version=1.0.0, 3 zones, 2 constraints)
   examples/hr-stack/stack.loaf: stack (name=hr, 3 services)
   hamac: [WARNING] providers/postgresql.loaf:25:3: [W010] artifact.path: OCI image 'postgres:15-alpine' is not pinned by digest (@sha256:…)
   hamac: [WARNING] providers/redis.loaf:19:3: [W010] artifact.path: OCI image 'redis:7-alpine' is not pinned by digest (@sha256:…)
@@ -312,59 +312,28 @@ premier port.
        [("rh", { Types.boot = (Some "measured-tpm2"); operator = None; physical = (Some "site") })];
        constraints =
        [{ Types.cid = "one_level_per_host";
-          cdescription = "Deux niveaux ne partagent jamais un noyau"; severity = "hard";
-          weight = None; expr_src = "forall h in hosts: count(levels_on(h)) <= 1";
-          expr =
-          (Constraint_lang.Quant (Constraint_lang.Forall, "h", (Constraint_lang.Domain "hosts"),
-             None,
-             (Constraint_lang.Cmp (Constraint_lang.Le,
-                (Constraint_lang.App ("count",
-                   [(Constraint_lang.App ("levels_on", [(Constraint_lang.Var "h")]))])),
-                (Constraint_lang.Int 1)))
-             ))
+          cdescription = "Deux niveaux ne partagent jamais un noyau"; severity = "hard"; 
+          weight = 1; cpriority = 1; violation = "H : level_on(H, L1), level_on(H, L2), L1 != L2";
+          cloc =
+          (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
+                  line = 30; column = 5 })
           };
-         { Types.cid = "rh_on_site"; cdescription = "Les donn\195\169es RH restent sur le site";
-           severity = "hard"; weight = None;
-           expr_src =
-           "forall s in services where zone(s) = \"rh\": forall h in hosts_of(s): h.physical = \"site\"";
-           expr =
-           (Constraint_lang.Quant (Constraint_lang.Forall, "s", (Constraint_lang.Domain "services"),
-              (Some (Constraint_lang.Cmp (Constraint_lang.Eq,
-                       (Constraint_lang.App ("zone", [(Constraint_lang.Var "s")])),
-                       (Constraint_lang.Str "rh")))),
-              (Constraint_lang.Quant (Constraint_lang.Forall, "h",
-                 (Constraint_lang.Set_of ("hosts_of", (Constraint_lang.Var "s"))), None,
-                 (Constraint_lang.Cmp (Constraint_lang.Eq, (Constraint_lang.Field ("h", "physical")),
-                    (Constraint_lang.Str "site")))
-                 ))
-              ))
-           };
          { Types.cid = "stateful_quorum";
            cdescription =
            "Un service \195\160 \195\169tat survit \195\160 la perte d'un domaine de panne";
-           severity = "hard"; weight = None;
-           expr_src =
-           "forall s in services where stateful(s): count(failure_domains(hosts_of(s))) >= 3";
-           expr =
-           (Constraint_lang.Quant (Constraint_lang.Forall, "s", (Constraint_lang.Domain "services"),
-              (Some (Constraint_lang.Term
-                       (Constraint_lang.App ("stateful", [(Constraint_lang.Var "s")])))),
-              (Constraint_lang.Cmp (Constraint_lang.Ge,
-                 (Constraint_lang.App ("count",
-                    [(Constraint_lang.App ("failure_domains",
-                        [(Constraint_lang.App ("hosts_of", [(Constraint_lang.Var "s")]))]))
-                      ]
-                    )),
-                 (Constraint_lang.Int 3)))
-              ))
+           severity = "soft"; weight = 1; cpriority = 1;
+           violation = "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3";
+           cloc =
+           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf";
+                   line = 36; column = 5 })
            }
          ];
        objectives =
-       [{ Types.direction = "minimize"; term_src = "count(hosts_used)";
-          term = (Constraint_lang.App ("count", [(Constraint_lang.Var "hosts_used")])); 
-          priority = 1; oweight = None };
-         { Types.direction = "minimize"; term_src = "moves"; term = (Constraint_lang.Var "moves");
-           priority = 2; oweight = None }
+       [{ Types.direction = "minimize"; element = "1, H : used(H)"; priority = 1;
+          oloc =
+          (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
+                  line = 39; column = 3 })
+          }
          ]
        })
   == examples/hr-stack/stack.loaf
@@ -695,6 +664,7 @@ zone tiendrait en volume sur un seul.
     DENY public -> rh (no read up)
     DENY rh -> public (no declared flow)
   
+  hamac: [WARNING] soft constraint stateful_quorum of pattern exemple-rh (payroll-report) is violated
 
 Le rendu d'un profil.
 

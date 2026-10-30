@@ -6,12 +6,14 @@
 % Il s'ajoute à la forme ASP des manifestes (Loaf.asp : service/1,
 % service_zone/2, service_memory_limit/3…) et place chaque réplique de
 % chaque service à déployer sur un nœud de sa zone, en respectant la
-% capacité des nœuds et la répartition demandée, avec le moins de nœuds
-% possible.
+% capacité des nœuds, la répartition demandée et les contraintes des
+% patrons, avec le moins de nœuds possible après leurs objectifs.
 %
 % Le planificateur (planner.ml) fixe la taille d'un nœud par -c node_memory=…
-% -c node_cpu=… ; les valeurs ci-dessous ne servent qu'à lancer clingo à la
-% main sur ce fichier et la forme ASP d'un ensemble de manifestes :
+% -c node_cpu=…, et ajoute une règle par contrainte et par objectif des
+% patrons (Planner.pattern_rules) ; les valeurs ci-dessous ne servent qu'à
+% lancer clingo à la main sur ce fichier et la forme ASP d'un ensemble de
+% manifestes sans contraintes :
 %
 %   loaf export --asp -L <vocabulaire> <fichiers> > m.lp
 %   clingo m.lp hamac.lp
@@ -25,8 +27,9 @@
 % d'une énumération du vocabulaire (spread/1, par exemple, est l'énumération
 % des répartitions ; d'où spread_out/1).
 %
-% Prédicats publiés, sur lesquels les contraintes et objectifs des patrons
-% s'écriront (ne pas les renommer sans changer le vocabulaire des patrons) :
+% Prédicats publiés, sur lesquels s'écrivent les contraintes et objectifs
+% des patrons (ne pas les renommer sans changer leur spécification,
+% doc/typst/manifest-spec.typ, section « Contraintes ») :
 %
 %   deployed(S)          S est un service à déployer
 %   zone_of(S, Z)        sa zone (default sans zone déclarée)
@@ -34,17 +37,28 @@
 %                        dimensionné automatiquement)
 %   memory(S, M)         mémoire d'une réplique, en Mi (défaut 256)
 %   cpu(S, C)            processeur d'une réplique, en millicœurs (défaut 500)
+%   stateful(S)          S a un volume local ou répliqué
 %   replica(S, I)        la réplique I de S, I dans 1..N
 %   rank(S, I, R)        rang de la réplique dans sa zone (plus grandes d'abord)
 %   host(H)              un nœud candidat, H = (Z, K)
 %   host_zone(H, Z)      la zone d'un nœud
+%   failure_domain(H, D) le domaine de panne d'un nœud
 %   place(S, I, H)       la réplique I de S est sur le nœud H
 %   on(S, H)             au moins une réplique de S est sur H
 %   used(H)              le nœud H porte au moins une réplique
+%   level_on(H, L)       une zone de niveau L a une réplique sur H
 %   oversized(S, M, C)   une réplique de S dépasse un nœud (non placée)
+%
+% Et ceux des contraintes : violation(P, C, T), la contrainte C du patron P
+% est violée, de témoin T.
 
 #const node_memory = 4096.
 #const node_cpu = 4000.
+% relax = 1 : les contraintes hard des patrons deviennent des pénalités, de
+% priorité relax_priority, au-dessus de tout objectif ; le planificateur
+% s'en sert pour nommer celles qu'aucun placement ne satisfait.
+#const relax = 0.
+#const relax_priority = 1000.
 
 % ------------------------------------------------------------ services
 % Les services à déployer : ceux que nomme la stack ; sans stack, ceux qui
@@ -79,6 +93,9 @@ cpu(S, 500)      :- deployed(S), not service_cpu_limit(S, _, _).
 oversized(S, M, C) :- memory(S, M), cpu(S, C), M > node_memory.
 oversized(S, M, C) :- memory(S, M), cpu(S, C), C > node_cpu.
 
+% Un service à état garde des données sur son nœud.
+stateful(S) :- deployed(S), service_storage_class(S, _, C), C != ephemeral.
+
 % ------------------------------------------------------------ nœuds
 % Autant de nœuds candidats par zone que de répliques : une réplique par
 % nœud est toujours une solution, la minimisation retire les autres.
@@ -86,6 +103,9 @@ replica(S, 1..N) :- replicas(S, N).
 zone_replicas(Z, N) :- zone_of(_, Z), N = #sum { R, S : zone_of(S, Z), replicas(S, R) }.
 host((Z, 1..N)) :- zone_replicas(Z, N).
 host_zone((Z, K), Z) :- host((Z, K)).
+% Un nœud proposé est son propre domaine de panne : la topologie ne déclare
+% pas encore de domaines plus larges.
+failure_domain(H, H) :- host(H).
 
 % ------------------------------------------------------------ rangs
 % Les nœuds proposés sont identiques, et les répliques d'un service aussi :
@@ -109,15 +129,15 @@ rank(S, I, N + 1) :- key(S, I, Z, X), N = #count { Y : key(_, _, Z, Y), Y < X }.
 1 { place(S, I, (Z, K)) : host_zone((Z, K), Z), K <= R } 1 :- rank(S, I, R), zone_of(S, Z).
 on(S, H) :- place(S, _, H).
 used(H) :- place(_, _, H).
+level_on(H, L) :- on(S, H), zone_of(S, Z), pattern_zone_level(_, Z, L).
 
 % Capacité d'un nœud.
 :- host(H), #sum { M, S, I : place(S, I, H), memory(S, M) } > node_memory.
 :- host(H), #sum { C, S, I : place(S, I, H), cpu(S, C) } > node_cpu.
 
 % Répartition : les répliques d'un service réparti sont sur des nœuds
-% distincts. Un nœud proposé est son propre domaine de panne : tant que la
-% topologie ne déclare pas de domaines plus larges, failure_domain ne
-% demande pas plus que host.
+% distincts. Tant qu'un nœud est son propre domaine de panne,
+% failure_domain ne demande pas plus que host.
 spread_out(S) :- deployed(S), service_spread(S, host).
 spread_out(S) :- deployed(S), service_spread(S, failure_domain).
 :- spread_out(S), host(H), 2 { place(S, I, H) : replica(S, I) }.
@@ -147,9 +167,34 @@ lower_bound(Z, N) :- zone_of(_, Z),
                  S, I : key(S, I, Z, _), cpu(S, C), 2 * C > node_cpu }.
 :- lower_bound(Z, L), host_zone((Z, K), Z), K <= L, not used((Z, K)).
 
+% ------------------------------------------------------------ patrons
+% Une contrainte « termes : corps » donne la règle
+% violation_of(V, (termes)) :- corps., V étant la déclaration elle-même ;
+% un objectif « poids, termes : corps », minimize_term(E, poids, (termes))
+% ou maximize_term(…). Les faits des patrons les rattachent à leur patron.
+violation(P, C, T) :- violation_of(V, T), pattern_constraint_violation(P, C, V).
+
+soft_constraint(P, C) :- pattern_constraint_severity(P, C, soft).
+constraint_weight(P, C, W) :- pattern_constraint_weight(P, C, W).
+constraint_weight(P, C, 1) :- pattern_constraint(P, C), not pattern_constraint_weight(P, C, _).
+constraint_priority(P, C, N) :- pattern_constraint_priority(P, C, N).
+constraint_priority(P, C, 1) :- pattern_constraint(P, C), not pattern_constraint_priority(P, C, _).
+
+:- violation(P, C, _), not soft_constraint(P, C), relax = 0.
+:~ violation(P, C, T), not soft_constraint(P, C), relax = 1. [1@relax_priority, P, C, T]
+:~ violation(P, C, T), soft_constraint(P, C), constraint_weight(P, C, W), constraint_priority(P, C, N). [W@N, P, C, T]
+
+minimize_priority(P, E, N) :- pattern_minimize_priority(P, E, N).
+minimize_priority(P, E, 1) :- pattern_minimize(P, E), not pattern_minimize_priority(P, E, _).
+maximize_priority(P, E, N) :- pattern_maximize_priority(P, E, N).
+maximize_priority(P, E, 1) :- pattern_maximize(P, E), not pattern_maximize_priority(P, E, _).
+
+#minimize { W@N, P, E, T : minimize_term(E, W, T), minimize_priority(P, E, N) }.
+#maximize { W@N, P, E, T : maximize_term(E, W, T), maximize_priority(P, E, N) }.
+
 % ------------------------------------------------------------ objectif
-% Le moins de nœuds possible, à la priorité 0 : les objectifs des patrons,
-% de priorité 1 ou plus, passent avant.
+% Le moins de nœuds possible, à la priorité 0 : les objectifs et les
+% contraintes soft des patrons, de priorité 1 ou plus, passent avant.
 #minimize { 1@0, H : used(H) }.
 
 % ------------------------------------------------------------ sortie
@@ -159,6 +204,7 @@ lower_bound(Z, N) :- zone_of(_, Z),
 #show memory/2.
 #show cpu/2.
 #show oversized/3.
+#show violation/3.
 #show error/2.
 
 % Prédicats des manifestes qu'un ensemble peut ne pas définir.
@@ -168,4 +214,13 @@ lower_bound(Z, N) :- zone_of(_, Z),
 #defined service_max_replicas/2.
 #defined service_memory_limit/3.  #defined service_cpu_limit/3.
 #defined service_spread/2.    #defined service_anti_affinity/2.
+#defined service_storage_class/3.
+#defined pattern_zone_level/3.
+#defined pattern_constraint/2.     #defined pattern_constraint_violation/3.
+#defined pattern_constraint_severity/3.
+#defined pattern_constraint_weight/3.  #defined pattern_constraint_priority/3.
+#defined pattern_minimize/2.       #defined pattern_minimize_priority/3.
+#defined pattern_maximize/2.       #defined pattern_maximize_priority/3.
+% Ceux des règles des patrons, quand ils n'en ont pas.
+#defined violation_of/2.  #defined minimize_term/3.  #defined maximize_term/3.
 #defined error/2.

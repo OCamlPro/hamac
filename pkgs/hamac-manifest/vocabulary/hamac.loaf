@@ -238,20 +238,21 @@ block pattern {
   }
   assurance* name, axis => assurance_level.  % zone, axe : minimum
 
+  % Contraintes et objectifs : des éléments d'agrégat de clingo, écrits sur
+  % les prédicats que publie le planificateur.
   constraint* name {
     description? string.
     severity? severity.  % défaut hard
-    weight? int.
-    expr string.         % langage des contraintes de Hamac
+    weight? int.         % d'une contrainte soft, défaut 1
+    priority? int.       % d'une contrainte soft, défaut 1
+    violation string.    % « termes : corps »
   }
-  % Objectifs : le sujet est le terme à minimiser ou à maximiser.
+  % Objectifs : le sujet est l'élément « poids, termes : corps ».
   minimize* string {
     priority? int.       % défaut 1
-    weight? int.
   }
   maximize* string {
     priority? int.
-    weight? int.
   }
 }
 

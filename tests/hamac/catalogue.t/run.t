@@ -42,7 +42,7 @@ LOAF, et n'ont pas de cas ici.
   web.loaf: security.route_labels.0.classification: [E044] route '/vault' is classified secure, above zone internal (internal): a service holds no data more sensitive than its zone
   lib/b.loaf: lattice.levels: [E050] levels public < internal < secret differ from public < secret declared by another pattern of the stack
   lib/b.loaf: zones.0: [E051] zone 'rh' is already defined with another label or boundary
-  manifest.loaf:6:19: [E052] count expects a set, got a host
+  manifest.loaf:6:19: [E052] constraint c1 of p: unsafe variables: 'X' is unsafe
   manifest.loaf:11:3: [W001] placement: 'placement' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
   manifest.loaf:5:1: [W002] services: the stack has no services
   web.loaf:5:1: [W003] service web is defined in web-prod.loaf and web.loaf
