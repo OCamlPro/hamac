@@ -518,6 +518,26 @@ namespace hamac {
   shape(F, B, X, value) :- F.bundle(B).param(X).value(_).
   shape(F, B, X, items) :- F.bundle(B).param(X).items(_, _).
 
+  % Un paramètre que le bundle déclare, sous la forme de son type : une
+  % liste par items, un scalaire par value ; un objet ne vient que de
+  % l'enregistrement de la machine.
+  ::error(fmt("[E007] {X} is not a parameter of the bundle {B}"),
+          F.bundle(B).param(X)) :-
+      F.bundle(B).param(X), not B.param(X).
+  ::error(fmt("[E007] parameter {X} of the bundle {B} is a list: give it with items"),
+          F.bundle(B).param(X)) :-
+      F.bundle(B).param(X).value(_), B.param(X).type(T), list_type(T).
+  ::error(fmt("[E007] parameter {X} of the bundle {B} is not a list: give it with value"),
+          F.bundle(B).param(X)) :-
+      F.bundle(B).param(X).items(_, _), B.param(X).type(T), not list_type(T).
+  ::error(fmt("[E007] parameter {X} of the bundle {B} is an object: only the record of the machine gives it"),
+          F.bundle(B).param(X)) :-
+      F.bundle(B).param(X), B.param(X).type(object).
+  ::error(fmt("[E007] parameter {X} of the bundle {B} is a boolean: true or false"),
+          F.bundle(B).param(X)) :-
+      F.bundle(B).param(X).value(V), B.param(X).type(bool), V != true, V != false.
+  list_type(list_string). list_type(list_int).
+
   % Les paramètres d'un bundle que le profil n'applique pas.
   ::error(fmt("[E007] parameters of the bundle {B}, which bundles does not list"),
           F.bundle(B)) :-

@@ -1,0 +1,11 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+bundle b {
+  param s { type string. }
+  param l { type list_string. }
+  param f { type bool. }
+  param o { type object. }
+}

@@ -102,7 +102,10 @@ bundle dev_workstation {
 }
 ```
 
-`value` donne un paramètre scalaire, `items` un paramètre liste. Un paramètre
+`value` donne un paramètre scalaire (`true` ou `false` pour un booléen),
+`items` un paramètre liste ; un paramètre `object` ne vient que de
+l'enregistrement de la machine. Un paramètre que le bundle ne déclare pas, ou
+donné sous une autre forme que celle de son type, donne `E007`. Un paramètre
 `required` du bundle qu'aucune source ne fournit fait échouer le rendu.
 
 == Bloc `os` <bloc-os>

@@ -115,6 +115,16 @@ let check_required_params (b : bundle_manifest) (ref_params : (string * param_va
   in
   aux b.bdl_params
 
+(** Les paramètres sous le type que le bundle leur déclare : un profil écrit
+    un booléen comme la constante [true] ou [false], que la lecture du
+    profil, sans le bundle, garde en chaîne. *)
+let typed_params (b : bundle_manifest) (params : (string * param_value) list) =
+  List.map (fun (name, v) ->
+    match List.find_opt (fun (p : bundle_param_spec) -> p.param_name = name) b.bdl_params, v with
+    | Some { param_type = "bool"; _ }, PString "true" -> (name, PBool true)
+    | Some { param_type = "bool"; _ }, PString "false" -> (name, PBool false)
+    | _ -> (name, v)) params
+
 (* ============================================================ *)
 (* Rendu Jinja2 d'un fichier                                     *)
 (* ============================================================ *)
@@ -337,7 +347,7 @@ let render
     in
 
     (* 5. Rendre le template avec les params, puis parser en Yaml.value *)
-    let* tpl_str = render_file ~file:tpl_path ~params:br.bundle_params in
+    let* tpl_str = render_file ~file:tpl_path ~params:(typed_params b br.bundle_params) in
     (match parse_snippet tpl_str with
      | Ok v -> Ok v
      | Error m -> Error (Template_render_error (Fpath.to_string tpl_path, m)))

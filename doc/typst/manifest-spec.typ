@@ -1434,7 +1434,9 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     sans `readiness` ; route sans `zone` ; catégories d'un patron sans
     niveaux],
   code("E007"), [2], [valeur incorrecte : niveau d'assurance hors de son axe ;
-    paramètre de bundle sans, ou avec à la fois, `value` et `items` ;
+    paramètre de bundle sans, ou avec à la fois, `value` et `items`, que le
+    bundle ne déclare pas, ou donné sous une autre forme que celle de son
+    type ;
     paramètres d'un bundle que `bundles` ne liste pas ; référence de secret
     sans backend],
   code("E011"), [2], [`sha256` d'un artefact ou d'une image d'OS qui n'est pas

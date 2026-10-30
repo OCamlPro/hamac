@@ -88,3 +88,15 @@ Deux fragments qui écrivent le même fichier avec des contenus différents font
 
   $ hamac provision-dryrun --profile=collision.loaf --bundles-dir=bundles 2>&1 | grep write_files
   hamac: [ERROR] write_files : le bundle dev-workstation et cloud_init_extra écrivent tous deux '/etc/motd' avec des contenus différents
+
+Un profil donne à un bundle les paramètres que celui-ci déclare, sous la
+forme de leur type : items pour une liste, value pour un scalaire, true ou
+false pour un booléen ; un objet ne vient que de l'enregistrement de la
+machine.
+
+  $ hamac validate params 2>&1 | grep E007
+  hamac: [ERROR] params/profile.loaf:14:5: [E007] parameter s of the bundle b is not a list: give it with value
+  hamac: [ERROR] params/profile.loaf:15:5: [E007] parameter l of the bundle b is a list: give it with items
+  hamac: [ERROR] params/profile.loaf:16:5: [E007] parameter f of the bundle b is a boolean: true or false
+  hamac: [ERROR] params/profile.loaf:17:5: [E007] parameter o of the bundle b is an object: only the record of the machine gives it
+  hamac: [ERROR] params/profile.loaf:18:5: [E007] z is not a parameter of the bundle b

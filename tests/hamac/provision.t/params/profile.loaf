@@ -1,0 +1,20 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+provisioning_profile p {
+  os "x" {
+    url "http://x/y.qcow2".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format qcow2.
+  }
+  bundles [b].
+  bundle b {
+    param s { items ["a"]. }
+    param l { value "a". }
+    param f { value maybe. }
+    param o { value "x". }
+    param z { value "x". }
+  }
+}
