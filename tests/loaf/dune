@@ -13,6 +13,7 @@
   show.exe
   (package hamac-manifest)
   (glob_files_rec %{project_root}/examples/**)
+  (glob_files_rec %{project_root}/patterns/**)
   (glob_files_rec %{project_root}/providers/**)
   (glob_files_rec %{project_root}/provisioning-profiles/**)
   (glob_files_rec %{project_root}/templates/bundles/**))

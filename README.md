@@ -49,18 +49,20 @@ The commands below run as-is from the root of this repository, against the
 example manifests it ships.
 
 ```sh
-# Validate / plan / resolve manifests. The files given form one set: it
-# includes the providers that the services consume.
-hamac validate examples/enterprise-stack/*.loaf providers/*.loaf
-hamac plan     examples/enterprise-stack/*.loaf providers/*.loaf
-hamac resolve  examples/enterprise-stack/*.loaf providers/*.loaf
+# Validate / plan / resolve manifests. The files given (a directory stands
+# for the .loaf files it contains) form one set: it includes the providers
+# that the services consume.
+hamac validate examples/enterprise-stack providers
+hamac plan     examples/enterprise-stack providers
+hamac resolve  examples/enterprise-stack providers
 
-# A stack loads its pattern, a LOAF module, from a library directory (-L).
-hamac plan -L examples/hr-stack/patterns examples/hr-stack/*.loaf providers/*.loaf
+# A stack loads its pattern, a LOAF module, from a library directory:
+# ./patterns by default, or -L DIR.
+hamac plan examples/hr-stack providers
 
 # Credentials come from the system CSPRNG. --seed makes them reproducible for
 # tests and demos, and therefore predictable: never use it for a real deployment.
-hamac resolve --seed 42 examples/enterprise-stack/*.loaf providers/*.loaf
+hamac resolve --seed 42 examples/enterprise-stack providers
 
 # Bare-metal provisioning
 hamac provision-dryrun --profile=provisioning-profiles/dev-workstation-demo.loaf
@@ -81,7 +83,7 @@ Run `hamac --help` for the full command list.
 | `templates/bundles/<name>/` | Provisioning bundles: `bundle.loaf` + cloud-init Jinja2 templates. | `./templates/bundles`, `/usr/share/hamac/bundles`, or `--bundles-dir` |
 | `provisioning-profiles/` | `provisioning_profile` manifests. `dev-workstation.loaf` takes its parameters from the machine record; `dev-workstation-demo.loaf` carries them inline so a dry run needs nothing else. | passed with `--profile` |
 | `examples/enterprise-stack/` | Three services across three security zones, consuming a database and a cache; `analytics` (internal) reads `web_api` (public). | passed on the command line |
-| `examples/hr-stack/` | A stack with its pattern (`patterns/exemple_rh.loaf`): lattice, zones, routes, storage. | passed on the command line, pattern with `-L` |
+| `examples/hr-stack/` | A stack with its pattern (`patterns/exemple_rh.loaf`, a module found among the files given): lattice, zones, routes, storage. | passed on the command line |
 
 ## Security zones and flows
 

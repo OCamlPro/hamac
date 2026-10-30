@@ -6,8 +6,9 @@
 % et nomme ses services : leurs fichiers sont chargés avec elle, ainsi que
 % les providers.
 %
-%   hamac validate -L examples/hr-stack/patterns examples/hr-stack/*.loaf \
-%     providers/*.loaf
+%   hamac validate examples/hr-stack providers
+%
+% (depuis la racine du dépôt : le patron est dans ./patterns).
 
 loaf 0.1.
 use hamac 0.2.

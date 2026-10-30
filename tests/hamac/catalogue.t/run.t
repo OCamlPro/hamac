@@ -45,6 +45,7 @@ LOAF, et n'ont pas de cas ici.
   manifest.loaf:6:19: [E052] count expects a set, got a host
   manifest.loaf:11:3: [W001] placement: 'placement' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
   manifest.loaf:5:1: [W002] services: the stack has no services
+  web.loaf:5:1: [W003] service web is defined in web-prod.loaf and web.loaf
   manifest.loaf:7:3: [W010] artifact.path: OCI image 'registry.example.org/web:latest' is not pinned by digest (@sha256:…)
   manifest.loaf:11:3: [W011] health_check.timeout: timeout is not shorter than interval
   manifest.loaf:11:3: [W012] environment.DB_PASSWORD: looks like a literal secret: declare it in 'secrets'

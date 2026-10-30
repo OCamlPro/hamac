@@ -9,26 +9,28 @@ construit, puis les sorties des commandes.
 Validation
 ==========
 
-Une stack se charge avec ses services et les providers qu'elle consomme ;
-son patron est un module, qu'elle charge par `use` depuis un répertoire de
-bibliothèque (`-L`) : le langage refuse une référence à un bloc absent, ou un
-module introuvable.
+Une stack se charge avec ses services et les providers qu'elle consomme ; un
+dossier vaut les `.loaf` qu'il contient. Son patron est un module, qu'elle
+charge par `use` : parmi les fichiers donnés (le dossier de l'exemple contient
+`patterns/`), ou depuis un répertoire de bibliothèque (`./patterns` par
+défaut, ou `-L`). Le langage refuse une référence à un bloc absent, ou un
+module introuvable : ici, les fichiers de la stack sans son patron.
 
-  $ hamac validate $R/examples/hr-stack/*.loaf $R/providers/*.loaf 2>&1 | sed "s|$R/||"
-  hamac: [ERROR] examples/hr-stack/stack.loaf:14:1: [L009] use exemple_rh: no available version satisfies 1.0 (available: none)
+  $ hamac validate $R/examples/hr-stack/*.loaf $R/providers 2>&1 | sed "s|$R/||"
+  hamac: [ERROR] examples/hr-stack/stack.loaf:15:1: [L009] use exemple_rh: no available version satisfies 1.0 (available: none)
 
-  $ hamac validate -L $R/examples/hr-stack/patterns $R/examples/hr-stack/*.loaf $R/providers/*.loaf 2>&1 | sed "s|$R/||"
+  $ (cd $R && hamac validate examples/hr-stack providers)
   examples/hr-stack/hr-api.loaf: service (name=hr-api, runtime=http)
   examples/hr-stack/payroll-report.loaf: service (name=payroll-report, runtime=batch)
   examples/hr-stack/portal.loaf: service (name=portal, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
-  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple-rh, 3 zones, 3 constraints)
+  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple-rh, version=1.0.0, 3 zones, 3 constraints)
   examples/hr-stack/stack.loaf: stack (name=hr, 3 services)
   hamac: [WARNING] providers/postgresql.loaf:25:3: [W010] artifact.path: OCI image 'postgres:15-alpine' is not pinned by digest (@sha256:…)
   hamac: [WARNING] providers/redis.loaf:19:3: [W010] artifact.path: OCI image 'redis:7-alpine' is not pinned by digest (@sha256:…)
 
-  $ hamac validate $R/examples/enterprise-stack/*.loaf $R/providers/*.loaf 2>&1 | sed "s|$R/||"
+  $ hamac validate $R/examples/enterprise-stack $R/providers 2>&1 | sed "s|$R/||"
   examples/enterprise-stack/analytics.loaf: service (name=analytics, runtime=eventloop)
   examples/enterprise-stack/payroll.loaf: service (name=payroll, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
@@ -143,7 +145,7 @@ le modèle avec les termes de l'instance du provider (`{input.user}`,
 `{service_name}`), le point d'accès d'un service consommé est `{host}` et son
 premier port.
 
-  $ ../show.exe -L $R/examples/hr-stack/patterns $R/examples/hr-stack/*.loaf $R/providers/*.loaf | sed "s|$R/||"
+  $ ../show.exe -L $R/patterns $R/examples/hr-stack $R/providers | sed "s|$R/||"
   == examples/hr-stack/hr-api.loaf
   (Types.MService
      { Types.name = "hr-api"; runtime = "http";
@@ -296,7 +298,7 @@ premier port.
        storage = []; backup = None; secrets = []; placement = None; exposure = [] })
   == examples/hr-stack/patterns/exemple_rh.loaf
   (Types.MPattern
-     { Types.pat_name = "exemple-rh";
+     { Types.pat_name = "exemple-rh"; pat_version = (Some "1.0.0");
        lattice =
        (Some { Types.levels = ["public"; "internal"; "confidential"];
                lat_categories = ["finance"; "rh"] });
@@ -374,7 +376,7 @@ premier port.
          { Types.ref_service = "portal"; replicas_override = None; consumes_override = [] }];
        infrastructure = None })
 
-  $ ../show.exe $R/examples/enterprise-stack/*.loaf $R/providers/*.loaf | sed "s|$R/||"
+  $ ../show.exe $R/examples/enterprise-stack $R/providers | sed "s|$R/||"
   == examples/enterprise-stack/analytics.loaf
   (Types.MService
      { Types.name = "analytics"; runtime = "eventloop";
@@ -571,6 +573,59 @@ premier port.
          { Types.param_name = "username"; param_type = "string"; param_required = true }];
        bdl_depends_on = []; bdl_lifecycle = "install" })
 
+Manifeste en plusieurs fichiers
+==============================
+
+Le langage fusionne les blocs d'un même sujet écrits dans plusieurs fichiers :
+c'est un overlay, qui complète un manifeste depuis un autre fichier. Hamac le
+signale (W003, une erreur avec `--strict`), parce que la même fusion cache
+aussi deux définitions indépendantes d'un même nom.
+
+  $ mkdir -p base prod
+  $ cat > base/web.loaf <<'EOF'
+  > loaf 0.1.
+  > use hamac 0.2.
+  > service web {
+  >   runtime http.
+  >   artifact "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+  >     sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+  >     format oci_image.
+  >   }
+  > }
+  > EOF
+  $ printf 'loaf 0.1.\nuse hamac 0.2.\nservice web { replicas 3. }\n' > prod/web.loaf
+  $ hamac validate base prod
+  base/web.loaf: service (name=web, runtime=http)
+  hamac: [WARNING] prod/web.loaf:3:1: [W003] service web is defined in base/web.loaf and prod/web.loaf
+  $ hamac validate --strict base prod
+  base/web.loaf: service (name=web, runtime=http)
+  hamac: [WARNING] prod/web.loaf:3:1: [W003] service web is defined in base/web.loaf and prod/web.loaf
+  [1]
+
+Deux définitions indépendantes : leurs champs à une valeur se contredisent
+(L006), en plus de l'avertissement.
+
+  $ mkdir -p other
+  $ cat > other/web.loaf <<'EOF'
+  > loaf 0.1.
+  > use hamac 0.2.
+  > service web {
+  >   runtime batch.
+  >   artifact "registry.example.org/other@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+  >     sha256 "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".
+  >     format oci_image.
+  >   }
+  > }
+  > EOF
+  $ hamac validate base other
+  base/web.loaf: service (name=web, runtime=batch)
+  hamac: [ERROR] base/web.loaf:4:3: [L006] service.runtime(web, http): the field has several values
+  hamac: [ERROR] base/web.loaf:5:3: [L006] service.artifact(web, "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"): the field has several values
+  hamac: [ERROR] other/web.loaf:4:3: [L006] service.runtime(web, batch): the field has several values
+  hamac: [ERROR] other/web.loaf:5:3: [L006] service.artifact(web, "registry.example.org/other@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"): the field has several values
+  hamac: [WARNING] other/web.loaf:3:1: [W003] service web is defined in base/web.loaf and other/web.loaf
+  [1]
+
 Ordre des bundles
 =================
 
@@ -601,7 +656,7 @@ Effet sur les commandes
 Le résolveur substitue les termes de l'instance du provider dans le gabarit
 déjà rempli.
 
-  $ hamac resolve --seed 42 -L $R/examples/hr-stack/patterns $R/examples/hr-stack/*.loaf $R/providers/*.loaf 2>/dev/null | sed -n '/^Wiring/,$p'
+  $ hamac resolve --seed 42 -L $R/patterns $R/examples/hr-stack $R/providers 2>/dev/null | sed -n '/^Wiring/,$p'
   Wiring:
     hr-api.db -> postgresql
       inject: DATABASE_URL=postgresql://pottxvuimhan:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@postgresql-hr-api-db:5432/hr-api_db
@@ -611,7 +666,7 @@ déjà rempli.
 Le plan d'une stack ne compte pas les providers comme des services ; il suit
 le treillis de son patron.
 
-  $ (cd $R && hamac plan -L examples/hr-stack/patterns examples/hr-stack/*.loaf providers/*.loaf)
+  $ (cd $R && hamac plan examples/hr-stack providers)
   Infrastructure proposal: stack-infra
   
   Minimum requirements:

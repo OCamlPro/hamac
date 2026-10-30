@@ -1729,12 +1729,10 @@ let rec yojson_to_param (j : Yojson.Safe.t) : MT.param_value =
   | `Assoc a -> MT.PObject (List.map (fun (k, v) -> (k, yojson_to_param v)) a)
   | _ -> MT.PNull
 
-(** Les [.loaf] d'un répertoire, triés. *)
+(** Les [.loaf] d'un répertoire, à toute profondeur, triés. *)
 let loaf_files (dir : string) : string list =
   if Sys.file_exists dir && Sys.is_directory dir then
-    Sys.readdir dir |> Array.to_list |> List.sort compare
-    |> List.filter (fun f -> Filename.check_suffix f ".loaf")
-    |> List.map (Filename.concat dir)
+    Hamac_manifest.Loaf_source.sources [dir]
   else []
 
 (** Les profils d'un répertoire et les bundles qu'ils nomment : les [.loaf]

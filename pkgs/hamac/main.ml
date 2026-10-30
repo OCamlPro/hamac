@@ -21,8 +21,10 @@ let kind_label = function
   | MStack s ->
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
   | MPattern p ->
-    Printf.sprintf "pattern (name=%s, %d zones, %d constraints)"
-      p.pat_name (List.length p.zones) (List.length p.constraints)
+    Printf.sprintf "pattern (name=%s%s, %d zones, %d constraints)"
+      p.pat_name
+      (match p.pat_version with Some v -> ", version=" ^ v | None -> "")
+      (List.length p.zones) (List.length p.constraints)
   | MInfrastructure i ->
     Printf.sprintf "infrastructure (name=%s, backend=%s)" i.name i.backend
   | MProvisioningProfile p ->
@@ -341,7 +343,8 @@ let set_debug d = if d then Logs.set_level (Some Logs.Debug)
 
 let files_arg =
   let doc =
-    "Manifest files (.loaf), read together as one set with the vocabulary of \
+    "Manifest files (.loaf), or directories standing for the .loaf files they \
+     contain at any depth, read together as one set with the vocabulary of \
      Hamac (installed with hamac-manifest; $(b,HAMAC_VOCABULARY) names \
      another directory). The set includes the providers that its services \
      consume." in

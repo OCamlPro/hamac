@@ -4,8 +4,7 @@
 % Un patron d'exemple : le treillis de l'organisation, ses zones, et
 % quelques contraintes que la topologie calculée doit satisfaire. C'est un
 % module : une stack le charge par « use exemple_rh 1.0. », depuis un
-% répertoire de bibliothèque (hamac -L examples/hr-stack/patterns, ou
-% ./patterns par défaut).
+% répertoire de bibliothèque (./patterns par défaut, ou hamac -L DIR).
 
 loaf 0.1.
 module exemple_rh 1.0.0.

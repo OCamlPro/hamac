@@ -216,6 +216,7 @@ type objective = {
     its module. *)
 type pattern_manifest = {
   pat_name: string;
+  pat_version: string option;  (** version of its module, if it is one *)
   lattice: lattice_decl option;
   zones: zone_decl list;
   pat_assurance: (string * assurance) list;   (** zone name → minimum *)

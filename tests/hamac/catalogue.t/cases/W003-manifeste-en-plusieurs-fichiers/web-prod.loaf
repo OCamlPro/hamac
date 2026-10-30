@@ -1,0 +1,5 @@
+% W003-manifeste-en-plusieurs-fichiers : overlay de web.loaf
+loaf 0.1.
+use hamac 0.2.
+
+service web { replicas 3. }

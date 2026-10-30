@@ -20,9 +20,10 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
   des manifestes (`service`, `pattern`, `stack`, `infrastructure`, `provisioning_profile`,
   `bundle`), contrats des capacités (`database`, `cache`), défauts et validations.
 - Les manifestes consommés sont des `*.loaf`, chargés en un ensemble (une stack avec ses
-  services et les providers qu'ils consomment) ; un patron est un module LOAF, chargé par
-  `use` depuis un répertoire de bibliothèque (`hamac -L DIR`, `./patterns`,
-  `~/.hamac/patterns`). Langage : dépôt `~/ocp/loaf`, `spec/loaf.typ`.
+  services et les providers qu'ils consomment ; un dossier vaut ses `.loaf`, à toute
+  profondeur : `hamac plan examples/hr-stack providers`) ; un patron est un module LOAF,
+  chargé par `use` depuis un répertoire de bibliothèque (`hamac -L DIR`, `./patterns`,
+  `~/.hamac/patterns`). Un manifeste défini dans plusieurs fichiers (overlay) donne W003. Langage : dépôt `~/ocp/loaf`, `spec/loaf.typ`.
 
 ## Documents officiels : Typst
 

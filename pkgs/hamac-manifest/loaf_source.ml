@@ -474,6 +474,7 @@ let pattern cx pt : pattern_manifest =
              priority = Option.value (F.opt1 cx k q (direction ^ ".priority") int) ~default:1;
              oweight = F.opt1 cx k q (direction ^ ".weight") int }) in
   { pat_name = name pt;
+    pat_version = None;  (* that of its module: set by load *)
     lattice; zones; pat_assurance; constraints;
     objectives = objectives "minimize" @ objectives "maximize" }
 
@@ -636,6 +637,21 @@ let note_experimental cx kind subj =
                          (write accept_experimental in the stack to acknowledge)" label)
     | _ -> ()) (Option.value (List.assoc_opt kind experimental) ~default:[])
 
+(** A manifest defined in several files (W003): the language merges the
+    blocks of a subject, which serves as an overlay (a file that completes a
+    manifest of another one), but also hides two independent definitions of
+    the same name. *)
+let note_overlay cx kind subj (f : fact) =
+  match List.sort_uniq compare (List.map (fun (l : Diagnostic.loc) -> l.file) f.at) with
+  | _ :: _ :: _ as files ->
+    let loc = List.find_opt (fun (l : Diagnostic.loc) -> l.file = List.nth files 1) f.at in
+    note cx ?loc "W003" []
+      (Printf.sprintf "%s %s is defined in %s" kind (const subj)
+         (match List.rev files with
+          | last :: rest -> String.concat ", " (List.rev rest) ^ " and " ^ last
+          | [] -> ""))
+  | _ -> ()
+
 (** The location of the LOAF fact that a path of {!Checks} designates, or
     that of the block. *)
 let loc_of_path cx kind subj (m : manifest) (path : string list) : Diagnostic.loc option =
@@ -722,14 +738,19 @@ let attribute files (d : Diagnostic.t) =
   | None, f :: _ -> f
   | None, [] -> ""
 
-(** [load ~lib files]: the manifests of a set of LOAF files, one per subject
+(** The files of a list of paths: a directory stands for the [.loaf] files
+    it contains, at any depth ({!Loaf.sources}). *)
+let sources = Loaf.sources
+
+(** [load ~lib paths]: the manifests of a set of LOAF files ({!sources}), one per subject
     of a block of the vocabulary, in the order of the kinds then of the
     subjects, and the diagnostics of the set, attributed to their file and
     sorted. [lib] adds directories of modules to that of the vocabulary
     ({!vocabulary_dir}). The manifests are returned even when the model has
     errors, but not when the language refuses the files. *)
-let load ?vocabulary ?(lib = []) (files : string list)
+let load ?vocabulary ?(lib = []) (paths : string list)
   : source list * (string * Diagnostic.t) list =
+  let files = Loaf.sources paths in
   let located ds = List.map (fun d -> (attribute files d, d)) ds in
   match vocabulary_dir ?vocabulary () with
   | Error msg -> ([], located [Diagnostic.make "E001" [] msg])
@@ -742,6 +763,7 @@ let load ?vocabulary ?(lib = []) (files : string list)
       let errors = List.sort_uniq compare (List.map diagnostic_of_loaf (Loaf.errors t)) in
       let model = model_of t in
       let cx = { model; diags = [] } in
+      let modules = Loaf.modules t in
       let sources = List.concat_map (fun (kind, build) ->
         rows model kind [] |> List.filter_map (fun (args, fact) ->
           match args with
@@ -753,6 +775,12 @@ let load ?vocabulary ?(lib = []) (files : string list)
             (match build cx subj with
              | exception Missing _ -> None   (* reported by the language (L007) *)
              | m ->
+               let m = match m with
+                 | MPattern p ->
+                   MPattern { p with pat_version = List.find_map (fun (md : Loaf.module_) ->
+                       if md.path = file then Some md.version else None) modules }
+                 | m -> m in
+               note_overlay cx kind subj fact;
                note_experimental cx kind subj;
                List.iter (fun (d : Diagnostic.t) ->
                  cx.diags <- { d with loc = loc_of_path cx kind subj m d.path } :: cx.diags)
