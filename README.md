@@ -150,7 +150,7 @@ PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and, on
 `master`, publishes them to the forge's package registry:
 <https://forge.ocamlpro.com/OSS/-/packages/generic/hamac-docs/latest>.
 
-- [`doc/typst/manifest-spec.typ`](doc/typst/manifest-spec.typ) — manifest format specification (1.1, draft).
+- [`doc/typst/manifest-spec.typ`](doc/typst/manifest-spec.typ) — manifest format specification (0.2, draft).
 - [`pkgs/hamac-manifest/vocabulary/hamac.loaf`](pkgs/hamac-manifest/vocabulary/hamac.loaf) — the vocabulary of Hamac: the blocks of the manifests, their defaults and validations, in LOAF.
 - [`doc/typst/provisioning-spec.typ`](doc/typst/provisioning-spec.typ) — provisioning profile & disk-write spec.
 - [`doc/typst/control-plane.typ`](doc/typst/control-plane.typ) — round-based control plane (design proposal).

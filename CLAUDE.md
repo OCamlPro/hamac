@@ -12,7 +12,7 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
   `provisioning_profile`, gestion de l'image OS, chemin d'écriture disque (qcow2 canonique →
   `raw.zst` + `.bmap`, écriture via `bmaptool`, fallback `qemu-img` statique), resize au premier
   boot. À lire en premier pour comprendre le comportement de provisioning.
-- **`doc/typst/manifest-spec.typ`** — spécification du format de manifeste (1.1, brouillon) :
+- **`doc/typst/manifest-spec.typ`** — spécification du format de manifeste (0.2, brouillon) :
   `kind`, champs, stabilité, treillis et patrons, catalogue des erreurs du validateur.
 - **`doc/typst/control-plane.typ`** — modèle du plan de contrôle à tours (proposition).
 - **`doc/HAMAC_ROADMAP.md`** — jalons et état d'avancement.

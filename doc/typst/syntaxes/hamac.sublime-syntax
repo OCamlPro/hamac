@@ -1,10 +1,10 @@
 %YAML 1.2
 ---
-# Coloration syntaxique du langage de manifestes Hamac et de l'ASP (clingo).
-# Utilisée par Typst (blocs ```hamac et ```asp) ; compatible Sublime Text et
-# bat.
-name: Hamac
-file_extensions: [hamac, asp, lp]
+# Coloration syntaxique de l'ASP (clingo), dont hamac.lp, le programme du
+# planificateur. Utilisée par Typst (blocs ```asp, les manifestes LOAF ayant
+# leur grammaire, loaf.sublime-syntax) ; compatible Sublime Text et bat.
+name: ASP
+file_extensions: [asp, lp]
 scope: source.hamac
 
 contexts:
