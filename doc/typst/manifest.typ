@@ -76,6 +76,193 @@ chacune a son auteur :
 
 Les mots #doit, #doit-pas, #devrait et #peut ont le sens des RFC 2119 et 8174.
 
+= Exemple <exemple>
+
+L'exemple décrit une petite application de ressources humaines : un portail
+public, une API qui expose les données du personnel en s'appuyant sur une
+base PostgreSQL, et un traitement qui consolide la paie à partir de l'API.
+Il tient en quatre parties : le patron de l'organisation, le provider de base
+de données, les services et la stack qui les réunit. Les fichiers complets
+sont dans `examples/hr-stack/` et `providers/` ; les extraits omettent les
+lignes `loaf 0.1.` et `use hamac 0.2.` qui ouvrent chaque fichier.
+
+== Le patron de l'organisation
+
+```loaf
+module exemple_rh 1.0.0.
+
+pattern exemple_rh {
+  % Les niveaux de sensibilité, du moins au plus sensible.
+  levels [public, internal, confidential].
+  % Les catégories de besoin d'en connaître.
+  category rh; finance.
+  % Les rôles que l'organisation attribue à ses utilisateurs.
+  role rh; comptable; admin.
+
+  % Les zones : chacune porte un niveau et des catégories.
+  zone public { level public. }
+  zone internal { level internal. }
+  zone rh {
+    level confidential.
+    category rh; finance.
+  }
+
+  % Les machines de la zone rh ont un démarrage mesuré par TPM et sont
+  % sur le site de l'organisation.
+  assurance rh, boot, measured_tpm2.
+  assurance rh, physical, site.
+}
+```
+
+Le patron est écrit par la personne responsable de la sécurité. Il fixe le
+vocabulaire de sensibilité que les services emploient : trois niveaux
+ordonnés, deux catégories, trois rôles, et trois zones. Une zone est un
+ensemble de machines et de services qui partagent une même étiquette : la
+zone `rh` accueille des données confidentielles des catégories `rh` et
+`finance`. Le patron est un module : la stack le charge par
+`use exemple_rh 1.0.` Le fichier complet ajoute des contraintes sur la
+topologie (@contraintes).
+
+== Le provider de base de données
+
+```loaf
+service postgresql {
+  runtime http.
+  capability database.            % il fournit une base de données
+  input user, gen(alpha, 12).      % engendré pour chaque consommateur
+  input password, gen(alnum, 32).
+  input dbname, cat(consumer(name), "_db").
+  environment "POSTGRES_USER", input(user).
+  environment "POSTGRES_PASSWORD", input(password).
+  environment "POSTGRES_DB", input(dbname).
+  port 5432 { protocol tcp. }
+}
+
+% Ce que le provider offre à ses consommateurs : le contrat database.
+database postgresql {
+  host instance(name).
+  port 5432.
+  user input(user).
+  password input(password).
+  dbname input(dbname).
+}
+```
+
+Un provider est un service comme un autre, qui déclare une capacité
+(`database`). Hamac en crée une instance par service qui le consomme : chaque
+consommateur reçoit sa propre base et ses propres identifiants, tirés au
+hasard au déploiement. Le bloc `database postgresql` remplit le contrat de
+la capacité : les attributs que tout provider de base de données offre à ses
+consommateurs (@contrats).
+
+== Les services
+
+```loaf
+service hr_api {
+  runtime http.
+  replicas 2.                      % deux instances
+  zone rh.                         % il traite des données de la zone rh
+  spread failure_domain.           % sur deux domaines de panne distincts
+
+  % Une base de données, sans nommer le provider : Hamac le choisit, et
+  % remplit le gabarit avec les attributs de son contrat.
+  consumes db {
+    capability database.
+    inject "DATABASE_URL",
+           fmt("postgresql://{~.database.user}:{~.database.password}@{~.database.host}:{~.database.port}/{~.database.dbname}").
+  }
+
+  route "/health" { public. }
+  route "/employees/salaries" {
+    classification confidential.
+    category rh; finance.
+    required_clearance comptable; admin.
+  }
+
+  port 8080 {}
+}
+
+service payroll_report {
+  runtime batch.
+  zone rh.
+
+  % L'API RH, nommée : un flux réseau de payroll_report vers hr_api.
+  consumes api {
+    service hr_api.
+    inject "HR_API_URL", fmt("http://{~.host}:{~.port}").
+  }
+
+  % Un cache sur le disque du nœud, qu'il suffit de recalculer.
+  storage cache {
+    mount "/var/cache/report".
+    class local.
+    size 5, gi.
+    rebuild none.
+  }
+}
+
+service portal {
+  runtime http.
+  replicas 2.
+  zone public.
+  port 8080 {}
+}
+```
+
+Le bloc `service hr_api` décrit le service sans répéter son nom : chaque
+instruction s'applique à `hr_api`. Le bloc `consumes db` déclare un besoin,
+une base de données ; dans ce bloc, `~` désigne la consommation, et
+`~.database.user` l'attribut `user` du contrat du provider que Hamac lui
+associera. Une route fixe les conditions d'accès à un chemin HTTP : seul un
+utilisateur habilité au niveau `confidential`, détenteur des catégories `rh`
+et `finance` et du rôle `comptable` ou `admin`, lit les salaires.
+
+== La stack
+
+```loaf
+use exemple_rh 1.0.
+
+stack hr {
+  description "Application RH : portail public, API RH, consolidation".
+  accept_experimental.
+
+  service portal {}
+  service hr_api {}
+  service payroll_report {}
+}
+```
+
+La stack est écrite par l'équipe d'exploitation. Elle nomme les services à
+déployer et charge le patron. Un service de l'ensemble qu'elle ne nomme pas,
+ici `postgresql`, est un provider : il n'est déployé que pour les services qui
+le consomment.
+
+== Ce que Hamac en déduit
+
+Les commandes `hamac validate`, `hamac resolve` et `hamac plan`, appliquées
+aux dossiers `examples/hr-stack` et `providers`, établissent :
+
+- La consommation `db` de `hr_api` est résolue vers `postgresql`, seul
+  provider de `database` de l'ensemble. Hamac crée l'instance
+  `postgresql-hr-api-db` ; au déploiement, `DATABASE_URL` vaut
+  `postgresql://<12 lettres>:<32 caractères>@postgresql-hr-api-db:5432/hr-api_db`.
+- `payroll_report` reçoit `HR_API_URL=http://hr-api:8080` : le nom d'hôte de
+  `hr_api` et son premier port.
+- `payroll_report` et `hr_api` sont dans la même zone : le flux entre eux ne
+  demande aucune règle de filtrage. Entre les zones `public` et `rh`, tout est
+  refusé : aucun flux n'est déclaré, et `public` ne peut de toute façon pas
+  lire `rh`.
+- Le planificateur propose trois nœuds : un pour `public`, deux pour `rh`,
+  car les deux répliques de `hr_api` doivent être sur des domaines de panne
+  distincts.
+- Si `portal` déclarait `consumes api { service hr_api. }`, l'ensemble serait
+  refusé (#code("E040")) : `portal` (zone `public`) ouvrirait une connexion
+  vers une zone plus sensible, ce qui revient à la lire.
+- Une route qui exigerait le rôle `admn`, mal orthographié, serait refusée
+  (#code("E045")) : aucun patron ne déclare ce rôle.
+- `zone dmz.` dans un service serait refusée (#code("E042")) : le patron ne
+  définit pas cette zone.
+
 = Manifestes LOAF <loaf>
 
 == Fichier et vocabulaire
@@ -573,6 +760,27 @@ provider retenu : `{~.database.user}` devient `input(user)` de `postgresql`,
 que Hamac remplace au déploiement par l'identifiant engendré pour l'instance
 de `hr_api`.
 
+`hamac resolve` montre ce câblage. Avec `--seed`, réservé aux tests, les
+valeurs tirées au hasard sont reproductibles :
+
+```
+Providers to instantiate:
+  postgresql-hr-api-db (postgres:15-alpine@sha256:54e0dd8e…)
+    env: POSTGRES_DB=hr-api_db
+    env: POSTGRES_PASSWORD=z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs
+    env: POSTGRES_USER=pottxvuimhan
+
+Wiring:
+  hr-api.db -> postgresql
+    inject: DATABASE_URL=postgresql://pottxvuimhan:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@postgresql-hr-api-db:5432/hr-api_db
+  payroll-report.api -> hr-api (service)
+    inject: HR_API_URL=http://hr-api:8080
+```
+
+L'instance `postgresql-hr-api-db` porte le nom du provider, du consommateur
+et de la consommation ; un second consommateur de `database` recevrait sa
+propre instance, avec d'autres identifiants.
+
 = Données : stockage, sauvegarde, secrets <donnees>
 
 #experimental
@@ -616,6 +824,28 @@ de `hr_api`.
 Un volume `local` sans `rebuild`, dans un service sans `backup`, est refusé
 (#code("E033")) : le sort de ses données en cas de perte du nœud doit être
 déclaré.
+
+La classe d'un volume dit ce qu'il advient de ses données quand le nœud qui
+porte le service disparaît :
+
+#tableau((auto, 1fr),
+  [Volume], [Après la perte du nœud],
+  [`ephemeral`], [rien à reconstruire : le volume repart vide sur un autre
+    nœud],
+  [`local`, `rebuild from_backup`], [le volume est restauré depuis la
+    dernière sauvegarde du service],
+  [`local`, `rebuild from_replica`], [le volume est recopié depuis une autre
+    réplique du service],
+  [`local`, `rebuild from_object`], [le volume est reconstruit depuis le
+    stockage objet du service],
+  [`local`, `rebuild none`], [les données sont perdues ; le service reste sur
+    son nœud tant que celui-ci existe],
+  [`replicated`], [le service reconstruit lui-même la réplique perdue à
+    partir des autres],
+)
+
+Dans l'exemple (@exemple), le cache de `payroll_report` est `local` avec
+`rebuild none` : il se recalcule, sa perte ne coûte que du temps.
 
 == Secrets <secrets>
 
@@ -757,6 +987,32 @@ pattern exemple_rh {
 - Une #terme[zone] a un nom, une étiquette (son `level` et ses `category`) et
   une frontière. Son niveau et ses catégories #doit appartenir au treillis du
   patron (#code("E042")).
+
+Une étiquette dit à la fois _à quel point_ une donnée est sensible (le
+niveau) et _à qui_ elle est destinée (les catégories). L'ordre sert à deux
+contrôles : un service ne lit que des zones d'étiquette inférieure ou égale à
+la sienne (@flux), et un utilisateur ne lit une route que si son habilitation
+domine l'étiquette de la route (@routes).
+
+Avec le patron de l'exemple (@exemple), et deux zones `paie` et `dossiers`
+ajoutées pour l'illustration :
+
+#tableau((auto, auto, 1fr),
+  [Zone], [Étiquette], [Comparaisons],
+  [`public`], [(`public`, ∅)], [inférieure à toutes les autres],
+  [`internal`], [(`internal`, ∅)], [`public` ≤ `internal` ≤ `rh`],
+  [`paie`], [(`confidential`, {`finance`})], [≤ `rh` ; incomparable avec
+    `dossiers`],
+  [`dossiers`], [(`confidential`, {`rh`})], [≤ `rh` ; incomparable avec
+    `paie`],
+  [`rh`], [(`confidential`, {`rh`, `finance`})], [supérieure à toutes les
+    autres],
+)
+
+`paie` et `dossiers` ont le même niveau, mais aucune des deux ne détient
+toutes les catégories de l'autre : un service de `paie` ne lit pas un service
+de `dossiers`, ni l'inverse. Un service de `rh`, qui détient les deux
+catégories, lit les deux.
 
 *Composition.* Quand l'ensemble contient plusieurs patrons, leurs niveaux
 #doit être identiques, dans le même ordre (#code("E050")) ; leurs catégories
@@ -1000,6 +1256,37 @@ réseau, du consommateur vers le service consommé.
 - Si les deux zones diffèrent et que l'une d'elles a une frontière `diode`
   (@frontieres), le flux #doit être de mode `push` (#code("E041")).
 
+Dans l'exemple (@exemple), si `hr_api` (zone `rh`) consommait le portail
+(zone `public`), il lirait vers le bas, ce que le treillis permet :
+
+```loaf
+service hr_api {
+  consumes site { service portal. }
+}
+```
+
+Le planificateur ouvre alors ce seul flux, et refuse le reste :
+
+```
+DENY public -> rh (no read up)
+ALLOW rh -> public (hr-api -> portal)
+Stateful: replies to an allowed connection pass.
+```
+
+Le flux inverse, `portal` qui consommerait `hr_api`, est refusé dès la
+validation :
+
+```
+portal.loaf:19:3: [E040] portal (zone public) cannot consume hr-api (zone rh):
+opening a connection to a more sensitive zone is a read up, forbidden by the
+Bell-LaPadula model. […]
+```
+
+Écrire vers le bas, c'est-à-dire qu'un service sensible envoie des données à
+une zone moins sensible, ne relève pas du réseau : une réponse à une connexion
+autorisée passe, et ce qu'elle contient est l'affaire de l'application et du
+contrôle d'accès de ses routes.
+
 == Routes <routes>
 
 Un service HTTP déclare l'autorisation de ses routes, vérifiée en bordure
@@ -1070,6 +1357,24 @@ service hr_api {
   }
 }
 ```
+
+Avec ces routes, et trois utilisateurs :
+
+#tableau((auto, auto, auto, auto),
+  [Utilisateur], [Habilitation], [`GET /employees/42`], [`GET /employees/salaries`],
+  [Alice], [`internal`, {`rh`}, rôle `rh`], [autorisée], [refusée : niveau
+    et catégorie `finance` manquants],
+  [Bruno], [`confidential`, {`rh`, `finance`}, rôle `comptable`], [refusée :
+    ni `rh` ni `admin`], [autorisée],
+  [Chloé], [`confidential`, {`rh`, `finance`}, rôle `admin`], [autorisée],
+    [autorisée],
+)
+
+`/employees/salaries` est couvert par les deux routes ; la plus spécifique,
+`/employees/salaries`, s'applique seule. Bruno lit donc les salaires sans
+pouvoir consulter la fiche d'un salarié : chaque route donne ses propres conditions, et
+aucune n'hérite d'une autre. `/health` est public : aucun jeton n'est demandé.
+Un chemin qu'aucune route ne couvre, `/admin` par exemple, est refusé à tous.
 
 == Placement <placement>
 
