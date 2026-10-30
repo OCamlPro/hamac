@@ -447,12 +447,33 @@ pour 512 Mio. Les unités sont des énumérations :
 
 #tableau((auto, auto, 1fr),
   [Sorte], [Valeurs], [Sens],
-  [`size_unit`], [`ki` · `mi` · `gi` · `ti`], [Kio, Mio, Gio, Tio],
-  [`cpu_unit`], [`core` · `m`], [cœurs ; millicœurs (`500, m`)],
+  [`size_unit`], [`ki` · `mi` · `gi` · `ti`], [Kio, Mio, Gio, Tio : unités
+    binaires (ci-dessous)],
+  [`cpu_unit`], [`core` · `m`], [cœurs ; millicœurs, un cœur valant 1000 m
+    (`500, m` : un demi-cœur)],
   [`time_unit`], [`s` · `min` · `h` · `d`], [secondes, minutes, heures,
     jours],
 )
 
+*Unités binaires.* Les tailles s'expriment en multiples de 1024, selon les
+préfixes binaires de la norme CEI 60027-2 :
+
+#tableau((auto, auto, 1fr),
+  [Unité], [Nom], [Octets],
+  [`ki`], [kibioctet (Kio)], [1024],
+  [`mi`], [mébioctet (Mio)], [1024 × 1024 = 1 048 576],
+  [`gi`], [gibioctet (Gio)], [1024#super[3] = 1 073 741 824],
+  [`ti`], [tébioctet (Tio)], [1024#super[4] = 1 099 511 627 776],
+)
+
+Ces unités ne sont pas le kilooctet, le mégaoctet ou le gigaoctet du système
+international (ko, Mo, Go), qui valent 1000, 1000#super[2] et
+1000#super[3] octets : 1 Gio vaut environ 1,074 Go, et l'écart croît avec
+l'unité. Ce sont celles de la mémoire et des outils vers lesquels Hamac
+traduit les manifestes (Kubernetes, groupes de contrôle Linux, volumes des
+clouds). Une taille connue en unités décimales se convertit en arrondissant
+au-dessus : un volume de 500 Go (500 × 1000#super[3] octets, soit environ
+465,7 Gio) s'écrit `size 466, gi.`
 Les délais des sondes (`health_check`, `readiness_interval`,
 `readiness_timeout`) sont des entiers, en secondes.
 
