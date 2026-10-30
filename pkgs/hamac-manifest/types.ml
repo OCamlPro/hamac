@@ -19,7 +19,8 @@ let hostname name = String.map (fun ch -> if ch = '_' then '-' else ch) name
 type artifact = {
   path: string;
   sha256: string;
-  format: string;           (** native-linux-amd64 | oci-image | ... *)
+  format: string;           (** oci_image | native | incus_vm_image | incus_system_image *)
+  archs: string list;       (** architectures it runs on (amd64 | arm64), at least one *)
 } [@@deriving show]
 
 type metadata = {
@@ -265,6 +266,8 @@ type stack_manifest = {
 
 type infra_node = {
   role: string;
+  node_zone: string;         (** the zone it hosts; default: its role *)
+  arch: string;              (** amd64 | arm64 *)
   count: int;
   ram: string option;
   cpu: int option;
@@ -378,6 +381,7 @@ type os_image_spec = {
   os_url: string;           (** URL téléchargeable de l'image *)
   os_sha256: string;        (** Hash pour vérification *)
   os_format: string;        (** qcow2 | raw | iso | netinstall *)
+  os_arch: string;          (** amd64 | arm64 *)
   os_family: string;        (** debian | ubuntu | fedora | ... — sélectionne
                                 la variante de template cloud-init du bundle *)
   os_raw_zst_url: string;    (** URL du raw.zst dérivé pour install physique

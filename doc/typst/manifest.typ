@@ -318,7 +318,8 @@ service web {
   runtime http.
   artifact "./bin/web" {
     sha256 "0000000000000000000000000000000000000000000000000000000000000000".
-    format native_linux_amd64.
+    format native.
+    arch amd64.
   }
 }
 ```
@@ -559,14 +560,25 @@ Le sous-bloc `artifact` porte :
   [Déclaration], [Sens et contrôles],
   [`sha256 string`], [empreinte de l'artefact : 64 caractères hexadécimaux
     (#code("E011"))],
-  [`format artifact_format`], [`oci_image` · `native_linux_amd64` ·
-    `native_linux_arm64` · `incus_vm_image` · `incus_system_image`],
+  [`format artifact_format`], [`oci_image` · `native` · `incus_vm_image` ·
+    `incus_system_image`],
+  [`arch* arch`], [architectures du processeur où l'artefact s'exécute :
+    `amd64` · `arm64` ; défaut `amd64`. Seule une image OCI en a plusieurs
+    (image multi-architecture) ; un autre format en a une seule
+    (#code("E008"))],
 )
 
 Le format détermine l'exécutant : un `oci_image` s'exécute dans un conteneur,
-un binaire natif directement, un `incus_vm_image` dans une machine virtuelle,
-un `incus_system_image` dans un conteneur système. Aucun autre champ ne le
-précise. Une image OCI #devrait être épinglée par son empreinte, écrite dans
+un binaire `native` (Linux) directement, un `incus_vm_image` dans une
+machine virtuelle, un `incus_system_image` dans un conteneur système. Aucun
+autre champ ne le précise.
+
+*Architecture.* Une réplique ne s'exécute que sur un nœud d'une des
+architectures de son artefact. Les répliques d'un service ont toutes la
+même architecture ; pour une image multi-architecture, le planificateur la
+choisit. Il propose des nœuds de chaque architecture nécessaire, et une
+infrastructure imposée par la stack #doit en offrir à chaque service dans sa
+zone (@infrastructure). Une image OCI #devrait être épinglée par son empreinte, écrite dans
 le sujet (`registry.example.org/rh/portal@sha256:…`), sinon #code("W010").
 
 == Ressources et mise à l'échelle
@@ -620,7 +632,8 @@ service web_api {
 
   artifact "./bin/web_api" {
     sha256 "0000000000000000000000000000000000000000000000000000000000000000".
-    format native_linux_amd64.
+    format native.
+    arch amd64.
   }
 
   port 8080 { protocol tcp. }
@@ -1167,9 +1180,10 @@ patrons s'écrivent dans ce langage, sur les atomes de l'ensemble et sur les
 prédicats que publie le planificateur.
 
 *Prédicats publiés.* Un service, une zone ou un niveau y est désigné par son
-nom tel que l'écrivent les fichiers LOAF ; un nœud candidat par le couple
-`(Z, K)`, sa zone et son numéro dans la zone, à partir de 1, les nœuds
-utilisés d'une zone portant les premiers numéros.
+nom tel que l'écrivent les fichiers LOAF ; un nœud candidat par le triplet
+`(Z, A, K)`, sa zone, son architecture et son numéro parmi les nœuds de
+cette zone et de cette architecture, à partir de 1, les nœuds utilisés
+portant les premiers numéros.
 
 #tableau((auto, 1fr),
   [Prédicat], [Sens],
@@ -1182,7 +1196,9 @@ utilisés d'une zone portant les premiers numéros.
     mémoire en Mi (défaut 256), de processeur en millicœurs (défaut 500)],
   [`stateful(S)`], [`S` a un volume `local` ou `replicated`],
   [`replica(S, I)`], [la réplique `I` de `S`, `I` de 1 à `N`],
-  [`host(H)`, `host_zone(H, Z)`], [un nœud candidat, et sa zone],
+  [`arch_of(S, A)`], [l'artefact de `S` s'exécute sur l'architecture `A`],
+  [`host(H)`, `host_zone(H, Z)`, `host_arch(H, A)`], [un nœud candidat, sa
+    zone et son architecture],
   [`failure_domain(H, D)`], [le domaine de panne d'un nœud ; un nœud
     candidat est son propre domaine],
   [`place(S, I, H)`], [la réplique `I` de `S` est sur le nœud `H`],
@@ -1564,6 +1580,7 @@ Le sous-bloc `os` porte :
   [`format os_format`], [`qcow2` · `raw` · `iso` · `netinstall` ;
     `netinstall` : noyau et initrd d'installation, suivis d'une installation
     automatisée],
+  [`arch? arch`], [architecture de l'image ; défaut `amd64`],
   [`family? name`], [famille d'OS ; défaut `debian`. Choisit la variante du
     gabarit cloud-init des bundles],
   [`raw_zst_url? string`], [image disque brute compressée en zstd, dérivée de
@@ -1614,6 +1631,10 @@ est revérifiée contre les patrons de la stack avant tout déploiement.
   [`min_nodes? int`, `total_ram? int, size_unit`, `total_cpu? int`],
     [exigences minimales],
   [`node* name { … }`], [un rôle de nœud ; le sujet est le rôle],
+  [#h(1em)`zone? name`], [la zone que ces nœuds accueillent ; défaut : le
+    rôle],
+  [#h(1em)`arch? arch`], [architecture du processeur ; défaut `amd64`. Celle
+    de l'image d'OS de son profil (#code("E009"))],
   [#h(1em)`count? int`], [nombre de nœuds ; défaut 1],
   [#h(1em)`ram? int, size_unit`, `cpu? int`], [capacité de chaque nœud],
   [#h(1em)`boot? assurance_level`], [niveau de l'axe `boot` (#code("E007")
@@ -1646,6 +1667,7 @@ infrastructure si_exemple {
   total_cpu 12.
 
   node worker {
+    zone internal.
     count 3.
     ram 16, gi.
     cpu 4.
@@ -1681,7 +1703,9 @@ s'applique.
     consommation du service. La consommation #doit exister
     (#code("E022")), et le provider imposé #doit fournir la capacité
     consommée (#code("E023"))],
-  [`infrastructure? infrastructure`], [infrastructure imposée ; absente :
+  [`infrastructure? infrastructure`], [infrastructure imposée : elle
+    #doit offrir à chaque service un nœud de sa zone et d'une de ses
+    architectures (#code("E046")) ; absente :
     calculée par le planner],
 )
 
@@ -1792,6 +1816,10 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     type ;
     paramètres d'un bundle que `bundles` ne liste pas ; référence de secret
     sans backend],
+  code("E008"), [2], [artefact autre qu'une image OCI déclaré pour
+    plusieurs architectures],
+  code("E009"), [2], [nœud d'une autre architecture que l'image d'OS de son
+    profil],
   code("E011"), [2], [`sha256` d'un artefact ou d'une image d'OS qui n'est pas
     64 caractères hexadécimaux],
   code("E012"), [2], [bundle listé deux fois dans `bundles`, ou avant un
@@ -1827,6 +1855,8 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   code("E044"), [3], [route classée au-dessus de la zone de son service, ou
     catégorie absente de cette zone],
   code("E045"), [3], [route qui exige un rôle qu'aucun patron ne déclare],
+  code("E046"), [3], [infrastructure imposée sans nœud de la zone d'un
+    service et d'une de ses architectures],
   code("E050"), [3], [patrons aux niveaux incompatibles],
   code("E051"), [3], [zone définie deux fois avec des étiquettes ou des
     frontières différentes],

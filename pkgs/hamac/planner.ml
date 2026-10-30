@@ -58,17 +58,25 @@ type zone_info = {
   total_memory_mb: int;
   total_cpu_milli: int;
   total_replicas: int;
-  nodes: int;             (** nodes of the optimal placement *)
+  nodes: (string * int) list;
+    (** nodes of the optimal placement, by architecture, sorted *)
 }
 
 (** A replica and the node it is placed on: [node] is the rank of the
-    node in its zone, from 0 (cf. [Infra_sim.node_name]). *)
+    node among those of its zone and architecture, from 0
+    (cf. [Infra_sim.node_name]). *)
 type replica = {
   service: string;
   index: int;             (** from 1 *)
   zone: string;
+  arch: string;
   node: int;
 }
+
+(** The role of the nodes of a zone and an architecture in the proposed
+    infrastructure: the zone for amd64, the zone and the architecture
+    otherwise ([rh_arm64]). *)
+let node_role zone arch = if arch = "amd64" then zone else zone ^ "_" ^ arch
 
 type plan = {
   infrastructure: infrastructure_manifest;
@@ -325,9 +333,10 @@ let read_model (m : Clingo.model) =
       Option.iter (fun s -> set s (fun d -> { d with d_memory_mb = n })) (service_name s)
     | Fun ("cpu", [s; Int n]) ->
       Option.iter (fun s -> set s (fun d -> { d with d_cpu_milli = n })) (service_name s)
-    | Fun ("place", [s; Int index; Fun ("", [z; Int k])]) ->
-      (match service_name s, const z with
-       | Some service, Some zone -> placement := { service; index; zone; node = k - 1 } :: !placement
+    | Fun ("place", [s; Int index; Fun ("", [z; a; Int k])]) ->
+      (match service_name s, const z, const a with
+       | Some service, Some zone, Some arch ->
+         placement := { service; index; zone; arch; node = k - 1 } :: !placement
        | _ -> ())
     | Fun ("oversized", [s; Int mem; Int cpu]) ->
       Option.iter (fun s ->
@@ -350,7 +359,8 @@ let read_model (m : Clingo.model) =
                                       ^ ", which LOAF did not report") (List.rev !errors)));
   if !oversized <> [] then raise (Error (List.rev !oversized));
   let placement = List.sort (fun a b ->
-    compare (a.zone, a.node, a.service, a.index) (b.zone, b.node, b.service, b.index)) !placement in
+    compare (a.zone, a.arch, a.node, a.service, a.index)
+      (b.zone, b.arch, b.node, b.service, b.index)) !placement in
   (tbl, placement)
 
 (* ============================================================ *)
@@ -390,8 +400,14 @@ let plan ?lattice ?(time_limit = default_time_limit) ~(name : string)
       total_memory_mb = sum (fun d -> d.d_memory_mb * d.d_replicas);
       total_cpu_milli = sum (fun d -> d.d_cpu_milli * d.d_replicas);
       total_replicas = sum (fun d -> d.d_replicas);
-      nodes = List.length (List.sort_uniq Int.compare
-          (List.filter_map (fun r -> if r.zone = zone then Some r.node else None) placement)) })
+      nodes =
+        List.filter_map (fun r -> if r.zone = zone then Some (r.arch, r.node) else None) placement
+        |> List.sort_uniq compare
+        |> List.fold_left (fun acc (arch, _) ->
+             match acc with
+             | (a, n) :: rest when a = arch -> (a, n + 1) :: rest
+             | _ -> (arch, 1) :: acc) []
+        |> List.rev })
     zone_names in
   let warnings = ref (List.rev_map (fun v -> "soft " ^ v ^ " is violated") (violations model)) in
   if not proven then
@@ -399,14 +415,16 @@ let plan ?lattice ?(time_limit = default_time_limit) ~(name : string)
         "The placement is not proven optimal: the search for fewer nodes stopped at the \
          time limit (%gs)" time_limit :: !warnings;
 
-  (* Generate nodes — one group per zone *)
-  let nodes = List.map (fun (z : zone_info) ->
-    let count = z.nodes in
-    if count > 10 then
+  (* Generate nodes — one group per zone and architecture *)
+  let nodes = List.concat_map (fun (z : zone_info) ->
+    let total = List.fold_left (fun acc (_, n) -> acc + n) 0 z.nodes in
+    if total > 10 then
       warnings := (Printf.sprintf "Zone '%s' requires %d nodes — consider reviewing resource limits"
-        z.zone_name count) :: !warnings;
-    {
-      role = z.zone_name;
+        z.zone_name total) :: !warnings;
+    List.map (fun (arch, count) -> {
+      role = node_role z.zone_name arch;
+      node_zone = z.zone_name;
+      arch;
       count;
       ram = Some (Printf.sprintf "%dMi" node_ram_mb);
       cpu = Some (node_cpu_milli / 1000);
@@ -415,7 +433,7 @@ let plan ?lattice ?(time_limit = default_time_limit) ~(name : string)
       os_sha256 = None;
       isolated = z.zone_name = "secure";
       provisioning_profile = None;
-    }
+    }) z.nodes
   ) zones in
 
   (* Generate network segments — one per zone *)
@@ -487,8 +505,8 @@ let display_plan (p : plan) =
    | Some topo ->
      Logs.app (fun m -> m "Proposed topology:");
      List.iter (fun (n : infra_node) ->
-       Logs.app (fun m -> m "  %dx node [%s] — %s RAM, %d CPU%s"
-         n.count n.role
+       Logs.app (fun m -> m "  %dx node [%s] %s — %s RAM, %d CPU%s"
+         n.count n.role n.arch
          (Option.value ~default:"?" n.ram)
          (Option.value ~default:0 n.cpu)
          (if n.isolated then " (isolated)" else ""))

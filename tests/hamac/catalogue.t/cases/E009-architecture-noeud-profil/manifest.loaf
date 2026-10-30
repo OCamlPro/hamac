@@ -1,0 +1,20 @@
+% E009-architecture-noeud-profil
+loaf 0.1.
+use hamac 0.2.
+
+provisioning_profile station {
+  cloud_init_extra "{runcmd: [true]}".
+  os "debian-12-amd64" {
+    url "https://example.org/debian-12-amd64.qcow2".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format qcow2.
+  }
+}
+
+infrastructure lab {
+  backend incus.
+  node worker {
+    arch arm64.
+    provisioning_profile station.
+  }
+}

@@ -13,7 +13,7 @@ trois.
       - batch
   
   Proposed topology:
-    3x node [default] — 4096Mi RAM, 4 CPU
+    3x node [default] amd64 — 4096Mi RAM, 4 CPU
   
   Network segments:
 
@@ -24,7 +24,7 @@ le placement du plan.
 
   $ hamac plan spread.loaf 2>/dev/null | sed -n '/^Proposed/,/^$/p'
   Proposed topology:
-    3x node [default] — 4096Mi RAM, 4 CPU
+    3x node [default] amd64 — 4096Mi RAM, 4 CPU
   
   $ hamac simulate spread.loaf 2>/dev/null | sed -n '/^Service placement/,/^$/p'
   Service placement:
@@ -40,7 +40,7 @@ L'anti-affinité sépare deux services.
 
   $ hamac plan anti.loaf 2>/dev/null | sed -n '/^Proposed/,/^$/p'
   Proposed topology:
-    2x node [default] — 4096Mi RAM, 4 CPU
+    2x node [default] amd64 — 4096Mi RAM, 4 CPU
   
 
 Une réplique plus grande qu'un nœud n'a pas de place : le plan le dit.
@@ -80,9 +80,9 @@ avertissement par témoin.
 
   $ hamac plan objective.loaf 2>&1 | grep -v W001 | sed -n '/^Proposed/,/^$/p;/WARNING/p'
   Proposed topology:
-    3x node [a] — 4096Mi RAM, 4 CPU
+    3x node [a] amd64 — 4096Mi RAM, 4 CPU
   
-  hamac: [WARNING] soft constraint compact of pattern p ((a,3)) is violated
+  hamac: [WARNING] soft constraint compact of pattern p ((a,amd64,3)) is violated
 
 Une déclaration sans ses deux-points, une erreur de syntaxe ou un prédicat
 qu'aucune règle ne définit donnent E052, à la déclaration ; les erreurs de
@@ -95,3 +95,24 @@ syntaxe arrêtent clingo avant le grounding.
   $ hamac validate malformed.loaf 2>&1 | grep E052
   hamac: [ERROR] malformed.loaf:10:22: [E052] constraint colon of p: expected 'terms : body'
   hamac: [ERROR] malformed.loaf:11:3: [E052] minimize "1, H : usde(H)" of p: atom does not occur in any rule head: usde(H)
+
+Un nœud a une architecture, et une réplique ne va que sur un nœud d'une
+architecture de son artefact. Le binaire arm64 demande un nœud arm64 ; les
+deux répliques de 3 Gio de l'API remplissent deux nœuds amd64 ; l'image
+multi-architecture (2 Gio) tient à côté du capteur, sur le nœud arm64.
+
+  $ hamac plan arch.loaf 2>/dev/null | sed -n '/^Proposed/,/^$/p'
+  Proposed topology:
+    2x node [default] amd64 — 4096Mi RAM, 4 CPU
+    1x node [default_arm64] arm64 — 4096Mi RAM, 4 CPU
+  
+  $ hamac simulate arch.loaf 2>/dev/null | sed -n '/^Service placement/,/^$/p'
+  Service placement:
+    node-default-1 [zone: default]:
+      - api
+    node-default-2 [zone: default]:
+      - api
+    node-default-arm64-1 [zone: default]:
+      - cache
+      - sensor
+  

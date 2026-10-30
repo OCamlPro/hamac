@@ -27,8 +27,8 @@ let emit_line buf depth fmt =
 (* ============================================================ *)
 
 (** Generate node container name *)
-let node_name (zone : string) (index : int) : string =
-  hostname (Printf.sprintf "node-%s-%d" zone (index + 1))
+let node_name ~(zone : string) ~(arch : string) (index : int) : string =
+  hostname (Printf.sprintf "node-%s-%d" (Planner.node_role zone arch) (index + 1))
 
 (* ============================================================ *)
 (* Init script generation                                        *)
@@ -190,11 +190,11 @@ type placement = {
     published port. *)
 let service_endpoint ~(plan : Planner.plan) (svc : service_manifest) : string * string =
   let zone = Planner.service_zone svc in
-  let node = match List.find_opt (fun (r : Planner.replica) ->
+  let arch, node = match List.find_opt (fun (r : Planner.replica) ->
       r.service = svc.name && r.index = 1) plan.placement with
-    | Some r -> r.node
-    | None -> 0 in
-  let host = node_name zone node in
+    | Some r -> (r.arch, r.node)
+    | None -> ("amd64", 0) in
+  let host = node_name ~zone ~arch node in
   match svc.ports with
   | p :: _ -> (host, string_of_int p.container)
   | [] -> (host, "")
@@ -220,14 +220,14 @@ let place_services
     ) [] resolution.wires in
     svc.environment @ injected_env in
   List.concat_map (fun (z : Planner.zone_info) ->
-    List.init z.nodes (fun i ->
+    List.concat_map (fun (arch, count) -> List.init count (fun i ->
       let replicas = List.filter (fun (r : Planner.replica) ->
-        r.zone = z.zone_name && r.node = i) plan.placement in
-      { node = node_name z.zone_name i;
+        r.zone = z.zone_name && r.arch = arch && r.node = i) plan.placement in
+      { node = node_name ~zone:z.zone_name ~arch i;
         zone = z.zone_name;
         services = List.filter_map (fun (r : Planner.replica) ->
           List.find_opt (fun (s : service_manifest) -> s.name = r.service) services
-          |> Option.map (fun svc -> (svc, env_of svc))) replicas }))
+          |> Option.map (fun svc -> (svc, env_of svc))) replicas })) z.nodes)
     plan.zones
   |> List.sort (fun a b -> String.compare a.node b.node)
 

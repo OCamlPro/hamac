@@ -40,8 +40,10 @@
 %   stateful(S)          S a un volume local ou répliqué
 %   replica(S, I)        la réplique I de S, I dans 1..N
 %   rank(S, I, R)        rang de la réplique dans sa zone (plus grandes d'abord)
-%   host(H)              un nœud candidat, H = (Z, K)
+%   arch_of(S, A)        S s'exécute sur l'architecture A
+%   host(H)              un nœud candidat, H = (Z, A, K)
 %   host_zone(H, Z)      la zone d'un nœud
+%   host_arch(H, A)      son architecture
 %   failure_domain(H, D) le domaine de panne d'un nœud
 %   place(S, I, H)       la réplique I de S est sur le nœud H
 %   on(S, H)             au moins une réplique de S est sur H
@@ -96,13 +98,24 @@ oversized(S, M, C) :- memory(S, M), cpu(S, C), C > node_cpu.
 % Un service à état garde des données sur son nœud.
 stateful(S) :- deployed(S), service_storage_class(S, _, C), C != ephemeral.
 
+% ------------------------------------------------------------ architectures
+% Les architectures où l'artefact d'un service s'exécute (amd64 sans arch),
+% que le vocabulaire calcule (hamac::service_arch). Les répliques d'un
+% service ont une même architecture, choisie parmi celles-là.
+arch_of(S, A) :- deployed(S), hamac__service_arch(S, A).
+zone_arch(Z, A) :- zone_of(S, Z), arch_of(S, A), not oversized(S, _, _).
+
 % ------------------------------------------------------------ nœuds
-% Autant de nœuds candidats par zone que de répliques : une réplique par
-% nœud est toujours une solution, la minimisation retire les autres.
+% Un nœud candidat a une zone et une architecture : H = (Z, A, K). Autant
+% de candidats par zone et par architecture que de répliques qui peuvent
+% s'y exécuter : une réplique par nœud est toujours une solution, la
+% minimisation retire les autres.
 replica(S, 1..N) :- replicas(S, N).
-zone_replicas(Z, N) :- zone_of(_, Z), N = #sum { R, S : zone_of(S, Z), replicas(S, R) }.
-host((Z, 1..N)) :- zone_replicas(Z, N).
-host_zone((Z, K), Z) :- host((Z, K)).
+zone_arch_replicas(Z, A, N) :- zone_arch(Z, A),
+    N = #sum { R, S : zone_of(S, Z), arch_of(S, A), replicas(S, R) }.
+host((Z, A, 1..N)) :- zone_arch_replicas(Z, A, N).
+host_zone((Z, A, K), Z) :- host((Z, A, K)).
+host_arch((Z, A, K), A) :- host((Z, A, K)).
 % Un nœud proposé est son propre domaine de panne : la topologie ne déclare
 % pas encore de domaines plus larges.
 failure_domain(H, H) :- host(H).
@@ -116,6 +129,11 @@ failure_domain(H, H) :- host(H).
 % quand les nœuds seront ceux d'un inventaire, qui ne sont plus
 % interchangeables.)
 %
+% Les nœuds d'une zone et d'une architecture sont numérotés à part, mais le
+% rang reste celui de la zone : la réplique de rang R est sur l'un des
+% nœuds 1..R de son architecture, ce que toute numérotation des nœuds dans
+% l'ordre de leur réplique de plus petit rang satisfait.
+%
 % Rang d'une réplique dans sa zone : les plus grandes d'abord (mémoire puis
 % processeur), puis par service et par numéro ; les répliques d'un service
 % ont des rangs consécutifs.
@@ -126,8 +144,11 @@ rank(S, I, N + 1) :- key(S, I, Z, X), N = #count { Y : key(_, _, Z, Y), Y < X }.
 % ------------------------------------------------------------ placement
 % Les nœuds sont numérotés dans l'ordre de leur réplique de plus petit
 % rang : la réplique de rang R est sur l'un des nœuds 1..R.
-1 { place(S, I, (Z, K)) : host_zone((Z, K), Z), K <= R } 1 :- rank(S, I, R), zone_of(S, Z).
+1 { place(S, I, (Z, A, K)) : host((Z, A, K)), arch_of(S, A), K <= R } 1 :-
+    rank(S, I, R), zone_of(S, Z).
 on(S, H) :- place(S, _, H).
+runs_on(S, A) :- place(S, _, (_, A, _)).
+:- deployed(S), 2 { runs_on(S, A) : arch_of(S, A) }.
 used(H) :- place(_, _, H).
 level_on(H, L) :- on(S, H), zone_of(S, Z), pattern_zone_level(_, Z, L).
 
@@ -146,13 +167,14 @@ spread_out(S) :- deployed(S), service_spread(S, failure_domain).
 :- deployed(S), service_anti_affinity(S, T), on(S, H), on(T, H).
 
 % ------------------------------------------------------------ symétries
-% Les nœuds utilisés sont les premiers.
-:- host_zone((Z, K), Z), K > 1, used((Z, K)), not used((Z, K - 1)).
-% Les répliques d'un service occupent des nœuds de numéro croissant :
-% at_most(S, I, K), la réplique I de S est sur un nœud de numéro au plus K.
-at_most(S, I, K) :- place(S, I, (Z, K)).
-at_most(S, I, K) :- at_most(S, I, K - 1), zone_of(S, Z), host_zone((Z, K), Z).
-:- place(S, I + 1, (Z, K)), replica(S, I), not at_most(S, I, K).
+% Les nœuds utilisés d'une zone et d'une architecture sont les premiers.
+:- host((Z, A, K)), K > 1, used((Z, A, K)), not used((Z, A, K - 1)).
+% Les répliques d'un service, toutes de la même architecture, occupent des
+% nœuds de numéro croissant : at_most(S, I, K), la réplique I de S est sur
+% un nœud de numéro au plus K.
+at_most(S, I, K) :- place(S, I, (_, _, K)).
+at_most(S, I, K) :- at_most(S, I, K - 1), runs_on(S, A), zone_of(S, Z), host((Z, A, K)).
+:- place(S, I + 1, (_, _, K)), replica(S, I), not at_most(S, I, K).
 
 % Borne inférieure : en volume, une zone demande au moins
 % ⌈mémoire / node_memory⌉ et ⌈processeur / node_cpu⌉ nœuds.
@@ -165,7 +187,10 @@ lower_bound(Z, (C + node_cpu - 1) / node_cpu) :- zone_of(_, Z),
 lower_bound(Z, N) :- zone_of(_, Z),
     N = #count { S, I : key(S, I, Z, _), memory(S, M), 2 * M > node_memory;
                  S, I : key(S, I, Z, _), cpu(S, C), 2 * C > node_cpu }.
-:- lower_bound(Z, L), host_zone((Z, K), Z), K <= L, not used((Z, K)).
+:- lower_bound(Z, L), #count { H : used(H), host_zone(H, Z) } < L.
+% Une zone d'une seule architecture utilise donc ses L premiers nœuds.
+single_arch(Z, A) :- zone_arch(Z, A), #count { B : zone_arch(Z, B) } = 1.
+:- lower_bound(Z, L), single_arch(Z, A), host((Z, A, K)), K <= L, not used((Z, A, K)).
 
 % ------------------------------------------------------------ patrons
 % Une contrainte « termes : corps » donne la règle
@@ -215,6 +240,7 @@ maximize_priority(P, E, 1) :- pattern_maximize(P, E), not pattern_maximize_prior
 #defined service_memory_limit/3.  #defined service_cpu_limit/3.
 #defined service_spread/2.    #defined service_anti_affinity/2.
 #defined service_storage_class/3.
+#defined hamac__service_arch/2.
 #defined pattern_zone_level/3.
 #defined pattern_constraint/2.     #defined pattern_constraint_violation/3.
 #defined pattern_constraint_severity/3.

@@ -12,7 +12,7 @@ pattern p {
   maximize "1, H : used(H)" { priority 2. }
   constraint compact {
     severity soft.
-    violation "H : used(H), H = (_, K), K > 2".
+    violation "H : used(H), H = (_, _, K), K > 2".
   }
 }
 

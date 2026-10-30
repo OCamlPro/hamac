@@ -22,6 +22,8 @@ LOAF, et n'ont pas de cas ici.
   manifest.loaf:5:1: [E004] service un_nom_de_service_bien_trop_long_pour_tenir_dans_une_etiquette_dns: its host name un-nom-de-service-bien-trop-long-pour-tenir-dans-une-etiquette-dns is not a DNS label (1 to 63 lowercase letters, digits and '_' in the name, '_' neither first nor last)
   manifest.loaf:5:1: [E006] min_replicas and max_replicas go together
   manifest.loaf:12:3: [E007] reference 'sans-backend' of secret key: expected <backend>:<path>[#<key>]
+  manifest.loaf:7:3: [E008] the artifact of web is not an OCI image: it runs on exactly one architecture
+  manifest.loaf:18:5: [E009] node worker of lab is arm64, but its profile station installs a system for amd64
   manifest.loaf:7:3: [E011] sha256 of the artifact of web: expected 64 hexadecimal characters
   manifest.loaf:11:3: [E012] bundle 'base' listed twice
   manifest.loaf:11:3: [E013] consumes db of web: exactly one of capability and service
@@ -42,6 +44,7 @@ LOAF, et n'ont pas de cas ici.
   manifest.loaf:13:5: [E043] route /health is public: it cannot also require a classification, categories or roles
   web.loaf:12:20: [E044] route '/vault' is classified secure, above zone internal (internal): a service holds no data more sensitive than its zone
   manifest.loaf:12:20: [E045] route '/admin' of web requires the role admn, which no pattern declares (roles: admin)
+  manifest.loaf:20:3: [E046] the infrastructure lab has no node of the zone of web for one of its architectures
   lib/b.loaf:7:3: [E050] levels public < internal < secret differ from public < secret declared by another pattern of the stack
   lib/b.loaf:7:3: [E051] zone 'rh' is already defined with another label or boundary
   manifest.loaf:6:19: [E052] constraint c1 of p: unsafe variables: 'X' is unsafe

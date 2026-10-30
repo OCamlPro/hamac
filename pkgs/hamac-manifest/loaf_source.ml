@@ -297,7 +297,9 @@ let service cx s : service_manifest =
       let q = [s; a] in
       Some { path = str a;
              sha256 = F.req1 cx k q "artifact.sha256" str;
-             format = F.req1 cx k q "artifact.format" enum }
+             format = F.req1 cx k q "artifact.format" enum;
+             archs = (match F.list1 cx k q "artifact.arch" enum with
+                      | [] -> ["amd64"] | archs -> archs) }
     | _ -> None in
   let consumes =
     F.list1 cx k p "consumes" Fun.id |> List.map (fun n ->
@@ -504,6 +506,8 @@ let infrastructure cx i : infrastructure_manifest =
   let nodes = F.list1 cx k p "node" Fun.id |> List.map (fun r ->
     let q = [i; r] in
     { role = const r;
+      node_zone = Option.value (F.opt1 cx k q "node.zone" const) ~default:(const r);
+      arch = Option.value (F.opt1 cx k q "node.arch" enum) ~default:"amd64";
       count = Option.value (F.opt1 cx k q "node.count" int) ~default:1;
       ram = F.pair cx k q "node.ram" quantity;
       cpu = F.opt1 cx k q "node.cpu" int;
@@ -554,6 +558,7 @@ let provisioning_profile cx f : provisioning_profile_manifest =
         os_url = F.req1 cx k q "os.url" str;
         os_sha256 = F.req1 cx k q "os.sha256" str;
         os_format = F.req1 cx k q "os.format" const;
+        os_arch = Option.value (F.opt1 cx k q "os.arch" enum) ~default:"amd64";
         os_family = Option.value (F.opt1 cx k q "os.family" const) ~default:"debian";
         os_raw_zst_url = or_empty "os.raw_zst_url";
         os_raw_zst_sha256 = or_empty "os.raw_zst_sha256";

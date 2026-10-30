@@ -42,6 +42,7 @@ block service {
   artifact? string {  % sujet : chemin ou image de l'artefact
     sha256 string.
     format artifact_format.
+    arch* arch.       % architectures où il s'exécute ; défaut amd64
   }
   replicas? int.      % défaut 1
 
@@ -144,13 +145,8 @@ block service {
 }
 
 enum runtime { http; cli; batch; eventloop; custom }.
-enum artifact_format {
-  oci_image;
-  native_linux_amd64;
-  native_linux_arm64;
-  incus_vm_image;
-  incus_system_image
-}.
+enum artifact_format { oci_image; native; incus_vm_image; incus_system_image }.
+enum arch { amd64; arm64 }.
 enum consume_mode { request; push }.
 enum port_protocol { tcp; udp }.
 enum exposure_protocol { http; tcp }.
@@ -297,6 +293,8 @@ block infrastructure {
 
   % Topologie proposée.
   node* name {              % sujet : rôle du nœud
+    zone? name.             % la zone qu'il accueille ; défaut : le sujet
+    arch? arch.             % défaut amd64
     count? int.             % défaut 1
     ram? int, size_unit.
     cpu? int.
@@ -336,6 +334,7 @@ block provisioning_profile {
     url string.                        % image de référence
     sha256 string.
     format os_format.
+    arch? arch.                        % défaut amd64
     family? name.                      % défaut debian
     raw_zst_url? string.               % dérivés pour l'installation physique
     raw_zst_sha256? string.
@@ -512,6 +511,39 @@ namespace hamac {
       P.zone(Z).category(C), not P.category(C).
   ::error("[E006] a lattice needs at least one level", P.category(C)) :-
       P.category(C), #count { I : P.levels(I, _) } = 0.
+
+  % Architectures. Seule une image OCI peut en couvrir plusieurs ; sans
+  % arch, un artefact, un nœud ou une image d'OS est amd64.
+  ::error(fmt("[E008] the artifact of {S} is not an OCI image: it runs on exactly one architecture"),
+          S.artifact(P)) :-
+      S.artifact(P).format(F), F != oci_image, #count { A : S.artifact(P).arch(A) } > 1.
+  derived predicate service_arch(service, arch).
+  derived predicate node_arch(infrastructure, name, arch).
+  derived predicate os_arch(provisioning_profile, arch).
+  service_arch(S, A) :- S.artifact(_).arch(A).
+  service_arch(S, amd64) :- service(S), not has_arch(S).
+  has_arch(S) :- S.artifact(_).arch(_).
+  node_arch(I, N, A) :- I.node(N).arch(A).
+  node_arch(I, N, amd64) :- I.node(N), not I.node(N).arch(_).
+  os_arch(F, A) :- F.os(_).arch(A).
+  os_arch(F, amd64) :- F.os(O), not F.os(O).arch(_).
+
+  % Un nœud installé par un profil a l'architecture de son image d'OS.
+  ::error(fmt("[E009] node {N} of {I} is {A}, but its profile {F} installs a system for {B}"),
+          I.node(N).provisioning_profile(F)) :-
+      I.node(N).provisioning_profile(F), node_arch(I, N, A), os_arch(F, B), A != B.
+
+  % L'infrastructure qu'impose une stack offre à chaque service un nœud de
+  % sa zone et d'une de ses architectures.
+  ::error(fmt("[E046] the infrastructure {I} has no node of the zone of {S} for one of its architectures"),
+          K.service(S)) :-
+      K.infrastructure(I), K.service(S), not served(I, S).
+  served(I, S) :- service_zone_or_default(S, Z), node_zone(I, N, Z),
+                  node_arch(I, N, A), service_arch(S, A).
+  service_zone_or_default(S, Z) :- service(S), S.zone(Z).
+  service_zone_or_default(S, default) :- service(S), not S.zone(_).
+  node_zone(I, N, Z) :- I.node(N).zone(Z).
+  node_zone(I, N, N) :- I.node(N), not I.node(N).zone(_).
 
   % Paramètre d'un bundle dans un profil : une valeur ou une liste.
   ::error(fmt("[E007] parameter {X} of the bundle {B}: exactly one of value and items"),

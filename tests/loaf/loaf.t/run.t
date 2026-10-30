@@ -150,7 +150,7 @@ premier port.
        (Some { Types.path =
                "registry.example.org/rh/hr-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-               format = "oci_image" });
+               format = "oci_image"; archs = ["amd64"] });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "db"; capability = (Some "database"); service = None;
@@ -204,7 +204,7 @@ premier port.
        (Some { Types.path =
                "registry.example.org/rh/payroll-report@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-               format = "oci_image" });
+               format = "oci_image"; archs = ["amd64"] });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "api"; capability = None; service = (Some "hr_api");
@@ -232,7 +232,7 @@ premier port.
        (Some { Types.path =
                "registry.example.org/rh/portal@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-               format = "oci_image" });
+               format = "oci_image"; archs = ["amd64"] });
        capability = None; inputs = []; consumes = []; provides = []; readiness = None;
        security = (Some { Types.zone = "public"; route_labels = [] });
        ports = [{ Types.container = 8080; protocol = "tcp" }]; environment = [];
@@ -256,7 +256,7 @@ premier port.
        (Some { Types.path =
                "postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
                sha256 = "54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
-               format = "oci_image" });
+               format = "oci_image"; archs = ["amd64"] });
        capability = (Some "database");
        inputs =
        [("dbname", "{consumer.name}_db"); ("password", "{generate.alnum(32)}");
@@ -283,7 +283,7 @@ premier port.
        (Some { Types.path =
                "redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
                sha256 = "8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
-               format = "oci_image" });
+               format = "oci_image"; archs = ["amd64"] });
        capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
        consumes = [];
        provides = [("host", "{service_name}"); ("password", "{input.password}"); ("port", "6379")];
@@ -352,7 +352,7 @@ premier port.
        artifact =
        (Some { Types.path = "./bin/analytics";
                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-               format = "native_linux_amd64" });
+               format = "native"; archs = ["amd64"] });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "api"; capability = None; service = (Some "web_api");
@@ -388,7 +388,7 @@ premier port.
        artifact =
        (Some { Types.path = "./bin/payroll";
                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-               format = "native_linux_amd64" });
+               format = "native"; archs = ["amd64"] });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "db"; capability = (Some "database"); service = None;
@@ -423,7 +423,7 @@ premier port.
        (Some { Types.path =
                "postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
                sha256 = "54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
-               format = "oci_image" });
+               format = "oci_image"; archs = ["amd64"] });
        capability = (Some "database");
        inputs =
        [("dbname", "{consumer.name}_db"); ("password", "{generate.alnum(32)}");
@@ -450,7 +450,7 @@ premier port.
        (Some { Types.path =
                "redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
                sha256 = "8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
-               format = "oci_image" });
+               format = "oci_image"; archs = ["amd64"] });
        capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
        consumes = [];
        provides = [("host", "{service_name}"); ("password", "{input.password}"); ("port", "6379")];
@@ -468,7 +468,7 @@ premier port.
        artifact =
        (Some { Types.path = "./bin/web_api";
                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-               format = "native_linux_amd64" });
+               format = "native"; archs = ["amd64"] });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "db"; capability = (Some "database"); service = None;
@@ -506,8 +506,8 @@ premier port.
          os_url =
          "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2";
          os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-         os_format = "qcow2"; os_family = "debian"; os_raw_zst_url = ""; 
-         os_raw_zst_sha256 = ""; os_bmap_url = "" };
+         os_format = "qcow2"; os_arch = "amd64"; os_family = "debian"; 
+         os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
        pp_bundles = [{ Types.bundle_name = "dev_workstation"; bundle_params = [] }];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
        pp_assurance = None })
@@ -519,8 +519,8 @@ premier port.
          os_url =
          "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2";
          os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-         os_format = "qcow2"; os_family = "debian"; os_raw_zst_url = ""; 
-         os_raw_zst_sha256 = ""; os_bmap_url = "" };
+         os_format = "qcow2"; os_arch = "amd64"; os_family = "debian"; 
+         os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
        pp_bundles =
        [{ Types.bundle_name = "dev_workstation";
           bundle_params =
@@ -660,8 +660,8 @@ zone tiendrait en volume sur un seul.
       - payroll_report
   
   Proposed topology:
-    1x node [public] — 4096Mi RAM, 4 CPU
-    2x node [rh] — 4096Mi RAM, 4 CPU
+    1x node [public] amd64 — 4096Mi RAM, 4 CPU
+    2x node [rh] amd64 — 4096Mi RAM, 4 CPU
   
   Network segments:
     public: 10.10.0.0/24 (VLAN 100)

@@ -1,0 +1,22 @@
+% E046-infrastructure-sans-architecture
+loaf 0.1.
+use hamac 0.2.
+
+service web {
+  runtime http.
+  artifact "./bin/web" {
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format native.
+    arch amd64.
+  }
+}
+
+infrastructure lab {
+  backend incus.
+  node default { arch arm64. }
+}
+
+stack s {
+  service web {}
+  infrastructure lab.
+}

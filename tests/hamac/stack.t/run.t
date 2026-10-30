@@ -22,9 +22,9 @@ manifestes de service).
       - payroll
   
   Proposed topology:
-    4x node [internal] — 4096Mi RAM, 4 CPU
-    3x node [public] — 4096Mi RAM, 4 CPU
-    1x node [secure] — 4096Mi RAM, 4 CPU (isolated)
+    4x node [internal] amd64 — 4096Mi RAM, 4 CPU
+    3x node [public] amd64 — 4096Mi RAM, 4 CPU
+    1x node [secure] amd64 — 4096Mi RAM, 4 CPU (isolated)
   
   Network segments:
     internal: 10.10.0.0/24 (VLAN 100)

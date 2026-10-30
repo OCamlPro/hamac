@@ -12,7 +12,8 @@ service payroll {
   cpu_limit 500, m.
   artifact "./bin/payroll" {
     sha256 "0000000000000000000000000000000000000000000000000000000000000000".
-    format native_linux_amd64.
+    format native.
+    arch amd64.
   }
 
   consumes db {

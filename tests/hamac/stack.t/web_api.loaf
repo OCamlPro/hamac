@@ -15,7 +15,8 @@ service web_api {
   cpu_threshold 70.
   artifact "./bin/web_api" {
     sha256 "0000000000000000000000000000000000000000000000000000000000000000".
-    format native_linux_amd64.
+    format native.
+    arch amd64.
   }
 
   consumes db {
