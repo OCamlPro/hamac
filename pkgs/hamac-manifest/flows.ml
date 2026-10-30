@@ -58,8 +58,7 @@ type flow = {
 }
 
 (** An invalid flow declaration: service, index of its [consumes] entry, and
-    the diagnostic (E020 unknown service, E040 read up, E041 request across a
-    diode). *)
+    the diagnostic (E040 read up, E041 request across a diode). *)
 type error = {
   service: string;
   consume_index: int;
@@ -87,8 +86,9 @@ let declared ?(lattice = Lattice.default) (services : service_manifest list)
       | Some target_name ->
         match find target_name with
         | None ->
-          fail "E020" "%s: consumes '%s': unknown service '%s' (not part of this stack)"
-            svc.name c.name target_name
+          (* The language has resolved the reference: the target is a
+             service outside those given, a provider. *)
+          ()
         | Some target ->
           let consumer_zone = service_zone svc and target_zone = service_zone target in
           let cz = zone_of lattice consumer_zone and tz = zone_of lattice target_zone in

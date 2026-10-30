@@ -1142,7 +1142,8 @@ templates/bundles/dev-workstation/
     `list_int` · `object`],
   [#h(1em)`required`], [le profil #doit en donner la valeur ; sinon le rendu
     échoue],
-  [`depends_on* bundle`], [bundles à appliquer avant celui-ci],
+  [`depends_on* bundle`], [bundles à appliquer avant celui-ci : un profil
+    qui l'applique les liste avant lui (#code("E012"))],
   [`lifecycle? lifecycle`], [#experimental `install` (défaut) · `converge`],
 )
 
@@ -1184,7 +1185,8 @@ PXE, rendu et fusion du cloud-init, écriture de l'image sur le disque.
   [`os string { … }`], [image d'OS (ci-dessous) ; le sujet est son
     identifiant, à usage humain],
   [`bundles* [bundle]`], [les bundles appliqués, dans l'ordre ; un bundle
-    listé deux fois donne #code("E012")],
+    listé deux fois, ou avant un bundle dont il dépend (`depends_on`), donne
+    #code("E012")],
   [`bundle* bundle { param* name { … } }`], [paramètres d'un bundle de la
     liste : chaque `param` a soit `value? text` (paramètre scalaire), soit
     `items* [text]` (paramètre liste), exactement un des deux
@@ -1441,7 +1443,8 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     sans backend],
   code("E011"), [2], [`sha256` d'un artefact ou d'une image d'OS qui n'est pas
     64 caractères hexadécimaux],
-  code("E012"), [2], [bundle listé deux fois dans `bundles`],
+  code("E012"), [2], [bundle listé deux fois dans `bundles`, ou avant un
+    bundle dont il dépend],
   code("E013"), [2], [consommation sans, ou avec à la fois, `capability` et
     `service`],
   code("E014"), [2], [réservation de ressource supérieure à sa limite],

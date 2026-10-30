@@ -9,3 +9,7 @@ bundle b {
   param f { type bool. }
   param o { type object. }
 }
+
+bundle c {
+  depends_on b.
+}

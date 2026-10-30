@@ -9,7 +9,7 @@ provisioning_profile p {
     sha256 "0000000000000000000000000000000000000000000000000000000000000000".
     format qcow2.
   }
-  bundles [b].
+  bundles [c, b].
   bundle b {
     param s { items ["a"]. }
     param l { value "a". }

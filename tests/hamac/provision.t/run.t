@@ -100,3 +100,8 @@ machine.
   hamac: [ERROR] params/profile.loaf:16:5: [E007] parameter f of the bundle b is a boolean: true or false
   hamac: [ERROR] params/profile.loaf:17:5: [E007] parameter o of the bundle b is an object: only the record of the machine gives it
   hamac: [ERROR] params/profile.loaf:18:5: [E007] z is not a parameter of the bundle b
+
+Un bundle s'applique après ceux dont il dépend.
+
+  $ hamac validate params 2>&1 | grep E012
+  hamac: [ERROR] params/profile.loaf:12:3: [E012] bundle c depends on b, which bundles does not list before it

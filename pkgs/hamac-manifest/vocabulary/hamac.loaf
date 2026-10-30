@@ -538,6 +538,12 @@ namespace hamac {
       F.bundle(B).param(X).value(V), B.param(X).type(bool), V != true, V != false.
   list_type(list_string). list_type(list_int).
 
+  % Un bundle s'applique après ceux dont il dépend.
+  ::error(fmt("[E012] bundle {B} depends on {D}, which bundles does not list before it"),
+          F.bundles(I, B)) :-
+      F.bundles(I, B), B.depends_on(D), not listed_before(F, D, I).
+  listed_before(F, D, I) :- F.bundles(I, _), F.bundles(J, D), J < I.
+
   % Les paramètres d'un bundle que le profil n'applique pas.
   ::error(fmt("[E007] parameters of the bundle {B}, which bundles does not list"),
           F.bundle(B)) :-
