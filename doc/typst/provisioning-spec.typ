@@ -233,8 +233,9 @@ fusionne dans l'ordre :
 Stratégie : pour les listes (`runcmd`, `packages`, `users`, etc.) →
 concaténation, les doublons de `packages` étant retirés. Pour les objets →
 fusion clé par clé. Pour les scalaires (`timezone`, `hostname`) → le dernier
-gagne. Pour les blocs `write_files` → concaténation par chemin (collision
-détectée et signalée).
+gagne. Pour les blocs `write_files` → concaténation ; deux fragments qui
+écrivent le même chemin avec des entrées différentes font échouer le rendu, en
+nommant le chemin et les deux fragments.
 
 = Référencement depuis une infrastructure
 

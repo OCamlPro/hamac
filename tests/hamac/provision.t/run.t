@@ -82,3 +82,9 @@ partiel. On retire du profil le sous-bloc des paramètres du bundle :
   $ hamac provision-dryrun --profile=no-params.loaf --bundles-dir=bundles
   hamac: [ERROR] bundle 'dev-workstation' : paramètre requis 'username' manquant
   [1]
+
+Deux fragments qui écrivent le même fichier avec des contenus différents font
+échouer le rendu.
+
+  $ hamac provision-dryrun --profile=collision.loaf --bundles-dir=bundles 2>&1 | grep write_files
+  hamac: [ERROR] write_files : le bundle dev-workstation et cloud_init_extra écrivent tous deux '/etc/motd' avec des contenus différents

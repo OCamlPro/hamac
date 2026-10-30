@@ -24,6 +24,7 @@ type error =
   | Missing_required_param of string * string (* bundle, param *)
   | Template_render_error of string * string  (* fichier, message *)
   | Script_not_found of string * string       (* bundle, script path *)
+  | Write_files_collision of string * string * string (* chemin, deux origines *)
 
 let pp_error fmt = function
   | Bundle_not_found (name, paths) ->
@@ -37,6 +38,9 @@ let pp_error fmt = function
     Format.fprintf fmt "rendu Jinja2 '%s' : %s" file msg
   | Script_not_found (bundle, path) ->
     Format.fprintf fmt "bundle '%s' : script '%s' introuvable" bundle path
+  | Write_files_collision (path, a, b) ->
+    Format.fprintf fmt "write_files : %s et %s écrivent tous deux '%s' avec des contenus différents"
+      a b path
 
 (* ============================================================ *)
 (* Résultat                                                      *)
@@ -168,6 +172,32 @@ let rec merge_yaml (a : Yaml.value) (b : Yaml.value) : Yaml.value =
 
 let merge_many (vs : Yaml.value list) : Yaml.value =
   List.fold_left merge_yaml (`O []) vs
+
+(** Deux fragments (nommés par leur origine) qui écrivent le même chemin
+    par [write_files] avec des entrées différentes : la concaténation
+    garderait les deux, et cloud-init écrirait l'une sur l'autre. La même
+    entrée deux fois est admise. *)
+let write_files_collision (fragments : (string * Yaml.value) list) =
+  let entries = List.concat_map (fun (origin, v) ->
+    match v with
+    | `O fields ->
+      (match List.assoc_opt "write_files" fields with
+       | Some (`A items) ->
+         List.filter_map (function
+           | `O f as entry ->
+             (match List.assoc_opt "path" f with
+              | Some (`String path) -> Some (path, origin, entry)
+              | _ -> None)
+           | _ -> None) items
+       | _ -> [])
+    | _ -> []) fragments in
+  let rec find = function
+    | [] -> None
+    | (path, origin, entry) :: rest ->
+      match List.find_opt (fun (p, o, e) -> p = path && o <> origin && e <> entry) rest with
+      | Some (_, other, _) -> Some (Write_files_collision (path, origin, other))
+      | None -> find rest in
+  find entries
 
 (* ============================================================ *)
 (* Déduplication packages                                        *)
@@ -329,6 +359,12 @@ let render
       | Ok v -> Ok [v]
       | Error m -> Error (Template_render_error ("cloud_init_extra", m)) in
   let all_fragments = bundle_yamls @ extra in
+  let origins =
+    List.map (fun (br : bundle_ref) -> "le bundle " ^ br.bundle_name) profile.pp_bundles
+    @ List.map (fun _ -> "cloud_init_extra") extra in
+  let* () = match write_files_collision (List.combine origins all_fragments) with
+    | Some e -> Error e
+    | None -> Ok () in
   let merged = dedup_packages (merge_many all_fragments) in
 
   (* Sérialiser *)

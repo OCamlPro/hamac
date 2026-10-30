@@ -1,0 +1,31 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Le profil de démonstration, dont cloud_init_extra écrit aussi /etc/motd.
+
+loaf 0.1.
+use hamac 0.2.
+
+provisioning_profile motd_collision {
+  cloud_init_extra "{write_files: [{path: /etc/motd, content: autre}]}".
+
+  os "debian-12-amd64-genericcloud" {
+    url "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format qcow2.
+    family debian.
+  }
+
+  bundles [dev_workstation].
+
+  bundle dev_workstation {
+    param username { value "devuser". }
+    param full_name { value "Example Developer". }
+    param timezone { value "Europe/Paris". }
+
+    % Clé d'exemple, volontairement non utilisable.
+    param ssh_public_keys {
+      items ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE example@hamac"].
+    }
+  }
+}
