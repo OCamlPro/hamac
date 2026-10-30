@@ -1,6 +1,7 @@
 % E044-route-au-dessus-de-la-zone
 loaf 0.1.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 service web {
   runtime http.
@@ -9,5 +10,5 @@ service web {
     format oci_image.
   }
   zone internal.
-  route "/vault" { classification secure. }
+  route "/vault" { blp::classification secure. }
 }

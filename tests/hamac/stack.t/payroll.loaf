@@ -3,6 +3,7 @@
 
 loaf 0.1.
 use hamac 0.2.
+use hamac_rbac 0.2.
 
 service payroll {
   runtime http.
@@ -22,6 +23,6 @@ service payroll {
            fmt("postgresql://{~.database.user}:{~.database.password}@{~.database.host}:{~.database.port}/{~.database.dbname}").
   }
 
-  route "/salary/*" { required_clearance comptable; admin. }
-  route "/employees/*" { required_clearance admin. }
+  route "/salary/*" { rbac::role comptable; admin. }
+  route "/employees/*" { rbac::role admin. }
 }

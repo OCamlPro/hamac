@@ -1,11 +1,13 @@
-Flux déclarés entre services et cloisonnement Bell-LaPadula.
+Flux déclarés entre services et cloisonnement des zones. Le modèle de
+sécurité est celui du patron hamac_default (Bell-LaPadula, quatre niveaux),
+que charge `zones.loaf`.
 
 `analytics` (zone internal) consomme `web_api` (zone public) : c'est une
 lecture vers le bas, permise par le treillis. Le plan ouvre exactement ce flux ;
 toute autre connexion entre zones reste refusée, et aucune zone ne peut ouvrir
 de connexion vers une zone plus sensible.
 
-  $ hamac plan analytics.loaf payroll.loaf web_api.loaf | sed -n '/Firewall rules/,$p'
+  $ hamac plan zones.loaf analytics.loaf payroll.loaf web_api.loaf | sed -n '/Firewall rules/,$p'
   Firewall rules:
     ALLOW internal -> public (analytics -> web_api)
     DENY internal -> secure (no read up)
@@ -18,7 +20,7 @@ de connexion vers une zone plus sensible.
 
 `resolve` câble le flux : `{~.host}` et `{~.port}` désignent le service consommé.
 
-  $ hamac resolve analytics.loaf payroll.loaf web_api.loaf | sed -n '/Wiring/,$p'
+  $ hamac resolve zones.loaf analytics.loaf payroll.loaf web_api.loaf | sed -n '/Wiring/,$p'
   Wiring:
     analytics.api -> web_api (service)
       inject: API_URL=http://web-api:8080
@@ -29,7 +31,7 @@ filtrage suit l'état des connexions, en INPUT/OUTPUT et dans DOCKER-USER
 (conteneurs) : `internal` n'ouvre vers `public` que le port de `web_api`, et
 `public` n'accepte de nouvelle connexion du nœud `internal` que sur ce port.
 
-  $ hamac simulate analytics.loaf payroll.loaf web_api.loaf > /dev/null
+  $ hamac simulate zones.loaf analytics.loaf payroll.loaf web_api.loaf > /dev/null
   $ for n in internal public secure; do echo "node-$n-1:"; sed -n "/^  node-$n-1:/,/restart:/p" docker-compose.yml | sed -n '/networks:/,/restart:/p' | grep -E 'zone_|ipv4'; done
   node-internal-1:
         zone_internal:
@@ -80,15 +82,15 @@ filtrage suit l'état des connexions, en INPUT/OUTPUT et dans DOCKER-USER
 Une lecture vers le haut est refusée : `portal` (zone public) ne peut pas
 consommer `payroll` (zone secure).
 
-  $ hamac plan portal-read-up.loaf payroll.loaf
-  hamac: [ERROR] portal-read-up.loaf:11:3: [E040] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
+  $ hamac plan zones.loaf portal-read-up.loaf payroll.loaf
+  hamac: [ERROR] portal-read-up.loaf:12:5: [E040] portal (zone public) cannot consume payroll (zone secure): the security model of the patterns does not let zone public read zone secure; if payroll must expose data to zone public, have it push them to a service of that zone
   [1]
-  $ hamac simulate portal-read-up.loaf payroll.loaf
-  hamac: [ERROR] [E040] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
+  $ hamac simulate zones.loaf portal-read-up.loaf payroll.loaf
+  hamac: [ERROR] portal-read-up.loaf:12:5: [E040] portal (zone public) cannot consume payroll (zone secure): the security model of the patterns does not let zone public read zone secure; if payroll must expose data to zone public, have it push them to a service of that zone
   [1]
 
 Un flux vers un service absent de la stack est une erreur.
 
-  $ hamac plan reporting-unknown.loaf web_api.loaf
+  $ hamac plan zones.loaf reporting-unknown.loaf web_api.loaf
   hamac: [ERROR] reporting-unknown.loaf:10:21: [L002] service.consumes.service(reporting, ledger, ledger): ledger does not belong to sort service
   [1]

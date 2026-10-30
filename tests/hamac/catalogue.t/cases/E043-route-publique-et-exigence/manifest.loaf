@@ -1,6 +1,7 @@
 % E043-route-publique-et-exigence
 loaf 0.1.
 use hamac 0.2.
+use hamac_rbac 0.2.
 
 service web {
   runtime http.
@@ -11,6 +12,6 @@ service web {
   zone internal.
   route "/health" {
     public.
-    required_clearance admin.
+    rbac::role admin.
   }
 }

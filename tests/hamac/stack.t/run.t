@@ -45,7 +45,7 @@ manifestes de service).
 quelles, y compris leur substitution dans les URL d'injection. Sans `--seed`,
 elles viennent de /dev/urandom et changent à chaque exécution.
 
-  $ hamac resolve --seed 42 analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
+  $ hamac resolve --seed 42 organisation.loaf analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
   hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
   Providers to instantiate:
     redis-analytics-cache (redis:7-alpine)
@@ -76,7 +76,7 @@ elles viennent de /dev/urandom et changent à chaque exécution.
 `deploy` produit un docker-compose câblé : réseaux, variables injectées,
 dépendances et healthchecks portant les credentials résolus.
 
-  $ hamac deploy --seed 42 analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
+  $ hamac deploy --seed 42 organisation.loaf analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
   hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
   hamac: [WARNING] deploy generates a flat docker-compose on a single network: it does not isolate the security zones (internal, public, secure). Use `hamac simulate` to deploy with zone filtering.
   Generated docker-compose.yml (3 services, 4 providers)
@@ -96,7 +96,7 @@ Sans `--seed`, les credentials viennent de /dev/urandom : deux résolutions
 successives des mêmes manifestes ne coïncident pas. C'est le comportement par
 défaut, et c'est celui qui compte pour un déploiement réel.
 
-  $ hamac resolve analytics.loaf providers/*.loaf > r1 2>&1
-  $ hamac resolve analytics.loaf providers/*.loaf > r2 2>&1
+  $ hamac resolve organisation.loaf analytics.loaf providers/*.loaf > r1 2>&1
+  $ hamac resolve organisation.loaf analytics.loaf providers/*.loaf > r2 2>&1
   $ cmp -s r1 r2 && echo "identiques" || echo "differentes"
   differentes

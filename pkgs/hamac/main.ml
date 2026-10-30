@@ -61,27 +61,19 @@ let load_services () =
     | _, Hamac_manifest.Types.MPattern p -> Some p | _ -> None) manifests in
   (services, registry, patterns)
 
-(** Flows the services declare between each other, checked against the
-    zone lattice (no read up). Any invalid declaration stops the command. *)
-let checked_flows ?lattice services =
-  let flows, errors = Hamac_manifest.Flows.declared ?lattice services in
-  List.iter (fun err -> Logs.err (fun m -> m "%s" (Hamac_manifest.Flows.error_to_string err))) errors;
-  if errors <> [] then exit 1;
-  flows
-
 (** The plan of the services of the file arguments
     ({!Planner.plan}, on the ASP form of the files). A failure stops the
     command. *)
 let plan_time_limit = ref Planner.default_time_limit
 
-let make_plan ?lattice ~flows ~patterns services =
+let make_plan ~flows ~patterns services =
   match Hamac_manifest.Loaf_source.asp ~lib:!library_dirs !manifest_files with
   | Error findings ->
     List.iter (fun (file, d) ->
       Logs.err (fun m -> m "%s" (Hamac_manifest.Diagnostic.to_string_in file d))) findings;
     exit 1
   | Ok asp ->
-    match Planner.plan ?lattice ~time_limit:!plan_time_limit ~name:"stack" ~flows ~asp ~patterns services with
+    match Planner.plan ~time_limit:!plan_time_limit ~name:"stack" ~flows ~asp ~patterns services with
     | plan -> plan
     | exception Planner.Error msgs ->
       List.iter (fun msg -> Logs.err (fun m -> m "plan: %s" msg)) msgs;
@@ -128,7 +120,7 @@ let run_validate ~strict () =
     if Hamac_manifest.Stack_check.stacks_of given = [] then
       List.concat_map (fun (l : Hamac_manifest.Stack_check.loaded) -> List.map (fun d -> (l.file, d)) l.diags) given
     else
-      let _, _, findings = Hamac_manifest.Stack_check.run given in
+      let _, findings = Hamac_manifest.Stack_check.run given in
       findings
   in
   let findings = findings @ check_pattern_rules given findings in
@@ -136,10 +128,11 @@ let run_validate ~strict () =
   if errors > 0 || (strict && warnings > 0) then exit 1
 
 (** [hamac plan]: the given files form a stack (stages 1 to 3), then the
-    topology is inferred under the stack's lattice. *)
+    topology is inferred, its filtering following the security models of
+    the patterns. *)
 let run_plan () =
   let given = Hamac_manifest.Stack_check.load_all ~lib:!library_dirs !manifest_files in
-  let ls, lattice, findings = Hamac_manifest.Stack_check.run given in
+  let ls, findings = Hamac_manifest.Stack_check.run given in
   let errors = List.filter (fun (_, d) -> Hamac_manifest.Diagnostic.is_error d) findings in
   let _ = report errors in
   if errors <> [] then exit 1;
@@ -148,9 +141,9 @@ let run_plan () =
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
   end;
-  let flows, _ = Hamac_manifest.Flows.declared ~lattice services in
+  let flows = Hamac_manifest.Flows.declared services in
   let patterns = List.map snd (Hamac_manifest.Stack_check.patterns_of ls) in
-  let plan = make_plan ~lattice ~flows ~patterns services in
+  let plan = make_plan ~flows ~patterns services in
   Planner.display_plan plan
 
 let run_resolve () =
@@ -160,7 +153,6 @@ let run_resolve () =
     exit 1
   end;
 
-  let _flows = checked_flows services in
   let resolution = Resolver.resolve_all ~registry ~services () in
 
   (* Report errors *)
@@ -207,7 +199,7 @@ let run_simulate () =
   end;
 
   (* Plan infrastructure *)
-  let flows = checked_flows services in
+  let flows = Hamac_manifest.Flows.declared services in
   let plan = make_plan ~flows ~patterns services in
   Planner.display_plan plan;
 
@@ -255,7 +247,6 @@ let run_deploy () =
     exit 1
   end;
 
-  let _flows = checked_flows services in
   let zones = List.sort_uniq String.compare (List.map Hamac_manifest.Flows.service_zone services) in
   if List.length zones > 1 then
     Logs.warn (fun m -> m "deploy generates a flat docker-compose on a single \

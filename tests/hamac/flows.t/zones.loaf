@@ -1,0 +1,8 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Les zones de ces services : celles du patron hamac_default.
+
+loaf 0.1.
+use hamac 0.2.
+use hamac_default 0.2.

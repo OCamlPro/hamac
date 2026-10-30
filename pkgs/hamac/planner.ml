@@ -314,6 +314,16 @@ let solve_plan ~time_limit asp patterns : Clingo.model * bool =
   | None, _ ->
     raise (Error [ Printf.sprintf "no placement found within the time limit (%gs)" time_limit ])
 
+(** The order of the zones in a model ([zone_leq] of the vocabulary, that
+    the security models of the patterns define): [zone_leq m a b], zone [b]
+    may read zone [a]. *)
+let zone_leq (m : Clingo.model) =
+  let pairs = List.filter_map (function
+    | Clingo.Fun ("zone_leq", [a; b]) ->
+      (match const a, const b with Some a, Some b -> Some (a, b) | _ -> None)
+    | _ -> None) m.symbols in
+  fun a b -> List.mem (a, b) pairs
+
 (** The demand of each service and the placement of its replicas, read
     from the optimal model. *)
 let read_model (m : Clingo.model) =
@@ -377,7 +387,7 @@ let read_model (m : Clingo.model) =
     stops after [time_limit] seconds ({!default_time_limit}): the plan then
     has the best placement found, and a warning.
     @raise Error if the services cannot be placed. *)
-let plan ?lattice ?(time_limit = default_time_limit) ~(name : string)
+let plan ?(time_limit = default_time_limit) ~(name : string)
     ~(flows : Hamac_manifest.Flows.flow list)
     ~(asp : string list) ?(patterns = []) (services : service_manifest list) : plan =
   let model, proven = solve_plan ~time_limit asp patterns in
@@ -446,7 +456,8 @@ let plan ?lattice ?(time_limit = default_time_limit) ~(name : string)
   ) zones in
 
   (* Firewall rules *)
-  let firewall = Hamac_manifest.Flows.firewall_rules ?lattice (List.map (fun z -> z.zone_name) zones) flows in
+  let firewall = Hamac_manifest.Flows.firewall_rules ~leq:(zone_leq model)
+      (List.map (fun z -> z.zone_name) zones) flows in
 
   let infrastructure = {
     name = name ^ "-infra";

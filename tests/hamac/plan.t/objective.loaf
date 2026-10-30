@@ -3,12 +3,13 @@
 
 loaf 0.1.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 % Le plus de nœuds possible, avant le moins de nœuds de hamac.lp ; la
 % contrainte soft demande au plus deux nœuds, mais à une priorité moindre.
 pattern p {
-  levels [low].
-  zone a { level low. }
+  blp::levels [low].
+  zone a { blp::level low. }
   maximize "1, H : used(H)" { priority 2. }
   constraint compact {
     severity soft.

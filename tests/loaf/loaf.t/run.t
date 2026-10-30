@@ -28,12 +28,13 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple_rh, version=1.0.0, 3 zones, 2 constraints)
   examples/hr-stack/stack.loaf: stack (name=hr, 3 services)
 
-  $ hamac validate $R/examples/enterprise-stack $R/providers 2>&1 | sed "s|$R/||"
+  $ hamac validate $R/examples/enterprise-stack $R/providers 2>&1 | sed "s|$R/||; s|[^ ]*/vocabulary/|<vocabulaire>/|"
   examples/enterprise-stack/analytics.loaf: service (name=analytics, runtime=eventloop)
   examples/enterprise-stack/payroll.loaf: service (name=payroll, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
   examples/enterprise-stack/web_api.loaf: service (name=web_api, runtime=http)
+  <vocabulaire>/hamac_default.loaf: pattern (name=hamac_default, version=0.2.0, 4 zones, 0 constraints)
   examples/enterprise-stack/organisation.loaf: pattern (name=organisation, 0 zones, 0 constraints)
 
 Un profil nomme ses bundles : il se charge avec eux.
@@ -165,14 +166,16 @@ premier port.
        (Some { Types.zone = "rh";
                route_labels =
                [{ Types.route = "/employees/*"; methods = ["GET"]; public = false;
-                  classification = (Some "internal"); categories = ["rh"];
-                  required_clearance = ["admin"; "rh"] };
+                  requirements =
+                  [("blp::category", ["rh"]); ("blp::classification", ["internal"]);
+                    ("rbac::role", ["admin"; "rh"])]
+                  };
                  { Types.route = "/employees/salaries"; methods = []; public = false;
-                   classification = (Some "confidential"); categories = ["finance"; "rh"];
-                   required_clearance = ["admin"; "comptable"] };
-                 { Types.route = "/health"; methods = []; public = true; 
-                   classification = None; categories = []; required_clearance = [] }
-                 ]
+                   requirements =
+                   [("blp::category", ["finance"; "rh"]); ("blp::classification", ["confidential"]);
+                     ("rbac::role", ["admin"; "comptable"])]
+                   };
+                 { Types.route = "/health"; methods = []; public = true; requirements = [] }]
                });
        ports = [{ Types.container = 8080; protocol = "tcp" }];
        environment = [("SESSION_KEY", "{secret.session_key}")];
@@ -298,25 +301,19 @@ premier port.
   == examples/hr-stack/patterns/exemple_rh.loaf
   (Types.MPattern
      { Types.pat_name = "exemple_rh"; pat_version = (Some "1.0.0");
-       lattice =
-       (Some { Types.levels = ["public"; "internal"; "confidential"];
-               lat_categories = ["finance"; "rh"] });
        zones =
-       [{ Types.zname = "internal"; zlevel = "internal"; zcategories = []; boundary = "firewall" };
-         { Types.zname = "public"; zlevel = "public"; zcategories = []; boundary = "firewall" };
-         { Types.zname = "rh"; zlevel = "confidential"; zcategories = ["finance"; "rh"];
-           boundary = "firewall" }
-         ];
+       [{ Types.zname = "internal"; boundary = "firewall" };
+         { Types.zname = "public"; boundary = "firewall" };
+         { Types.zname = "rh"; boundary = "firewall" }];
        pat_assurance =
        [("rh", { Types.boot = (Some "measured_tpm2"); operator = None; physical = (Some "site") })];
-       pat_roles = ["admin"; "comptable"; "rh"];
        constraints =
-       [{ Types.cid = "one_level_per_host";
-          cdescription = "Deux niveaux ne partagent jamais un noyau"; severity = "hard"; 
-          weight = 1; cpriority = 1; violation = "H : level_on(H, L1), level_on(H, L2), L1 != L2";
+       [{ Types.cid = "one_zone_per_host"; cdescription = "Deux zones ne partagent jamais un noyau";
+          severity = "hard"; weight = 1; cpriority = 1;
+          violation = "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2";
           cloc =
           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 31; column = 5 })
+                  line = 33; column = 5 })
           };
          { Types.cid = "stateful_quorum";
            cdescription =
@@ -325,14 +322,14 @@ premier port.
            violation = "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3";
            cloc =
            (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf";
-                   line = 37; column = 5 })
+                   line = 39; column = 5 })
            }
          ];
        objectives =
        [{ Types.direction = "minimize"; element = "1, H : used(H)"; priority = 1;
           oloc =
           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 40; column = 3 })
+                  line = 42; column = 3 })
           }
          ]
        })
@@ -402,11 +399,10 @@ premier port.
        security =
        (Some { Types.zone = "secure";
                route_labels =
-               [{ Types.route = "/employees/*"; methods = []; public = false; 
-                  classification = None; categories = []; required_clearance = ["admin"] };
-                 { Types.route = "/salary/*"; methods = []; public = false; 
-                   classification = None; categories = [];
-                   required_clearance = ["admin"; "comptable"] }
+               [{ Types.route = "/employees/*"; methods = []; public = false;
+                  requirements = [("rbac::role", ["admin"])] };
+                 { Types.route = "/salary/*"; methods = []; public = false;
+                   requirements = [("rbac::role", ["admin"; "comptable"])] }
                  ]
                });
        ports = []; environment = [];
@@ -491,11 +487,19 @@ premier port.
        health_check = None; metrics = None; logging = None;
        metadata = { Types.description = None; labels = []; annotations = [] }; 
        storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == /home/julius/ocp/hamac-loaf/_build/install/default/share/hamac-manifest/vocabulary/hamac_default.loaf
+  (Types.MPattern
+     { Types.pat_name = "hamac_default"; pat_version = (Some "0.2.0");
+       zones =
+       [{ Types.zname = "default"; boundary = "firewall" };
+         { Types.zname = "internal"; boundary = "firewall" };
+         { Types.zname = "public"; boundary = "firewall" };
+         { Types.zname = "secure"; boundary = "firewall" }];
+       pat_assurance = []; constraints = []; objectives = [] })
   == examples/enterprise-stack/organisation.loaf
   (Types.MPattern
-     { Types.pat_name = "organisation"; pat_version = None; lattice = None; 
-       zones = []; pat_assurance = []; pat_roles = ["admin"; "comptable"]; 
-       constraints = []; objectives = [] })
+     { Types.pat_name = "organisation"; pat_version = None; zones = []; 
+       pat_assurance = []; constraints = []; objectives = [] })
 
   $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev_workstation/bundle.loaf | sed "s|$R/||"
   == provisioning-profiles/dev-workstation.loaf

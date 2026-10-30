@@ -2,12 +2,13 @@
 loaf 0.1.
 module enclave 1.0.0.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 pattern enclave {
-  levels [low, high].
-  zone low { level low. }
+  blp::levels [low, high].
+  zone low { blp::level low. }
   zone high {
-    level high.
+    blp::level high.
     boundary diode.
   }
 }

@@ -1,0 +1,19 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Le patron par défaut de Hamac : quatre niveaux Bell-LaPadula, et une zone
+% par niveau, de même nom. Une stack le charge par « use hamac_default 0.2. »
+% quand l'organisation n'a pas son propre patron.
+
+loaf 0.1.
+module hamac_default 0.2.0.
+use hamac 0.2.
+use hamac_blp 0.2.
+
+pattern hamac_default {
+  blp::levels [public, default, internal, secure].
+  zone public { blp::level public. }
+  zone default { blp::level default. }
+  zone internal { blp::level internal. }
+  zone secure { blp::level secure. }
+}

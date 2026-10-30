@@ -1,6 +1,7 @@
 % E040-lecture-vers-le-haut
 loaf 0.1.
 use hamac 0.2.
+use hamac_default 0.2.
 
 stack demo {
   accept_experimental.

@@ -1,0 +1,34 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Modèle de sécurité à base de rôles (RBAC), pour les patrons de Hamac. Un
+% patron le charge par « use hamac_rbac 0.2. », déclare les rôles que
+% l'organisation attribue, et une route exige l'un d'eux :
+%
+%   pattern org { rbac::role comptable; admin. }
+%   service hr_api { route "/salaries" { rbac::role comptable; admin. } }
+%
+% Le module n'ordonne pas les zones : il ne contrôle que les routes.
+
+loaf 0.1.
+module hamac_rbac 0.2.0.
+use hamac 0.2.
+
+namespace rbac {
+  block pattern {
+    role* name.              % les rôles de l'organisation
+  }
+  block service {
+    route* string {
+      role* name.            % rôles, dont un suffit
+    }
+  }
+
+  declared(R) :- pattern(P), P.role(R).
+  ::error(fmt("[E045] route {R} of {S} requires the role {Ro}, which no pattern declares"),
+          S.route(R).role(Ro)) :-
+      stack(_), service(S), S.route(R).role(Ro), not declared(Ro).
+  ::error(fmt("[E043] route {R} is public: it cannot also require roles"),
+          S.route(R).public()) :-
+      service(S), S.route(R).public(), S.route(R).role(_).
+}

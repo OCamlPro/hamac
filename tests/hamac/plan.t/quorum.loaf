@@ -3,11 +3,12 @@
 
 loaf 0.1.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 % Chaque service sur trois nœuds au moins : web n'a que deux répliques.
 pattern p {
-  levels [low].
-  zone a { level low. }
+  blp::levels [low].
+  zone a { blp::level low. }
   constraint quorum {
     violation "S : deployed(S), #count { H : on(S, H) } < 3".
   }

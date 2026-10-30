@@ -2,7 +2,8 @@
 loaf 0.1.
 module a 1.0.0.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 pattern a {
-  zone rh { level internal. }
+  zone rh { blp::level internal. }
 }

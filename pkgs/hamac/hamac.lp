@@ -48,7 +48,7 @@
 %   place(S, I, H)       la réplique I de S est sur le nœud H
 %   on(S, H)             au moins une réplique de S est sur H
 %   used(H)              le nœud H porte au moins une réplique
-%   level_on(H, L)       une zone de niveau L a une réplique sur H
+%   zone_on(H, Z)        un service de la zone Z a une réplique sur H
 %   oversized(S, M, C)   une réplique de S dépasse un nœud (non placée)
 %
 % Et ceux des contraintes : violation(P, C, T), la contrainte C du patron P
@@ -150,7 +150,7 @@ on(S, H) :- place(S, _, H).
 runs_on(S, A) :- place(S, _, (_, A, _)).
 :- deployed(S), 2 { runs_on(S, A) : arch_of(S, A) }.
 used(H) :- place(_, _, H).
-level_on(H, L) :- on(S, H), zone_of(S, Z), pattern_zone_level(_, Z, L).
+zone_on(H, Z) :- on(S, H), zone_of(S, Z).
 
 % Capacité d'un nœud.
 :- host(H), #sum { M, S, I : place(S, I, H), memory(S, M) } > node_memory.
@@ -230,6 +230,7 @@ maximize_priority(P, E, 1) :- pattern_maximize(P, E), not pattern_maximize_prior
 #show cpu/2.
 #show oversized/3.
 #show violation/3.
+#show zone_leq/2.
 #show error/2.
 
 % Prédicats des manifestes qu'un ensemble peut ne pas définir.
@@ -241,7 +242,7 @@ maximize_priority(P, E, 1) :- pattern_maximize(P, E), not pattern_maximize_prior
 #defined service_spread/2.    #defined service_anti_affinity/2.
 #defined service_storage_class/3.
 #defined hamac__service_arch/2.
-#defined pattern_zone_level/3.
+#defined zone_leq/2.
 #defined pattern_constraint/2.     #defined pattern_constraint_violation/3.
 #defined pattern_constraint_severity/3.
 #defined pattern_constraint_weight/3.  #defined pattern_constraint_priority/3.

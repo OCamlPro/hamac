@@ -1,0 +1,92 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Modèle de sécurité Bell-LaPadula avec compartiments, pour les patrons de
+% Hamac. Un patron le charge par « use hamac_blp 0.2. » et étiquette ses
+% zones et les routes des services :
+%
+%   pattern org {
+%     blp::levels [public, internal, confidential].
+%     blp::category rh; finance.
+%     zone rh { blp::level confidential. blp::category rh; finance. }
+%   }
+%   service hr_api { route "/x" { blp::classification internal. } }
+%
+% Une étiquette est un couple (niveau, ensemble de catégories) ;
+% (n1, C1) ≤ (n2, C2) si et seulement si n1 ≤ n2 et C1 ⊆ C2. Le module en
+% déduit zone_leq : une zone lit les zones d'étiquette inférieure ou égale.
+
+loaf 0.1.
+module hamac_blp 0.2.0.
+use hamac 0.2.
+
+namespace blp {
+  block pattern {
+    levels* [name].          % les niveaux, du moins au plus sensible
+    category* name.          % les catégories de besoin d'en connaître
+    zone* name {
+      level? name.           % l'étiquette de la zone
+      category* name.
+    }
+  }
+  block service {
+    route* string {
+      classification? name.  % niveau exigé de l'utilisateur
+      category* name.        % catégories exigées
+    }
+  }
+
+  % Les niveaux composés : ceux des patrons, identiques d'un patron à
+  % l'autre ; les catégories, leur union.
+  derived predicate rank(name, int).
+  rank(L, I) :- pattern(P), P.levels(I, L).
+  declared_category(C) :- pattern(P), P.category(C).
+  ::error(fmt("[E050] the levels of {P} differ from those of another pattern of the set"),
+          P.levels(I, L)) :-
+      pattern(P), P.levels(I, L), pattern(Q), Q.levels(I, M), L != M, P > Q.
+  ::error(fmt("[E050] the levels of {P} differ from those of another pattern of the set"),
+          P.levels(I, L)) :-
+      pattern(P), P.levels(I, L), pattern(Q), Q.levels(_, _), not Q.levels(I, _).
+  ::error("[E006] categories need levels", P.category(C)) :-
+      pattern(P), P.category(C), not rank(_, _).
+
+  % L'étiquette d'une zone : son niveau et ses catégories, déclarés.
+  derived predicate zone_level(name, name).
+  zone_level(Z, L) :- pattern(P), P.zone(Z).level(L).
+  zone_category(Z, C) :- pattern(P), P.zone(Z).category(C).
+  labelled(Z) :- zone_level(Z, _).
+  ::error(fmt("[E042] level {L} of zone {Z} is not among the levels of the patterns"),
+          P.zone(Z).level(L)) :-
+      pattern(P), P.zone(Z).level(L), not rank(L, _).
+  ::error(fmt("[E042] category {C} of zone {Z} is not declared by the patterns"),
+          P.zone(Z).category(C)) :-
+      pattern(P), P.zone(Z).category(C), not declared_category(C).
+  ::error(fmt("[E051] zone {Z} is already defined with another label"), P.zone(Z).level(L)) :-
+      pattern(P), P.zone(Z).level(L), pattern(Q), Q.zone(Z).level(M), L != M, P > Q.
+  ::error(fmt("[E051] zone {Z} is already defined with another label"), P.zone(Z).category(C)) :-
+      pattern(P), P.zone(Z).category(C), pattern(Q), Q.zone(Z).level(_), not Q.zone(Z).category(C).
+
+  % L'ordre des zones.
+  ::zone_leq(A, B) :- zone_level(A, LA), zone_level(B, LB), rank(LA, I), rank(LB, J), I <= J,
+                      not missing(A, B).
+  missing(A, B) :- zone_category(A, C), labelled(B), not zone_category(B, C).
+
+  % Une route ne demande pas plus que l'étiquette de la zone de son
+  % service : un service ne sert pas de données plus sensibles que sa zone.
+  ::error(fmt("[E042] level {L} of route {R} is not among the levels of the patterns"),
+          S.route(R).classification(L)) :-
+      service(S), S.route(R).classification(L), not rank(L, _).
+  ::error(fmt("[E044] route {R} is classified {L}, above zone {Z} of {S} ({LZ}): a service holds no data more sensitive than its zone"),
+          S.route(R).classification(L)) :-
+      service(S), S.route(R).classification(L), hamac::zone_of(S, Z), zone_level(Z, LZ),
+      rank(L, I), rank(LZ, J), I > J.
+  ::error(fmt("[E044] category {C} of route {R} is not a category of zone {Z} of {S}"),
+          S.route(R).category(C)) :-
+      service(S), S.route(R).category(C), hamac::zone_of(S, Z), labelled(Z),
+      not zone_category(Z, C).
+  ::error(fmt("[E043] route {R} is public: it cannot also require a classification or categories"),
+          S.route(R).public()) :-
+      service(S), S.route(R).public(), requires(S, R).
+  requires(S, R) :- service(S), S.route(R).classification(_).
+  requires(S, R) :- service(S), S.route(R).category(_).
+}

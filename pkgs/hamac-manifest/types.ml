@@ -44,9 +44,10 @@ type route_label = {
   route: string;
   methods: string list;           (** empty = every method *)
   public: bool;
-  classification: string option;  (** a level of the lattice *)
-  categories: string list;
-  required_clearance: string list;
+  requirements: (string * string list) list;
+    (** the fields that the security models add to the routes, by
+        qualified name, with their values:
+        [("blp::classification", ["internal"]); ("rbac::role", ["rh"; "admin"])] *)
 } [@@deriving show]
 
 type security = {
@@ -189,15 +190,10 @@ type service_manifest = {
 (* kind: pattern                                                 *)
 (* ============================================================ *)
 
-type lattice_decl = {
-  levels: string list;       (** from the least to the most sensitive *)
-  lat_categories: string list;
-} [@@deriving show]
-
+(** A zone of a pattern; its label, if any, belongs to the security model
+    that the pattern uses (blp::level…). *)
 type zone_decl = {
   zname: string;
-  zlevel: string;
-  zcategories: string list;
   boundary: string;          (** firewall | diode *)
 } [@@deriving show]
 
@@ -230,10 +226,8 @@ type objective = {
 type pattern_manifest = {
   pat_name: string;
   pat_version: string option;  (** version of its module, if it is one *)
-  lattice: lattice_decl option;
   zones: zone_decl list;
   pat_assurance: (string * assurance) list;   (** zone name → minimum *)
-  pat_roles: string list;    (** roles a route may require *)
   constraints: constraint_decl list;
   objectives: objective list;
 } [@@deriving show]

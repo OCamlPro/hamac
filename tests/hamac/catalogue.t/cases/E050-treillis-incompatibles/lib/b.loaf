@@ -2,7 +2,8 @@
 loaf 0.1.
 module b 1.0.0.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 pattern b {
-  levels [public, internal, secret].
+  blp::levels [public, internal, secret].
 }

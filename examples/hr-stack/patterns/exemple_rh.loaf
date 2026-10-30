@@ -10,25 +10,27 @@
 loaf 0.1.
 module exemple_rh 1.0.0.
 use hamac 0.2.
+use hamac_blp 0.2.
+use hamac_rbac 0.2.
 
 pattern exemple_rh {
-  levels [public, internal, confidential].
-  category rh; finance.
-  role rh; comptable; admin.
+  blp::levels [public, internal, confidential].
+  blp::category rh; finance.
+  rbac::role rh; comptable; admin.
   assurance rh, boot, measured_tpm2.
   assurance rh, physical, site.
 
-  zone public { level public. }
-  zone internal { level internal. }
+  zone public { blp::level public. }
+  zone internal { blp::level internal. }
 
   zone rh {
-    level confidential.
-    category rh; finance.
+    blp::level confidential.
+    blp::category rh; finance.
   }
 
-  constraint one_level_per_host {
-    description "Deux niveaux ne partagent jamais un noyau".
-    violation "H : level_on(H, L1), level_on(H, L2), L1 != L2".
+  constraint one_zone_per_host {
+    description "Deux zones ne partagent jamais un noyau".
+    violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
   }
 
   constraint stateful_quorum {

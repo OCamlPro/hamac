@@ -8,9 +8,8 @@
 % le charge par « use hamac 0.2. ».
 %
 % Conventions :
-% - le nom d'un manifeste est le sujet de son bloc, une constante LOAF ; le
-%   nom DNS s'en déduit en remplaçant « _ » par « - » (hr_api désigne le
-%   service hr-api) ;
+% - le nom d'un manifeste est le sujet de son bloc, une constante LOAF,
+%   employée telle quelle ; seul un nom d'hôte remplace « _ » par « - » ;
 % - un champ à plusieurs valeurs porte un nom au singulier : chaque
 %   instruction en donne une (port 8080 { … }, secret session_key { … }) ;
 % - un objet unique est un sous-bloc quand il a un identifiant naturel, qui
@@ -71,14 +70,13 @@ block service {
     derived port? int.          % son premier port
   }
 
-  % Sécurité : la zone du service et l'autorisation de ses routes.
-  zone? name.                  % une zone des patrons de la stack
+  % Sécurité : la zone du service et ses routes. Les conditions d'accès à
+  % une route sont des champs qu'ajoutent les modèles de sécurité
+  % (blp::classification, rbac::role…).
+  zone? name.                  % une zone des patrons ; défaut default
   route* string {
     method* string.            % aucun : toutes les méthodes
     public.                    % aucun jeton exigé
-    classification? name.      % un niveau du treillis
-    category* name.
-    required_clearance* name.  % rôles, dont un suffit
   }
 
   port* int {                 % sujet : port écouté par le service
@@ -220,18 +218,12 @@ block pattern {
 
   % Un patron est le bloc d'un module (« module exemple_rh 1.0.0. »), qui
   % en porte la version ; la stack le charge par « use exemple_rh 1.0. »,
-  % un patron qui en complète un autre charge le module de celui-ci. Les
-  % patrons de l'ensemble de fichiers composent le treillis de la stack.
-
-  % Treillis : les niveaux, du moins au plus sensible, et les catégories.
-  levels* [name].
-  category* name.
-  % Les rôles que l'organisation attribue, seuls exigibles par une route.
-  role* name.
+  % un patron qui en complète un autre charge le module de celui-ci. Le
+  % patron charge aussi les modèles de sécurité qu'il emploie (use
+  % hamac_blp 0.2.), qui ajoutent leurs champs aux zones et aux routes et
+  % définissent zone_leq.
 
   zone* name {
-    level name.
-    category* name.
     boundary? boundary.                      % défaut firewall
   }
   assurance* name, axis => assurance_level.  % zone, axe : minimum
@@ -255,6 +247,11 @@ block pattern {
 }
 
 enum boundary { firewall; diode }.
+
+% L'ordre des zones : zone_leq(A, B), un service de la zone B peut lire
+% (ouvrir une connexion vers) la zone A. Chaque zone se lit elle-même ; le
+% reste vient des modèles de sécurité que chargent les patrons.
+predicate zone_leq(name, name).
 enum severity { hard; soft }.
 
 % ---------------------------------------------------------------------
@@ -477,12 +474,6 @@ namespace hamac {
   ::error(fmt("[E035] port {P} is not declared by port"),
           S.exposure(H).port(P)) :-
       S.exposure(H).port(P), not S.port(P).
-  ::error(fmt("[E043] route {R} is public: it cannot also require a classification, categories or roles"),
-          S.route(R).public()) :-
-      S.route(R).public(), requires(S, R).
-  requires(S, R) :- S.route(R).classification(_).
-  requires(S, R) :- S.route(R).category(_).
-  requires(S, R) :- S.route(R).required_clearance(_).
   ::error(fmt("[E006] route {R} of {S} without a zone"), S.route(R)) :-
       S.route(R), not zoned(S).
   zoned(S) :- service(S), S.zone(_).
@@ -501,16 +492,39 @@ namespace hamac {
           I.node(R).boot(L)) :-
       I.node(R).boot(L), not assurance_level(boot, L).
 
-  % Treillis d'un patron : les zones n'emploient que ses niveaux et ses
-  % catégories.
-  ::error(fmt("[E042] level {L} is not in the lattice of {P}"),
-          P.zone(Z).level(L)) :-
-      P.zone(Z).level(L), P.levels(_, _), not P.levels(_, L).
-  ::error(fmt("[E042] category {C} is not in the lattice of {P}"),
-          P.zone(Z).category(C)) :-
-      P.zone(Z).category(C), not P.category(C).
-  ::error("[E006] a lattice needs at least one level", P.category(C)) :-
-      P.category(C), #count { I : P.levels(I, _) } = 0.
+  % Zones et flux. La zone d'un service, default s'il n'en déclare pas.
+  derived predicate zone_of(service, name).
+  zone_of(S, Z) :- service(S), S.zone(Z).
+  zone_of(S, default) :- service(S), not S.zone(_).
+  defined_zone(Z) :- pattern(P), P.zone(Z).
+  ::zone_leq(Z, Z) :- defined_zone(Z).
+  ::zone_leq(Z, Z) :- zone_of(_, Z).
+
+  % Dès que les patrons définissent des zones, un service est dans l'une
+  % d'elles.
+  ::error(fmt("[E042] zone {Z} of {S} is not defined by the patterns"), S.zone(Z)) :-
+      service(S), S.zone(Z), defined_zone(_), not defined_zone(Z).
+
+  % Une zone définie par deux patrons a la même frontière.
+  boundary_of(P, Z, B) :- pattern(P), P.zone(Z).boundary(B).
+  boundary_of(P, Z, firewall) :- pattern(P), P.zone(Z), not P.zone(Z).boundary(_).
+  ::error(fmt("[E051] zone {Z} is already defined with another boundary"), P.zone(Z)) :-
+      pattern(P), P.zone(Z), boundary_of(P, Z, B), boundary_of(Q, Z, C), B != C, P > Q.
+
+  % Ouvrir une connexion vers un service revient à le lire : le modèle de
+  % sécurité doit permettre à la zone du consommateur de lire celle du
+  % service consommé. À travers une diode, rien ne répond : le flux est
+  % alors de mode push.
+  ::error(fmt("[E040] {S} (zone {ZS}) cannot consume {T} (zone {ZT}): the security model of the patterns does not let zone {ZS} read zone {ZT}; if {T} must expose data to zone {ZS}, have it push them to a service of that zone"),
+          S.consumes(N).service(T)) :-
+      S.consumes(N).service(T), zone_of(S, ZS), zone_of(T, ZT), not ::zone_leq(ZT, ZS).
+  diode(Z) :- pattern(P), P.zone(Z).boundary(diode).
+  across_diode(ZS, ZT) :- zone_of(_, ZS), zone_of(_, ZT), ZS != ZT, diode(ZS).
+  across_diode(ZS, ZT) :- zone_of(_, ZS), zone_of(_, ZT), ZS != ZT, diode(ZT).
+  ::error(fmt("[E041] {S} (zone {ZS}) consumes {T} (zone {ZT}) across a diode: nothing can answer a request through it; declare the flow mode push, {T} sending what {S} receives"),
+          S.consumes(N).service(T)) :-
+      S.consumes(N).service(T), zone_of(S, ZS), zone_of(T, ZT), across_diode(ZS, ZT),
+      ::zone_leq(ZT, ZS), not S.consumes(N).mode(push).
 
   % Architectures. Seule une image OCI peut en couvrir plusieurs ; sans
   % arch, un artefact, un nœud ou une image d'OS est amd64.

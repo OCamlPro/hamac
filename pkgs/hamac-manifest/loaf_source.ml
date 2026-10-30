@@ -286,6 +286,27 @@ let provides cx s : (string * string) list =
     |> List.sort compare
   | _ -> []
 
+
+(** The fields that the security models add to the route [r] of [s]: the
+    predicates [ns::service.route.f], by qualified name [ns::f], with their
+    values in the order of terms. *)
+let route_requirements cx s r : (string * string list) list =
+  let suffix = "::service.route." in
+  Hashtbl.fold (fun pred facts acc ->
+    match String.index_opt pred ':' with
+    | Some i when i + String.length suffix <= String.length pred
+                 && String.sub pred i (String.length suffix) = suffix ->
+      let field = String.sub pred 0 i ^ "::"
+                  ^ String.sub pred (i + String.length suffix)
+                      (String.length pred - i - String.length suffix) in
+      let values = List.filter_map (fun (f : fact) -> match f.args with
+        | [s'; r'; v] when Loaf.compare_value s s' = 0 && Loaf.compare_value r r' = 0 ->
+          Some (const v)
+        | _ -> None) facts in
+      if values = [] then acc else (field, values) :: acc
+    | _ -> acc) cx.model []
+  |> List.sort compare
+
 let service cx s : service_manifest =
   let k = "service" in
   let p = [s] in
@@ -331,9 +352,7 @@ let service cx s : service_manifest =
         { route = str r;
           methods = F.list1 cx k q "route.method" str;
           public = F.flag cx k q "route.public";
-          classification = F.opt1 cx k q "route.classification" const;
-          categories = F.list1 cx k q "route.category" const;
-          required_clearance = F.list1 cx k q "route.required_clearance" const }) in
+          requirements = route_requirements cx s r }) in
       { zone; route_labels }) in
   let ports = F.list1 cx k p "port" Fun.id |> List.map (fun c ->
     { container = int c;
@@ -432,15 +451,9 @@ let service cx s : service_manifest =
 let pattern cx pt : pattern_manifest =
   let k = "pattern" in
   let p = [pt] in
-  let levels = F.indexed cx k p "levels" const in
-  let lattice =
-    if levels = [] then None   (* categories without levels: E006 of the vocabulary *)
-    else Some { levels; lat_categories = F.list1 cx k p "category" const } in
   let zones = F.list1 cx k p "zone" Fun.id |> List.map (fun z ->
     let q = [pt; z] in
     { zname = const z;
-      zlevel = F.req1 cx k q "zone.level" const;
-      zcategories = F.list1 cx k q "zone.category" const;
       boundary = Option.value (F.opt1 cx k q "zone.boundary" const) ~default:"firewall" }) in
   let pat_assurance =
     let rows = F.values cx k p "assurance" in
@@ -468,8 +481,7 @@ let pattern cx pt : pattern_manifest =
       oloc = F.loc cx k q direction }) in
   { pat_name = name pt;
     pat_version = None;  (* that of its module: set by load *)
-    lattice; zones; pat_assurance; constraints;
-    pat_roles = F.list1 cx k p "role" const;
+    zones; pat_assurance; constraints;
     objectives = objectives "minimize" @ objectives "maximize" }
 
 (* ============================================================ *)
@@ -677,16 +689,10 @@ let loc_of_path cx kind subj (m : manifest) (path : string list) : Diagnostic.lo
     | MService _, ["security"; "zone"] -> at "zone" []
     | MService v, ("security" :: "route_labels" :: i :: rest) ->
       Option.bind (Option.bind v.security (fun sec -> nth sec.route_labels i (fun r -> s r.route)))
-        (fun r -> match rest with
-           | ["classification"] -> at "route.classification" [r]
-           | ["categories"] -> at "route.category" [r]
-           | ["required_clearance"] -> at "route.required_clearance" [r]
-           | _ -> at "route" [r])
+        (fun r -> ignore rest; at "route" [r])
     | MPattern _, ("assurance" :: z :: _) -> at "assurance" [c z]
-    | MPattern v, ("zones" :: i :: rest) ->
-      Option.bind (nth v.zones i (fun z -> c z.zname)) (fun z ->
-        if rest = ["level"] then at "zone.level" [z] else at "zone" [z])
-    | MPattern _, ("lattice" :: _) -> at "levels" []
+    | MPattern v, ("zones" :: i :: _) ->
+      Option.bind (nth v.zones i (fun z -> c z.zname)) (fun z -> at "zone" [z])
     | MProvisioningProfile _, ("os" :: _) -> at "os" []
     | MProvisioningProfile _, ("bundles" :: _) -> at "bundles" []
     | _ -> None in

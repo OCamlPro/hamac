@@ -38,15 +38,15 @@ LOAF, et n'ont pas de cas ici.
   manifest.loaf:11:3: [E033] local volume 'data' has neither 'backup' nor 'rebuild': decide what happens to its data when the node is lost
   manifest.loaf:11:3: [E034] secret key of web: exactly one of ref and generate
   manifest.loaf:12:32: [E035] port 9090 is not declared by port
-  portal.loaf:12:3: [E040] portal (zone public) cannot consume vault (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If vault must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
-  high.loaf:12:3: [E041] analyst (zone high) consumes sensor (zone low) across a diode: nothing can answer a request through it. Declare the flow 'mode push', sensor sending what analyst receives.
-  web.loaf:11:3: [E042] zone 'dmz' of web is not defined by the stack's patterns (zones: public, default, internal, secure)
-  manifest.loaf:13:5: [E043] route /health is public: it cannot also require a classification, categories or roles
-  web.loaf:12:20: [E044] route '/vault' is classified secure, above zone internal (internal): a service holds no data more sensitive than its zone
-  manifest.loaf:12:20: [E045] route '/admin' of web requires the role admn, which no pattern declares (roles: admin)
+  portal.loaf:12:16: [E040] portal (zone public) cannot consume vault (zone secure): the security model of the patterns does not let zone public read zone secure; if vault must expose data to zone public, have it push them to a service of that zone
+  high.loaf:12:19: [E041] analyst (zone high) consumes sensor (zone low) across a diode: nothing can answer a request through it; declare the flow mode push, sensor sending what analyst receives
+  web.loaf:11:3: [E042] zone dmz of web is not defined by the patterns
+  manifest.loaf:14:5: [E043] route /health is public: it cannot also require roles
+  web.loaf:13:20: [E044] route /vault is classified secure, above zone internal of web (internal): a service holds no data more sensitive than its zone
+  manifest.loaf:13:20: [E045] route /admin of web requires the role admn, which no pattern declares
   manifest.loaf:20:3: [E046] the infrastructure lab has no node of the zone of web for one of its architectures
-  lib/b.loaf:7:3: [E050] levels public < internal < secret differ from public < secret declared by another pattern of the stack
-  lib/b.loaf:7:3: [E051] zone 'rh' is already defined with another label or boundary
+  lib/b.loaf:8:3: [E050] the levels of b differ from those of another pattern of the set
+  lib/b.loaf:8:13: [E051] zone rh is already defined with another label
   manifest.loaf:6:19: [E052] constraint c1 of p: unsafe variables: 'X' is unsafe
   manifest.loaf:11:3: [W001] 'placement' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
   manifest.loaf:5:1: [W002] the stack has no services

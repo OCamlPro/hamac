@@ -3,10 +3,11 @@
 
 loaf 0.1.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 pattern p {
-  levels [low].
-  zone a { level low. }
+  blp::levels [low].
+  zone a { blp::level low. }
   constraint colon { violation "used(H)". }
   constraint syntax { violation "H : used(H), H ++ 1". }
   minimize "1, H : usde(H)".

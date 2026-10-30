@@ -1,46 +1,27 @@
 (* SPDX-License-Identifier: AGPL-3.0-only *)
 (* Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com> *)
 
-(** Security zones, declared flows and the filtering they allow.
+(** Declared flows and the filtering they allow.
 
-    Zones carry labels of a Bell-LaPadula lattice ({!Lattice}):
-    the stack's patterns define it, the built-in one orders
-    public < default < internal < secure. At the network level, opening a
-    connection to a service means reading from it, so:
+    Opening a connection to a service means reading from it. The security
+    models that the patterns load define which zone may read which
+    ([zone_leq] of the vocabulary); the vocabulary refuses a flow that its
+    zones do not allow (E040), or that crosses a diode without being
+    [mode push] (E041). This module only derives the filtering of a
+    topology from the flows, once they are accepted:
 
-    - a zone may never open a connection to a more sensitive zone
-      (no read up) — this is an invariant, no declaration can lift it;
-    - reading down (a more sensitive zone querying a less sensitive one) is
-      permitted by the lattice, but only opened for flows a service declares
-      with a [consumes n { service s. }] entry (least privilege);
-    - everything else between two zones is denied.
+    - a flow a service declares with a [consumes n { service s. }] entry
+      opens connections from its zone to that of [s];
+    - everything else between two zones is denied, the reason telling a
+      read up (forbidden by the model) from a missing declaration.
 
-    Filtering is stateful: replies to an allowed connection pass. Across a
-    zone whose boundary is a diode, nothing can answer a request: a flow
-    that crosses it must be declared [mode push].
-
-    Writing down (a sensitive service sending data to a less sensitive
-    zone, including inside the request of an allowed read-down connection)
-    is not a network matter: it is controlled at the application level
-    (information-flow typing in the source language, Biscuit authorization) or by a
-    filtering data diode. *)
+    Filtering is stateful: replies to an allowed connection pass. Writing
+    down (a sensitive service sending data to a less sensitive zone,
+    including inside the reply to an allowed connection) is not a network
+    matter: it is controlled at the application level, by the access
+    control of the routes, or by a filtering data diode. *)
 
 open Types
-
-
-(** Zones of the built-in lattice, in increasing order of sensitivity. *)
-let zone_order = Lattice.builtin_levels
-
-(** The zone of a lattice, or a zone of label "default" for an unknown name
-    — unknown zones are reported beforehand, as E042, by validation. *)
-let zone_of (lattice : Lattice.t) (name : string) : Lattice.zone =
-  match Lattice.find lattice name with
-  | Some z -> z
-  | None ->
-    { Lattice.name; level = "default"; rank = 1; categories = []; boundary = "firewall" }
-
-(** Sensitivity rank of a zone of the built-in lattice. *)
-let zone_level (zone : string) : int = (zone_of Lattice.default zone).rank
 
 (** Zone of a service (default: "default"). *)
 let service_zone (svc : service_manifest) : string =
@@ -57,69 +38,27 @@ type flow = {
   target_zone: string;
 }
 
-(** An invalid flow declaration: service, index of its [consumes] entry, and
-    the diagnostic (E040 read up, E041 request across a diode). *)
-type error = {
-  service: string;
-  consume_index: int;
-  diag: Diagnostic.t;
-}
-
-let error_to_string e =
-  Printf.sprintf "[%s] %s" e.diag.Diagnostic.code e.diag.message
-
-(** Flows declared by the services of a stack, checked against the lattice.
-    Returns the valid flows and one error per invalid declaration. *)
-let declared ?(lattice = Lattice.default) (services : service_manifest list)
-  : flow list * error list =
+(** Flows declared by the services: one per consumption of a service among
+    [services]. A consumption of a service outside them (a provider) opens
+    no flow of the topology. *)
+let declared (services : service_manifest list) : flow list =
   let find name = List.find_opt (fun (s : service_manifest) -> s.name = name) services in
-  let flows = ref [] and errors = ref [] in
-  List.iter (fun (svc : service_manifest) ->
-    List.iteri (fun i (c : consumption) ->
-      let fail code fmt =
-        Printf.ksprintf (fun message ->
-          errors := { service = svc.name; consume_index = i;
-                      diag = Diagnostic.make code
-                          ["consumes"; string_of_int i] message } :: !errors) fmt in
-      match c.service with
-      | None -> ()
-      | Some target_name ->
-        match find target_name with
-        | None ->
-          (* The language has resolved the reference: the target is a
-             service outside those given, a provider. *)
-          ()
-        | Some target ->
-          let consumer_zone = service_zone svc and target_zone = service_zone target in
-          let cz = zone_of lattice consumer_zone and tz = zone_of lattice target_zone in
-          if not (Lattice.leq tz cz) then
-            fail "E040"
-              "%s (zone %s) cannot consume %s (zone %s): opening a connection \
-               to a more sensitive zone is a read up, forbidden by the \
-               Bell-LaPadula model. If %s must expose data to zone %s, have \
-               it push the declassified data to a service of that zone \
-               through a declared guard."
-              svc.name consumer_zone target.name target_zone
-              target.name consumer_zone
-          else if cz.name <> tz.name
-               && (cz.boundary = "diode" || tz.boundary = "diode")
-               && c.mode <> "push" then
-            fail "E041"
-              "%s (zone %s) consumes %s (zone %s) across a diode: nothing \
-               can answer a request through it. Declare the flow 'mode push', \
-               %s sending what %s receives."
-              svc.name consumer_zone target.name target_zone target.name svc.name
-          else
-            flows := { consumer = svc.name; consumer_zone; consume_name = c.name;
-                       target = target.name; target_zone } :: !flows
-    ) svc.consumes
-  ) services;
-  (List.rev !flows, List.rev !errors)
+  List.concat_map (fun (svc : service_manifest) ->
+    List.filter_map (fun (c : consumption) ->
+      Option.bind c.service (fun target_name ->
+        Option.map (fun (target : service_manifest) ->
+          { consumer = svc.name; consumer_zone = service_zone svc; consume_name = c.name;
+            target = target.name; target_zone = service_zone target })
+          (find target_name)))
+      svc.consumes)
+    services
 
 (** Filtering rules between the given zones: one [Allow] per declared
     cross-zone flow, one [Deny] for every ordered pair of zones left
-    without any. Flows inside a zone need no rule. *)
-let firewall_rules ?(lattice = Lattice.default) (zones : string list) (flows : flow list)
+    without any. [leq a b]: zone [b] may read zone [a] (the [zone_leq] of
+    the security models); a pair it does not allow is denied as a read up.
+    Flows inside a zone need no rule. *)
+let firewall_rules ~(leq : string -> string -> bool) (zones : string list) (flows : flow list)
   : firewall_rule list =
   List.concat_map (fun src ->
     List.concat_map (fun dst ->
@@ -134,11 +73,7 @@ let firewall_rules ?(lattice = Lattice.default) (zones : string list) (flows : f
             { action = Allow; src_zone = src; dst_zone = dst;
               flow = Some pair; reason = None }) opened
         else
-          let reason =
-            if not (Lattice.leq (zone_of lattice dst) (zone_of lattice src))
-            then "no read up"
-            else "no declared flow"
-          in
+          let reason = if not (leq dst src) then "no read up" else "no declared flow" in
           [{ action = Deny; src_zone = src; dst_zone = dst; flow = None;
              reason = Some reason }]
     ) zones

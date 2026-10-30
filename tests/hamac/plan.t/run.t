@@ -89,12 +89,12 @@ qu'aucune règle ne définit donnent E052, à la déclaration ; les erreurs de
 syntaxe arrêtent clingo avant le grounding.
 
   $ hamac validate malformed.loaf 2>&1 | grep E052
-  hamac: [ERROR] malformed.loaf:10:22: [E052] constraint colon of p: expected 'terms : body'
-  hamac: [ERROR] malformed.loaf:11:23: [E052] constraint syntax of p: syntax error, unexpected +
+  hamac: [ERROR] malformed.loaf:11:22: [E052] constraint colon of p: expected 'terms : body'
+  hamac: [ERROR] malformed.loaf:12:23: [E052] constraint syntax of p: syntax error, unexpected +
   $ sed -i '/constraint syntax/d' malformed.loaf
   $ hamac validate malformed.loaf 2>&1 | grep E052
-  hamac: [ERROR] malformed.loaf:10:22: [E052] constraint colon of p: expected 'terms : body'
-  hamac: [ERROR] malformed.loaf:11:3: [E052] minimize "1, H : usde(H)" of p: atom does not occur in any rule head: usde(H)
+  hamac: [ERROR] malformed.loaf:11:22: [E052] constraint colon of p: expected 'terms : body'
+  hamac: [ERROR] malformed.loaf:12:3: [E052] minimize "1, H : usde(H)" of p: atom does not occur in any rule head: usde(H)
 
 Un nœud a une architecture, et une réplique ne va que sur un nœud d'une
 architecture de son artefact. Le binaire arm64 demande un nœud arm64 ; les

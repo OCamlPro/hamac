@@ -6,6 +6,8 @@
 
 loaf 0.1.
 use hamac 0.2.
+use hamac_blp 0.2.
+use hamac_rbac 0.2.
 
 service hr_api {
   runtime http.
@@ -41,15 +43,15 @@ service hr_api {
 
   route "/employees/*" {
     method "GET".
-    classification internal.
-    category rh.
-    required_clearance rh; admin.
+    blp::classification internal.
+    blp::category rh.
+    rbac::role rh; admin.
   }
 
   route "/employees/salaries" {
-    classification confidential.
-    category rh; finance.
-    required_clearance comptable; admin.
+    blp::classification confidential.
+    blp::category rh; finance.
+    rbac::role comptable; admin.
   }
 
   port 8080 {}
