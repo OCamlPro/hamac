@@ -166,9 +166,11 @@
   set par(justify: true, leading: 0.62em, spacing: 0.95em)
   // Taille relative : un `code` dans un titre grandit avec le titre.
   show raw: set text(font: mono, size: 0.88em)
-  // Coloration : langage de manifestes et ASP (```hamac, ```asp) en plus des
-  // langages connus de Typst, avec un thème aux couleurs de la charte.
-  set raw(syntaxes: "/typst/syntaxes/hamac.sublime-syntax",
+  // Coloration : LOAF, langage des manifestes (```loaf), et ASP (```asp) en
+  // plus des langages connus de Typst, avec un thème aux couleurs de la
+  // charte.
+  set raw(syntaxes: ("/typst/syntaxes/loaf.sublime-syntax",
+                     "/typst/syntaxes/hamac.sublime-syntax"),
           theme: "/typst/syntaxes/hamac.tmTheme")
   show raw.where(block: false): it => box(
     fill: lavis, outset: (y: 2.5pt), inset: (x: 2pt), radius: 1.5pt, it)

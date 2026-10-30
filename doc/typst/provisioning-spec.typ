@@ -9,8 +9,8 @@
     disque et contrat du serveur de découverte : le provisionnement d'OS par
     PXE avec Hamac.],
   nature: "Spécification",
-  version: "0.1",
-  date: "2026-10-19",
+  version: "0.2",
+  date: "2026-10-30",
   statut: "brouillon",
 )
 
@@ -26,54 +26,93 @@ Permettre à *Hamac* de provisionner un OS complet (base Linux + services
 préconfigurés) sur n'importe quelle machine qui démarre en PXE, qu'elle fasse
 partie de l'infrastructure du SI ou non (typiquement : poste de développeur).
 
-Cette première itération vit *entièrement côté Hamac* (manifestes YAML +
-OCaml + prototype de découverte). Une couche de description de plus haut
-niveau reste possible (voir @evolutions), mais n'entre pas dans le périmètre
-de cette spécification.
+Le provisionnement vit *entièrement côté Hamac* : manifestes LOAF, rendu en
+OCaml, serveur de découverte. Une couche de description de plus haut niveau
+reste possible (voir @evolutions), mais n'entre pas dans le périmètre de
+cette spécification.
 
 = Vue d'ensemble
 
 #schema(raw(
 "                            ┌──────────────────────────────┐
-                            │  provisioning_profile.yaml   │
-                            │  (OS image + bundles list)   │
+                            │  provisioning_profile        │
+                            │  (image d'OS + bundles)      │
                             └──────────────┬───────────────┘
                                            │ référencé par
                                            ▼
                   ┌────────────────────────────────────┐
-                  │  infrastructure manifest (hamac)   │
-                  │  node.provisioning_profile: <name> │
+                  │  infrastructure (hamac)            │
+                  │  node … { provisioning_profile … } │
                   └────────────────┬───────────────────┘
-                                   │ hamac provision push
+                                   │ hamac provision-push
                                    ▼
                   ┌────────────────────────────────────┐
-                  │  Discovery server                  │
-                  │  - stocke profil par mac/id        │
-                  │  - sert cloud-init agrégé          │
+                  │  Serveur de découverte             │
+                  │  - stocke le rendu par MAC         │
+                  │  - sert le cloud-init agrégé       │
                   └────────────────┬───────────────────┘
-                                   │ HTTP (depuis init PXE)
+                                   │ HTTP (depuis l'init PXE)
                                    ▼
                   ┌────────────────────────────────────┐
                   │  Machine en boot PXE               │
-                  │  - télécharge cloud-init           │
-                  │  - applique bundles                │
+                  │  - télécharge le cloud-init        │
+                  │  - écrit l'image, applique bundles │
                   └────────────────────────────────────┘"))
 
 = Profil de provisioning
 
-Le format des manifestes `kind: provisioning_profile` et `kind: bundle` est
-défini par la spécification du format de manifeste
-(`doc/typst/manifest-spec.typ`, sections `kind: provisioning_profile` et
-`kind: bundle`). Ce document décrit la façon dont Hamac les applique.
+Les manifestes `provisioning_profile` et `bundle` sont des blocs du
+vocabulaire LOAF de Hamac, définis par la spécification des manifestes
+(`doc/typst/manifest-spec.typ`, sections « Bundle » et « Profil de
+provisioning ») : champs, valeurs par défaut, diagnostics. Ce document décrit
+la façon dont Hamac les applique.
+
+Un profil s'écrit ainsi (`provisioning-profiles/dev-workstation.loaf`) :
+
+```loaf
+loaf 0.1.
+use hamac 0.2.
+
+provisioning_profile dev_workstation {
+  cloud_init_extra "{runcmd: [systemctl enable --now ssh]}".
+
+  os "debian-12-amd64-genericcloud" {
+    url "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format qcow2.
+    family debian.
+  }
+
+  bundles [dev_workstation].
+}
+```
+
+Les paramètres des bundles ne figurent pas dans ce profil : ils viennent de
+l'enregistrement de la machine, à sa création. Un profil #peut aussi les
+donner lui-même, dans un sous-bloc `bundle` par bundle de sa liste
+(`provisioning-profiles/dev-workstation-demo.loaf`) :
+
+```loaf
+bundle dev_workstation {
+  param username { value "devuser". }
+  param timezone { value "Europe/Paris". }
+  param ssh_public_keys {
+    items ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLE example@hamac"].
+  }
+}
+```
+
+`value` donne un paramètre scalaire, `items` un paramètre liste. Un paramètre
+`required` du bundle qu'aucune source ne fournit fait échouer le rendu.
 
 == Bloc `os` <bloc-os>
 
-Les champs du bloc `os` sont définis par la spécification du format. Le
-`qcow2` désigné par `url` est l'image de référence ; `raw_zst_url`,
-`raw_zst_sha256` et `bmap_url` désignent une copie dérivée, utilisée pour
-écrire le disque d'une machine physique (ci-dessous). Avec le format
-`netinstall`, Hamac télécharge un noyau et un initrd Debian d'installation et
-lance une installation automatisée (preseed).
+Les champs du sous-bloc `os` sont définis par la spécification des
+manifestes. Le `qcow2` désigné par `url` est l'image de référence ;
+`raw_zst_url`, `raw_zst_sha256` et `bmap_url` désignent une copie dérivée,
+utilisée pour écrire le disque d'une machine physique (ci-dessous). Avec le
+format `netinstall`, Hamac télécharge un noyau et un initrd Debian
+d'installation et lance une installation automatisée (preseed).
 
 === Écriture des images « bloc » (`qcow2` / `raw`) sur le disque
 
@@ -82,13 +121,12 @@ _transport_ (compressé, sparse) qui doit être « déplié » en raw avant d'ê
 écrit. Hamac ne fait donc *pas* un `dd` du qcow2 tel quel :
 
 - *`qcow2` = format canonique* d'un profil (source de vérité, aussi consommé
-  tel quel par le chemin VM / `QemuCluster`) — `url`/`sha256`/`format`
-  ci-dessus ne changent pas de sens quand `raw_zst_url`/`bmap_url` sont
-  renseignés.
+  tel quel par le chemin VM / `QemuCluster`) — `url`, `sha256` et `format`
+  gardent le même sens quand `raw_zst_url` et `bmap_url` sont renseignés.
 - Pour l'installation métal, Hamac sert *deux artefacts dérivés
   déterministes* du qcow2 : un *`raw.zst`* (`qemu-img convert -O raw` +
   compression zstd) et son *`.bmap`* (`bmaptool create` — carte des blocs
-  non vides + sha256 par plage). Ils sont générés aujourd'hui par
+  non vides + sha256 par plage). Ils sont générés par
   `tools/discovery-prototype/pxe-build/prepare-os-assets.sh`, invoqué par la
   CI (`build:hamac-discovery-image`, conditionné à `provisioning-profiles/**`)
   et intégrés à l'image `hamac-discovery` (`/usr/share/hamac/images`, *hors*
@@ -100,68 +138,71 @@ _transport_ (compressé, sparse) qui doit être « déplié » en raw avant d'ê
   blkdiscard <device>
   bmaptool copy <raw_zst_url> <device> --bmap <bmap_url>
   ```
-  *Confirmé réellement* (pas seulement documenté) : `bmaptool copy` accepte
-  des URL HTTP directement pour l'image _et_ le `.bmap` — pas de
-  téléchargement local préalable côté `pxe-build/init`. Il télécharge,
-  décompresse à la volée, *n'écrit que les blocs mappés* et *vérifie le
-  sha256 de chaque bloc* contre le `.bmap` — écriture minimale _et_ intégrité
-  forte, sans copie locale intermédiaire. C'est strictement plus robuste qu'un
-  sha256 global sur un fichier que nous aurions d'abord téléchargé nous-mêmes
-  (`raw_zst_sha256`, ci-dessus, reste dans le schéma pour l'audit et
-  l'outillage externe mais n'est plus le mécanisme de vérification actif de ce
-  chemin).
+  `bmaptool copy` accepte des URL HTTP directement pour l'image _et_ le
+  `.bmap` — pas de téléchargement local préalable côté `pxe-build/init`. Il
+  télécharge, décompresse à la volée, *n'écrit que les blocs mappés* et
+  *vérifie le sha256 de chaque bloc* contre le `.bmap` — écriture minimale
+  _et_ intégrité forte, sans copie locale intermédiaire. C'est strictement
+  plus robuste qu'un sha256 global sur un fichier d'abord téléchargé.
+  `raw_zst_sha256` sert à l'audit et à l'outillage externe ; ce chemin ne
+  l'utilise pas pour la vérification.
 - *Repli* (si `raw_zst_url`/`bmap_url` sont absents, ou si l'initrd déployée
-  ne connaît pas encore `bmaptool` — déploiement progressif) :
-  `pxe-build/init` retombe silencieusement sur `url`/`format`/`sha256` —
-  téléchargement local (`wget`) puis `qemu-img convert -O raw` (construit
-  statiquement depuis les sources, pas le paquet apt : `qemu-utils`
-  forcerait une vingtaine de paquets de dépendances transitives, TLS/PKCS\#11
-  pour l'essentiel, hors de propos pour une conversion locale). Ce repli
-  *vérifie activement le sha256* (`os_image_sha256`) du fichier téléchargé
-  avant écriture.
+  ne connaît pas `bmaptool` — déploiement progressif) : `pxe-build/init`
+  retombe silencieusement sur `url`/`format`/`sha256` — téléchargement local
+  (`wget`) puis `qemu-img convert -O raw` (construit statiquement depuis les
+  sources, pas le paquet apt : `qemu-utils` forcerait une vingtaine de
+  paquets de dépendances transitives, TLS/PKCS\#11 pour l'essentiel, hors de
+  propos pour une conversion locale). Ce repli *vérifie activement le
+  sha256* (`os_image_sha256`) du fichier téléchargé avant écriture.
   - Le pilote *curl* de qemu-img (streaming direct
     `qemu-img convert -f qcow2 -O raw -t none <URL> <device>`, sans copie
     locale intermédiaire) est construit et fonctionnellement vérifié dans le
     binaire statique — le CDN Debian répond correctement aux requêtes HTTP
-    Range nécessaires — mais *n'est pas utilisé aujourd'hui* : le qcow2 de
-    référence (\~330 Mo) tient sans souci dans le tmpfs de cette initrd, et le
+    Range nécessaires — mais *n'est pas utilisé* : le qcow2 de référence
+    (\~330 Mo) tient sans souci dans le tmpfs de cette initrd, et le
     téléchargement local préserve la vérification sha256 active plutôt que de
-    ne compter que sur TLS. À activer côté `pxe-build/init` si un futur profil
-    sert une image sensiblement plus grosse ou vise du matériel avec peu de
-    RAM.
-  - `format: raw` fourni directement par l'exploitant (sans
+    ne compter que sur TLS. À activer côté `pxe-build/init` si un profil sert
+    une image sensiblement plus grosse ou vise du matériel avec peu de RAM.
+  - Le format `raw` fourni directement par l'exploitant (sans
     `raw_zst_url`/`bmap_url`) suit le même chemin, sans conversion (juste
     `dd`).
-- *Manque connu (pas encore implémenté)* : la génération _paresseuse_ de
-  `raw.zst` + `.bmap` par le serveur de découverte à la première demande d'un
-  profil qui n'en a pas encore (promotion automatique du repli vers le chemin
-  rapide et vérifié, sans dépendre d'une étape CI par profil). Aujourd'hui, un
-  profil sans `raw_zst_url`/`bmap_url` renseignés reste *indéfiniment* sur le
-  chemin qemu-img — pas d'auto-guérison. Suivi comme amélioration future, non
-  bloquant : le repli fonctionne, simplement sans le raccourci bmaptool.
-- `blkdiscard` préalable (sans `-f` — pas d'option de ce nom dans la version
-  busybox embarquée ; le binaire pris tel quel dans l'initrd netboot Debian
-  officielle s'en sort très bien sans) pour que les zones non mappées relisent
-  zéro en cas de reprovisionnement.
+- *Limite connue* : le serveur de découverte ne génère pas lui-même
+  `raw.zst` + `.bmap` à la première demande d'un profil qui n'en a pas. Un
+  profil sans `raw_zst_url`/`bmap_url` renseignés reste sur le chemin
+  qemu-img, sans promotion automatique vers le chemin rapide et vérifié. Ce
+  n'est pas bloquant : le repli fonctionne, simplement sans le raccourci
+  bmaptool.
+- `blkdiscard` préalable (sans `-f`, option que la version busybox embarquée
+  ne connaît pas et dont l'écriture n'a pas besoin) pour que les zones non
+  mappées relisent zéro en cas de reprovisionnement.
 - *Redimensionnement au premier démarrage délégué à cloud-init* (`growpart` +
   `resize_rootfs`, activés par défaut sur les images cloud Debian, non
-  désactivés par nos gabarits `templates/bundles/*/cloud-init*.yaml.j2`) :
+  désactivés par les gabarits `templates/bundles/*/cloud-init*.yaml.j2`) :
   relocalise la GPT, étend la dernière partition et agrandit le système de
   fichiers pour remplir un disque de taille quelconque — *pas d'outil de
   redimensionnement dans l'initramfs*.
 
 = Bundles <bundles>
 
-Un bundle est un répertoire `templates/bundles/<name>/` qui contient son
-manifeste `bundle.yaml` et un gabarit de fragment cloud-init ; le format est
-défini par la spécification du format de manifeste.
+Un bundle est un répertoire `<nom>/` qui contient son manifeste
+`bundle.loaf` et un gabarit de fragment cloud-init. Hamac cherche les
+bundles, dans cet ordre, dans :
+
++ le répertoire donné par l'option `--bundles-dir` ;
++ le répertoire que nomme la variable `HAMAC_BUNDLES_DIR` ;
++ `./templates/bundles/` ;
++ `/usr/share/hamac/bundles/`.
+
+Le premier répertoire où un bundle apparaît l'emporte. Un profil nomme ses
+bundles : Hamac le charge avec les `bundle.loaf` de ces répertoires, dans un
+même ensemble de fichiers.
 
 == Fragment cloud-init
 
 Le gabarit Jinja2 `cloud-init.yaml.j2` (ou sa variante
-`cloud-init.<family>.yaml.j2` pour la famille d'OS du profil) produit un
-fragment de cloud-init. Il reçoit les valeurs des `params` données par le
-profil.
+`cloud-init.<family>.yaml.j2` pour la famille d'OS du profil, prise en
+priorité) produit un fragment de cloud-init. Il reçoit les valeurs des
+paramètres sous `params`.
 
 ```jinja2
 {# cloud-init.yaml.j2 #}
@@ -186,70 +227,65 @@ write_files:
 Quand plusieurs bundles produisent chacun un fragment cloud-init, Hamac les
 fusionne dans l'ordre :
 
-+ fragments des bundles (ordre `bundles:` du profil) ;
++ fragments des bundles (ordre de la liste `bundles` du profil) ;
 + `cloud_init_extra` du profil.
 
 Stratégie : pour les listes (`runcmd`, `packages`, `users`, etc.) →
-concaténation. Pour les scalaires (`timezone`, `hostname`) → le dernier
+concaténation, les doublons de `packages` étant retirés. Pour les objets →
+fusion clé par clé. Pour les scalaires (`timezone`, `hostname`) → le dernier
 gagne. Pour les blocs `write_files` → concaténation par chemin (collision
 détectée et signalée).
 
-= Référencement depuis `kind: infrastructure`
+= Référencement depuis une infrastructure
 
-Le manifeste d'infrastructure existant (voir la spécification du format de
-manifeste, `doc/typst/manifest-spec.typ`) reçoit un nouveau champ optionnel
-`provisioning_profile` au niveau de chaque nœud :
+Un nœud d'infrastructure (voir la spécification des manifestes) désigne le
+profil qui l'installe par son champ `provisioning_profile` :
 
-```yaml
-manifest_version: "1.0"
-kind: infrastructure
-name: dev-fleet
-backend: physical
+```loaf
+loaf 0.1.
+use hamac 0.2.
 
-proposed_topology:
-  nodes:
-    - role: workstation
-      count: 5
-      ram: 16GB
-      cpu: 4
-      boot: pxe
-      provisioning_profile: dev-workstation   # ← NEW
+infrastructure dev_fleet {
+  backend physical.
+
+  node workstation {
+    count 5.
+    ram 16, gi.
+    cpu 4.
+    provisioning_profile dev_workstation.
+  }
+}
 ```
 
-Si `provisioning_profile` est présent, Hamac *ignore* les anciens champs
-`os.image` / `os.sha256` du nœud (qui restent supportés pour la
-compatibilité). Le profil prend le dessus.
-
-Le profil est résolu par Hamac via :
-
-+ une recherche dans le dossier courant (`./provisioning-profiles/<name>.yaml`) ;
-+ une recherche dans `$HAMAC_PROFILES_DIR/<name>.yaml` ;
-+ une recherche dans `/etc/hamac/profiles/<name>.yaml`.
+Le profil est un manifeste de l'ensemble de fichiers : l'infrastructure se
+valide avec lui et avec ses bundles (code `L002` du langage pour un profil
+absent). Si `provisioning_profile` est présent, Hamac *ignore* les champs
+`os_image` et `os_sha256` du nœud : le profil prend le dessus.
 
 = CLI Hamac
 
 ```sh
-# Lister les profils disponibles
-hamac provision list
+# Valider des profils avec leurs bundles (champs, empreintes, paramètres)
+hamac validate provisioning-profiles templates/bundles
 
-# Valider un profil (params, hashs, bundles)
-hamac provision validate ./provisioning-profiles/dev-workstation.yaml
+# Afficher le cloud-init et le script iPXE d'un profil, sans les pousser
+hamac provision-dryrun --profile=provisioning-profiles/dev-workstation-demo.loaf
 
-# Pousser les profils d'une infrastructure vers le discovery server
-hamac provision push infrastructure.yaml [--discovery=http://...]
+# Rendre un profil et le pousser vers le serveur de découverte pour une MAC
+hamac provision-push --profile=provisioning-profiles/dev-workstation.loaf \
+  --mac=aa:bb:cc:dd:ee:ff [--discovery=http://…] [--bundles-dir=DIR]
 
-# Afficher le cloud-init final qui serait poussé (dryrun)
-hamac provision dryrun infrastructure.yaml --node=workstation-1
-
-# Retirer un profil (pour un mac donné)
-hamac provision clear --mac=aa:bb:cc:dd:ee:ff
+# Retirer l'enregistrement d'une MAC
+hamac provision-clear --mac=aa:bb:cc:dd:ee:ff [--discovery=http://…]
 ```
+
+`--discovery` vaut par défaut `http://localhost:8877`.
 
 = Contrat du serveur de découverte
 
 == Stockage
 
-Le serveur de découverte persiste les profils sur disque dans
+Le serveur de découverte persiste les enregistrements sur disque dans
 `$HAMAC_DISCOVERY_STATE/provisioning/<mac>.json` (par défaut
 `/var/lib/hamac-discovery/provisioning/`). Un redémarrage du serveur ne casse
 pas un démarrage PXE en cours.
@@ -257,15 +293,16 @@ pas un démarrage PXE en cours.
 Le contenu de chaque fichier est le *cloud-init final agrégé* (bundles +
 extra), pas le profil source. Tout le rendu Jinja2 a déjà eu lieu côté Hamac.
 Le serveur de découverte est volontairement « bête » : il ne sait pas ce
-qu'est un bundle, il sert juste un blob YAML.
+qu'est un bundle, il sert juste un document YAML.
 
-== Points d'accès ajoutés <endpoints>
+== Points d'accès <endpoints>
 
 #tableau((auto, auto, 1fr),
   [Méthode], [Chemin], [Description],
   [`POST`], [`/provisioning/<mac>`], [Hamac pousse un cloud-init prérendu
     pour cette MAC],
-  [`GET`], [`/provisioning/<mac>`], [L'init PXE récupère son cloud-init],
+  [`GET`], [`/provisioning/<mac>`], [L'init PXE récupère son enregistrement],
+  [`GET`], [`/provisioning/<mac>/cloud-init`], [le cloud-init seul, en YAML],
   [`DELETE`], [`/provisioning/<mac>`], [Retire l'association MAC → profil],
   [`GET`], [`/provisioning`], [Liste les associations (débogage, tableau de
     bord)],
@@ -287,6 +324,7 @@ Format de `POST /provisioning/<mac>` :
 }
 ```
 
+`profile_name` est le nom DNS du profil : son nom LOAF, `_` remplacé par `-`.
 `os_raw_zst_url`/`os_raw_zst_sha256`/`os_bmap_url` sont vides quand le profil
 source n'a pas de `raw_zst_url`/`bmap_url` (@bloc-os) — chaîne vide, pas de
 champ absent, pour simplifier l'analyse côté init.
@@ -294,19 +332,19 @@ champ absent, pour simplifier l'analyse côté init.
 Format de `GET /provisioning/<mac>` : renvoie le même JSON, plus un champ
 `created_at` (horodatage Unix).
 
-== Point d'accès existant à étendre
+== Point d'accès des nœuds
 
-`GET /nodes/:id/cloud-init` continue d'exister pour la rétrocompatibilité
-K3s, mais consulte d'abord `/provisioning/<mac>` s'il est présent.
+`GET /nodes/:id/cloud-init` renvoie le cloud-init d'un nœud enregistré, pour
+l'installation K3s. Il consulte d'abord `/provisioning/<mac>` pour la MAC du
+nœud : un enregistrement présent prend le dessus.
 
 = Flux de bout en bout
 
-+ L'exploitant écrit `dev-workstation.yaml` (profil) + `dev-fleet.yaml`
-  (infrastructure).
-+ `hamac provision push dev-fleet.yaml` :
-  - résout le profil par son nom ;
-  - pour chaque nœud dont la MAC est connue (issue du planner ou fournie),
-    génère le cloud-init final (gabarits Jinja2 + fusion) ;
++ L'exploitant écrit le profil (`dev-workstation.loaf`) et, pour une flotte,
+  l'infrastructure qui le désigne (`dev-fleet.loaf`).
++ `hamac provision-push --profile=… --mac=…` :
+  - charge le profil avec les bundles des répertoires de recherche ;
+  - génère le cloud-init final (gabarits Jinja2 + fusion) et le script iPXE ;
   - envoie un POST sur `/provisioning/<mac>` du serveur de découverte.
 + La machine démarre en PXE → script d'init :
   - détecte la MAC locale ;
@@ -317,50 +355,50 @@ K3s, mais consulte d'abord `/provisioning/<mac>` s'il est présent.
       si `os_raw_zst_url`/`os_bmap_url` sont présents et `bmaptool`
       disponible dans l'initrd, `bmaptool copy` *directement depuis ces URL*
       (streaming, décompression à la volée, vérification sha256 par bloc —
-      pas de téléchargement local préalable) ; sinon repli sur le chemin
-      qcow2 historique : téléchargement local, puis vérification sha256
-      (`os_image_sha256`), puis `qemu-img convert` (ou `dd` direct si
-      `format: raw`). Le redimensionnement de la partition est délégué à
-      cloud-init au premier démarrage (`growpart` + `resize_rootfs`) ;
-    - `netinstall` → preseed Debian ; `debootstrap` → amorçage direct ;
+      pas de téléchargement local préalable) ; sinon repli : téléchargement
+      local, puis vérification sha256 (`os_image_sha256`), puis
+      `qemu-img convert` (ou `dd` direct pour le format `raw`). Le
+      redimensionnement de la partition est délégué à cloud-init au premier
+      démarrage (`growpart` + `resize_rootfs`) ;
+    - `netinstall` → preseed Debian ;
   - entre dans le système installé (chroot) et y applique cloud-init ;
   - redémarre.
 + La machine démarre sur l'OS installé → cloud-init s'applique au premier
   démarrage → utilisateur créé avec sa clé SSH → dotfiles installés.
 
-= Hors périmètre (v0.1)
+= Hors périmètre (v0.2)
 
-- *Multi-tenant* : un seul serveur de découverte par flotte pour l'instant.
-- *Signature des profils* : pourra être ajoutée plus tard avec la même
-  mécanique que les services (Ed25519).
+- *Multi-tenant* : un seul serveur de découverte par flotte.
+- *Signature des profils* : pourra être ajoutée avec la même mécanique que
+  les services (Ed25519).
 - *Bundles avec dépendances cycliques* : non détectés ; on fait confiance à
   l'exploitant.
 - *Mise à jour à chaud d'un OS déjà provisionné* : ce n'est pas un agent de
   configuration (cf. Ansible / Salt). Le profil ne s'applique qu'au moment du
   démarrage PXE.
-- *Bundles avec état d'exécution* (base de données, etc.) : pas encore. Les
-  services de type Zulip avec PostgreSQL viendront via les `kind: stack`
-  classiques de Hamac.
-- *Description depuis un langage de plus haut niveau* : reportée (voir
-  @evolutions).
+- *Bundles avec état d'exécution* (base de données, etc.) : les services de
+  type Zulip avec PostgreSQL passent par les stacks de Hamac.
+- *Description depuis un langage de plus haut niveau* : voir @evolutions.
 
 = Évolutions futures <evolutions>
 
-== Court terme (après v0.1)
+== Court terme
 
-- `hamac provision dryrun <mac>` affichant le cloud-init final sans pousser
-  (déjà mentionné dans la CLI, mais à valider).
+- `hamac provision-push` sur une infrastructure : pousser, pour chaque nœud
+  dont la MAC est connue (issue du planner ou fournie), le rendu du profil
+  qu'il désigne.
 - Diff entre deux versions d'un profil.
-- Héritage de profils (`extends: base-debian`).
+- Héritage de profils : un profil qui en complète un autre.
 
 == Moyen terme : description de plus haut niveau
 
 Une fois la mécanique stabilisée, un langage ou un outil de plus haut niveau
-pourra produire les profils, comme il peut déjà produire des manifestes de
-service : le format pivot le permet sans changement côté Hamac. On pourra
-alors envisager :
+pourra produire les profils, comme il peut produire des manifestes de
+service : les manifestes LOAF le permettent sans changement côté Hamac. On
+pourra alors envisager :
 
-- la validation typée des `params` de bundles ;
+- la vérification des valeurs des paramètres d'un profil contre leur `type`
+  dans le bundle ;
 - une vue web des profils ;
 - la génération de profils paramétriques, par exemple un profil par
   utilisateur.
@@ -374,11 +412,11 @@ alors envisager :
 
 = Références
 
-- `doc/typst/manifest-spec.typ` : spécification du format de manifeste
-  (format des autres manifestes Hamac).
-- `doc/BUNDLE_SPEC.md` : système de bundles de déploiement Hamac (à ne pas
-  confondre avec les bundles de provisioning).
+- `doc/typst/manifest-spec.typ` : spécification des manifestes (vocabulaire
+  LOAF de Hamac, dont les blocs `provisioning_profile` et `bundle`).
+- `pkgs/hamac-manifest/vocabulary/hamac.loaf` : le vocabulaire.
+- `pkgs/hamac-provisioning/provisioning_gen.ml` : rendu du cloud-init et du
+  script iPXE.
+- `pkgs/hamac-discovery/` : serveur de découverte.
+- `tools/discovery-prototype/pxe-build/init` : script d'init PXE.
 - `doc/HAMAC_ROADMAP.md` : milestone 6.
-- `tools/discovery-prototype/discovery-server/discovery_server.ml` :
-  prototype actuel.
-- `tools/discovery-prototype/pxe-build/init` : script d'init à étendre.

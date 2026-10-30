@@ -1,0 +1,167 @@
+%YAML 1.2
+---
+# Coloration syntaxique de LOAF, le langage des manifestes de Hamac.
+# Copie de la grammaire de la spécification de LOAF
+# (dépôt loaf, spec/syntaxes/loaf.sublime-syntax), restreinte à l'extension
+# loaf : les blocs ```asp restent colorés par hamac.sublime-syntax.
+# Utilisée par Typst (blocs ```loaf) ; compatible Sublime Text et bat.
+#
+# Le premier mot d'une instruction prend la couleur de ce qu'il désigne :
+# hors de tout bloc à sujet (fichier, espace de noms), une déclaration ; dans
+# un bloc à sujet (« service hr_api { … } ») ou une déclaration « block », un
+# champ du bloc.
+name: LOAF
+file_extensions: [loaf]
+scope: source.loaf
+
+contexts:
+  main:
+    - include: prelude
+    # Statement outside any block with a subject: "rbac::role treasurer."
+    - match: '(^\s*|(?<=\{)\s*|(?<=\.)\s+)(?!(?:loaf|module|use|predicate|enum|sort|render|not|block|namespace|derived)\b)(?:([a-z][a-zA-Z0-9_]*)(::))?([a-z][a-zA-Z0-9_]*)\b(?!\(|::)'
+      captures:
+        2: entity.name.namespace.loaf
+        4: entity.name.function.declaration.loaf
+    - include: tail
+
+  # Body of a block with a subject or of a "block" declaration.
+  body:
+    - meta_scope: meta.block.loaf
+    - match: '\}'
+      scope: punctuation.section.block.end.loaf
+      pop: true
+    - include: prelude
+    # "derived member person.": the keyword, then the declared field
+    - match: '(?:^\s*|(?<=\{)\s*|(?<=\.)\s+)(derived)(\s+)([a-z][a-zA-Z0-9_]*)\b'
+      captures:
+        1: keyword.declaration.loaf
+        3: support.type.property-name.loaf
+    # Statement in a block: "rbac::role treasurer." fills a field
+    - match: '(^\s*|(?<=\{)\s*|(?<=\.)\s+)(?!(?:loaf|module|use|predicate|enum|sort|render|not|block|namespace|derived)\b)(?:([a-z][a-zA-Z0-9_]*)(::))?([a-z][a-zA-Z0-9_]*)\b(?!\(|::)'
+      captures:
+        2: entity.name.namespace.loaf
+        4: support.type.property-name.loaf
+    - include: tail
+
+  # Corps d'un espace de noms : comme le niveau du fichier.
+  scope-body:
+    - match: '\}'
+      scope: punctuation.section.block.end.loaf
+      pop: true
+    - include: main
+
+  # Braces of an aggregate or of an enumeration: "#count { … }", "{ a; b }".
+  braces:
+    - match: '\}'
+      scope: punctuation.section.braces.end.loaf
+      pop: true
+    - include: prelude
+    - include: tail
+
+  # Header of a block with a subject, up to the brace.
+  header:
+    - match: '\{'
+      scope: punctuation.section.block.begin.loaf
+      set: body
+    - include: prelude
+    - include: tail
+
+  prelude:
+    - match: '%.*$'
+      scope: comment.line.percentage.loaf
+    # fmt("…{P.user}…"): interpolated string
+    - match: '\b(fmt)(\()(")'
+      captures:
+        1: entity.name.function.loaf
+        3: string.quoted.double.loaf punctuation.definition.string.begin.loaf
+      push: fstring
+    - match: '"'
+      scope: punctuation.definition.string.begin.loaf
+      push: string
+    # Directives and aggregates: #minimize, #count…
+    - match: '#[a-z]+\b'
+      scope: keyword.control.directive.loaf
+    # "block team {": declaration of fields
+    - match: '\b(block)(\s+)([a-z][a-zA-Z0-9_]*)(\s*)(\{)'
+      captures:
+        1: keyword.declaration.loaf
+        3: entity.name.type.block.loaf
+        5: punctuation.section.block.begin.loaf
+      push: body
+    # "namespace rbac {"
+    - match: '\b(namespace)(\s+)([a-z][a-zA-Z0-9_]*)(\s*)(\{)'
+      captures:
+        1: keyword.declaration.loaf
+        3: entity.name.type.block.loaf
+        5: punctuation.section.block.begin.loaf
+      push: scope-body
+    - match: '\b(loaf|module|use|predicate|enum|sort|render)\b'
+      scope: keyword.declaration.loaf
+    - match: '\b(not|this)\b'
+      scope: keyword.other.loaf
+    # Header of a block with a subject: "service hr_api {", "route \"/health\" {"
+    - match: '(?:^\s*|(?<=\{)\s*)(?!(?:loaf|module|use|predicate|enum|sort|render|not|block|namespace|derived)\b)([a-z][a-zA-Z0-9_]*)(?=\s+[a-z"][^{}:(;]*\{)'
+      captures:
+        1: entity.name.type.block.loaf
+      push: header
+
+  tail:
+    - match: ':-|:~'
+      scope: keyword.operator.rule.loaf
+    # Access to an attribute: P.user, ~.provider
+    # ~, ~~ : les sujets du bloc
+    - match: '~+'
+      scope: variable.language.loaf
+    - match: '(?<=[A-Za-z0-9_)~])(\.)([a-z][a-zA-Z0-9_]*)'
+      captures:
+        2: variable.other.member.loaf
+    # Variables: initial capital or underscore
+    - match: '\b[A-Z_][A-Za-z0-9_]*\b'
+      scope: variable.parameter.loaf
+    # Predicates and function terms: a name followed by "("
+    - match: '\b[a-z][a-zA-Z0-9_]*(?=\()'
+      scope: entity.name.function.loaf
+    - match: '\b\d+\b'
+      scope: constant.numeric.loaf
+    - match: '\b[a-z][a-zA-Z0-9_]*\b'
+      scope: constant.other.symbol.loaf
+    - match: '\{'
+      scope: punctuation.section.braces.begin.loaf
+      push: braces
+
+  string:
+    - meta_scope: string.quoted.double.loaf
+    - match: '\\.'
+      scope: constant.character.escape.loaf
+    - match: '"'
+      scope: punctuation.definition.string.end.loaf
+      pop: true
+
+  fstring:
+    - meta_scope: string.quoted.double.interpolated.loaf
+    - match: '\{\{|\}\}'
+      scope: constant.character.escape.loaf
+    - match: '\{'
+      scope: punctuation.section.interpolation.begin.loaf
+      push: interpolation
+    - match: '\\.'
+      scope: constant.character.escape.loaf
+    - match: '"'
+      scope: punctuation.definition.string.end.loaf
+      pop: true
+
+  interpolation:
+    - clear_scopes: 1
+    - meta_scope: meta.interpolation.loaf
+    - match: '\}'
+      scope: punctuation.section.interpolation.end.loaf
+      pop: true
+    - match: '\bthis\b'
+      scope: keyword.other.loaf
+    - match: '(\.)([a-z][a-zA-Z0-9_]*)'
+      captures:
+        2: variable.other.member.loaf
+    - match: '\b[A-Z_][A-Za-z0-9_]*\b'
+      scope: variable.parameter.loaf
+    - match: '\b[a-z][a-zA-Z0-9_]*\b'
+      scope: constant.other.symbol.loaf

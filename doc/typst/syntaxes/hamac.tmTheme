@@ -40,6 +40,9 @@
     <dict><key>name</key><string>Prédicats</string>
       <key>scope</key><string>entity.name.function, support.function</string>
       <key>settings</key><dict><key>foreground</key><string>#192e50</string></dict></dict>
+    <dict><key>name</key><string>Instructions hors de tout bloc à sujet : déclarations</string>
+      <key>scope</key><string>entity.name.function.declaration</string>
+      <key>settings</key><dict><key>foreground</key><string>#b3601a</string></dict></dict>
     <dict><key>name</key><string>Nombres et constantes du langage</string>
       <key>scope</key><string>constant.numeric, constant.language</string>
       <key>settings</key><dict><key>foreground</key><string>#8a3fa0</string></dict></dict>
