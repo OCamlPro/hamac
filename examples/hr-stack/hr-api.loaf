@@ -1,0 +1,66 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% L'API RH : zone rh (confidential, catégories rh et finance). Chaque route
+% porte l'autorisation que la bordure vérifie avant de transmettre.
+
+loaf 0.1.
+use hamac 0.1.
+
+service hr_api {
+  runtime http.
+  replicas 2.
+  zone rh.
+  spread failure_domain.
+
+  environment "SESSION_KEY", secret(session_key).
+
+  memory_request 256, mi.
+  memory_limit 512, mi.
+  cpu_limit 1, core.
+
+  artifact "registry.example.org/rh/hr-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+
+  % La base de données : provider retenu par Hamac, dont les attributs
+  % remplissent le gabarit.
+  consumes db {
+    capability database.
+    inject "DATABASE_URL",
+           fmt("postgresql://{~.database.user}:{~.database.password}@{~.database.host}:{~.database.port}/{~.database.dbname}").
+  }
+
+  secret session_key {
+    generate alnum, 64.
+    rotate 90, d.
+  }
+
+  route "/health" { public. }
+
+  route "/employees/*" {
+    method "GET".
+    classification internal.
+    category rh.
+    required_clearance rh; admin.
+  }
+
+  route "/employees/salaries" {
+    classification confidential.
+    category rh; finance.
+    required_clearance comptable; admin.
+  }
+
+  port 8080 {}
+
+  exposure "api.rh.example.org" {
+    port 8080.
+    tls acme.
+  }
+
+  health_check "/health" {
+    interval 10.
+    timeout 3.
+  }
+}

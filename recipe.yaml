@@ -6,12 +6,23 @@ dune:
     # Le format pivot : types, parser, diagnostics, treillis, langage de
     # contraintes et validation. Utilisable sans le reste de Hamac par tout
     # outil qui lit ou produit des manifestes.
+    #
+    # Les manifestes LOAF sont lus par la bibliothèque loaf. Le vocabulaire
+    # (vocabulary/hamac.loaf) est installé dans le site dune [vocabulary] du
+    # paquet et trouvé par dune-site. marmiton ne sait pas encore exprimer
+    # les sites : la déclaration « (sites (share vocabulary)) » de
+    # dune-project et la stanza « generate_sites_module » de
+    # pkgs/hamac-manifest/dune sont reportées à la main (l'installation
+    # elle-même est dans pkgs/hamac-manifest/vocabulary/dune, que marmiton
+    # ne génère pas).
     - name: hamac-manifest
       kind: library
       depends:
         - name: yaml
         - name: fpath
         - name: bos
+        - name: loaf
+        - name: dune-site
       ppx:
         - name: ppx_deriving
           modules: [ppx_deriving.std]

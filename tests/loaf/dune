@@ -1,0 +1,19 @@
+;; Écrit à la main : marmiton ne génère que les tests cram de ses
+;; exécutables (tests/<paquet>/dune).
+
+;; Manifestes LOAF : validation des exemples par hamac, et comparaison des
+;; valeurs Types obtenues depuis LOAF et depuis le YAML d'origine.
+(executable
+ (name compare)
+ (libraries fpath hamac-manifest))
+
+(cram
+ (deps
+  %{bin:hamac}
+  compare.exe
+  (package hamac-manifest)
+  (glob_files_rec %{project_root}/examples/**)
+  (glob_files_rec %{project_root}/providers/**)
+  (glob_files_rec %{project_root}/provisioning-profiles/**)
+  (glob_files_rec %{project_root}/templates/bundles/**))
+ (package hamac))

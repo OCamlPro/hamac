@@ -86,14 +86,24 @@ let find_bundle_dir ~(search_paths : Fpath.t list) (name : string)
     else None
   ) search_paths
 
-(** Charge [bundle.yaml] depuis un répertoire de bundle. *)
+(** Charge le manifeste d'un répertoire de bundle : [bundle.yaml], sinon
+    [bundle.loaf] (chargé seul : un bundle LOAF qui en nomme d'autres par
+    [depends_on] se charge avec eux, cf. {!bundle_loaf_files}). *)
 let load_bundle_manifest (dir : Fpath.t) : (bundle_manifest, string) Stdlib.result =
-  let manifest_path = Fpath.(dir / "bundle.yaml") in
-  match Hamac_manifest.Parser.load_file manifest_path with
-  | Error msg -> Error msg
-  | Ok (MBundle b, _) -> Ok b
-  | Ok _ -> Error (Printf.sprintf "%s : pas un manifest 'kind: bundle'"
-                     (Fpath.to_string manifest_path))
+  let yaml = Fpath.(dir / "bundle.yaml") and loaf = Fpath.(dir / "bundle.loaf") in
+  let not_a_bundle p =
+    Error (Printf.sprintf "%s : pas un manifest de bundle" (Fpath.to_string p)) in
+  if Sys.file_exists (Fpath.to_string yaml) || not (Sys.file_exists (Fpath.to_string loaf))
+  then
+    match Hamac_manifest.Parser.load_file yaml with
+    | Error msg -> Error msg
+    | Ok (MBundle b, _) -> Ok b
+    | Ok _ -> not_a_bundle yaml
+  else
+    match Hamac_manifest.Stack_check.load_files [Fpath.to_string loaf] with
+    | Error msg -> Error msg
+    | Ok ([_, MBundle b], _) -> Ok b
+    | Ok _ -> not_a_bundle loaf
 
 (* ============================================================ *)
 (* Validation des params                                         *)
@@ -230,11 +240,32 @@ let default_search_paths () : Fpath.t list =
   let system = [Fpath.v "/usr/share/hamac/bundles"] in
   from_env @ cwd_local @ system
 
+(** Les fichiers [bundle.loaf] des bundles de [search_paths] : un profil
+    LOAF se charge avec eux, puisqu'il nomme ses bundles (le premier
+    répertoire où un bundle apparaît l'emporte, comme pour
+    {!find_bundle_dir}). *)
+let bundle_loaf_files ~(search_paths : Fpath.t list) : string list =
+  let seen = Hashtbl.create 16 in
+  List.concat_map (fun base ->
+    let b = Fpath.to_string base in
+    if not (Sys.file_exists b && Sys.is_directory b) then []
+    else
+      Sys.readdir b |> Array.to_list |> List.sort compare
+      |> List.filter_map (fun name ->
+        let file = Filename.concat (Filename.concat b name) "bundle.loaf" in
+        if Hashtbl.mem seen name || not (Sys.file_exists file) then None
+        else (Hashtbl.add seen name (); Some file)))
+    search_paths
+
 (** Génère un cloud-init et un script iPXE pour un profil donné.
 
-    [extra_search_paths] est prépendé à la liste de recherche des bundles. *)
+    [extra_search_paths] est prépendé à la liste de recherche des bundles.
+    [bundles] : manifestes de bundles déjà chargés (ceux de l'ensemble de
+    fichiers LOAF du profil), préférés à ceux des répertoires de bundle, où
+    restent cherchés les gabarits. *)
 let render
     ?(extra_search_paths : Fpath.t list = [])
+    ?(bundles : bundle_manifest list = [])
     (profile : provisioning_profile_manifest)
   : (rendered_profile, error) Stdlib.result =
   let ( let* ) = Stdlib.Result.bind in
@@ -255,10 +286,14 @@ let render
     in
     let* bundle_dir = bundle_dir in
 
-    (* 2. Charger bundle.yaml *)
-    let* b = (match load_bundle_manifest bundle_dir with
-              | Ok b -> Ok b
-              | Error msg -> Error (Bundle_parse_error (br.bundle_name, msg))) in
+    (* 2. Le manifeste du bundle : déjà chargé, sinon bundle.yaml ou
+          bundle.loaf de son répertoire *)
+    let* b = (match List.find_opt (fun b -> b.bdl_name = br.bundle_name) bundles with
+              | Some b -> Ok b
+              | None ->
+                match load_bundle_manifest bundle_dir with
+                | Ok b -> Ok b
+                | Error msg -> Error (Bundle_parse_error (br.bundle_name, msg))) in
 
     (* 3. Vérifier params requis *)
     let* () = check_required_params b br.bundle_params in

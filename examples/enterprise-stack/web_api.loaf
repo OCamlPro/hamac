@@ -1,0 +1,29 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.1.
+
+service web_api {
+  runtime http.
+  replicas 3.
+  zone public.
+  memory_limit 512, mi.
+  cpu_limit 1, core.
+  min_replicas 3.
+  max_replicas 10.
+  cpu_threshold 70.
+
+  artifact "./bin/web_api" {
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format native_linux_amd64.
+  }
+
+  consumes db {
+    capability database.
+    inject "DATABASE_URL",
+           fmt("postgresql://{~.database.user}:{~.database.password}@{~.database.host}:{~.database.port}/{~.database.dbname}").
+  }
+
+  port 8080 { protocol tcp. }
+}

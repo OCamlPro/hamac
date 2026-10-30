@@ -73,8 +73,9 @@ Tourne sur les runners Forgejo d'OCamlPro. Trois contraintes apprises à la dure
 
 - **Pas de `container:` au niveau job** — les runners isolent les jobs (`docker_host: "-"`), donc
   un `container:` crée un conteneur imbriqué dont le `docker create` **pend**. Le job tourne dans
-  l'image du label `docker` (`node:20-bookworm`) et installe OCaml/opam via `apt` (OCaml système
-  4.13, `opam switch create . ocaml-system`).
+  l'image du label `docker` (`node:20-bookworm`), installe opam via `apt` et construit OCaml 5.3.0
+  (`opam switch create . ocaml-base-compiler.5.3.0`) : la bibliothèque `loaf` exige OCaml ≥ 5.1,
+  et elle est épinglée sur un tag de la forge (`pin-depends` de `opam/hamac-manifest.opam.template`).
 - **Jobs `runs-on: dind`** : le label `dind` fait tourner le job **dans** l'image
   `docker:dind` (Alpine, `privileged: true`), avec `docker_host: "-"` côté runner.
   Deux conséquences à conserver : chaque step doit déclarer `shell: sh` (pas de

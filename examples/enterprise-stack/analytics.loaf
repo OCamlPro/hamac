@@ -1,0 +1,37 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.1.
+
+service analytics {
+  runtime eventloop.
+  replicas 2.
+  zone internal.
+  memory_limit 1, gi.
+  cpu_limit 2, core.
+  min_replicas 2.
+  max_replicas 8.
+  cpu_threshold 60.
+
+  artifact "./bin/analytics" {
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format native_linux_amd64.
+  }
+
+  consumes db {
+    capability database.
+    inject "DATABASE_URL",
+           fmt("postgresql://{~.database.user}:{~.database.password}@{~.database.host}:{~.database.port}/{~.database.dbname}").
+  }
+
+  consumes cache {
+    capability cache.
+    inject "REDIS_URL", fmt("redis://:{~.cache.password}@{~.cache.host}:{~.cache.port}").
+  }
+
+  consumes api {
+    service web_api.
+    inject "API_URL", fmt("http://{~.host}:{~.port}").
+  }
+}

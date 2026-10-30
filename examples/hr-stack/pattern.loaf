@@ -1,0 +1,42 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Un patron d'exemple : le treillis de l'organisation, ses zones, et
+% quelques contraintes que la topologie calculée doit satisfaire.
+
+loaf 0.1.
+use hamac 0.1.
+
+pattern exemple_rh {
+  version "1.0.0".
+  levels [public, internal, confidential].
+  category rh; finance.
+  assurance rh, boot, measured_tpm2.
+  assurance rh, physical, site.
+
+  zone public { level public. }
+  zone internal { level internal. }
+
+  zone rh {
+    level confidential.
+    category rh; finance.
+  }
+
+  constraint one_level_per_host {
+    description "Deux niveaux ne partagent jamais un noyau".
+    expr "forall h in hosts: count(levels_on(h)) <= 1".
+  }
+
+  constraint stateful_quorum {
+    description "Un service à état survit à la perte d'un domaine de panne".
+    expr "forall s in services where stateful(s): count(failure_domains(hosts_of(s))) >= 3".
+  }
+
+  constraint rh_on_site {
+    description "Les données RH restent sur le site".
+    expr "forall s in services where zone(s) = \"rh\": forall h in hosts_of(s): h.physical = \"site\"".
+  }
+
+  minimize "count(hosts_used)" { priority 1. }
+  minimize "moves" { priority 2. }
+}

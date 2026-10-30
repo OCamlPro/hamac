@@ -1,0 +1,6 @@
+;; Le vocabulaire LOAF de Hamac, installé dans le site [vocabulary] du paquet
+;; hamac-manifest : Loaf_source le trouve par le module [Sites] généré.
+(install
+ (section (site (hamac-manifest vocabulary)))
+ (files hamac.loaf)
+ (package hamac-manifest))

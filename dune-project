@@ -25,10 +25,13 @@
 (package
   (name hamac-manifest)
   (allow_empty)
+  (sites (share vocabulary))
   (depends
     (bos :build)
+    (dune-site :build)
     (fmt :build)
     (fpath :build)
+    (loaf :build)
     (logs :build)
     (opam-marmiton (and (>= 0.1.0) :with-dev-setup))
     (yaml :build)

@@ -1,0 +1,30 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.1.
+
+service portal {
+  runtime http.
+  replicas 2.
+  zone public.
+  memory_limit 256, mi.
+  cpu_limit 500, m.
+
+  artifact "registry.example.org/rh/portal@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+
+  port 8080 {}
+
+  exposure "rh.example.org" {
+    port 8080.
+    tls acme.
+  }
+
+  health_check "/health" {
+    interval 10.
+    timeout 3.
+  }
+}

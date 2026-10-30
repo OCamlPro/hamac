@@ -1,0 +1,31 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Provider de la capacité cache, dont il remplit le contrat (voir
+% postgresql.loaf pour les termes input, instance et consumer).
+
+loaf 0.1.
+use hamac 0.1.
+
+service redis {
+  runtime http.
+  capability cache.
+  input password, gen(alnum, 32).
+  readiness ["redis-cli", "-a", input(password), "ping"].
+  readiness_interval 5.
+  readiness_timeout 30.
+  environment "REDIS_PASSWORD", input(password).
+
+  artifact "redis:7-alpine" {
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format oci_image.
+  }
+
+  port 6379 { protocol tcp. }
+}
+
+cache redis {
+  host instance(name).
+  port 6379.
+  password input(password).
+}

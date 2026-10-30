@@ -37,7 +37,7 @@ jobs:
           t=$(date +%s)
           apt-get update
           apt-get install -y --no-install-recommends \
-            git ca-certificates opam ocaml m4 pkg-config build-essential libyaml-dev
+            git ca-certificates opam m4 pkg-config build-essential libyaml-dev
           echo "TIMING apt=$(($(date +%s)-t))s"
 
       - name: Checkout (URL publique, authentifié)
@@ -59,13 +59,15 @@ jobs:
           git checkout -q -f FETCH_HEAD
           echo "checked out: $(git log --oneline -1)"
 
-      - name: opam init + switch (system OCaml) + deps
+      - name: opam init + switch (OCaml 5.3.0) + deps
         run: |
           set -eux
           t=$(date +%s)
           opam init --bare --disable-sandboxing -y
           t_init=$(($(date +%s)-t)); t=$(date +%s)
-          opam switch create . ocaml-system --no-install -y
+          # OCaml 5.3.0 construit par opam : la bibliothèque loaf exige OCaml
+          # >= 5.1, et Debian bookworm n'a que 4.13.
+          opam switch create . ocaml-base-compiler.5.3.0 --no-install -y
           t_switch=$(($(date +%s)-t)); t=$(date +%s)
           opam install . --deps-only --with-test -y
           t_deps=$(($(date +%s)-t))

@@ -4,7 +4,8 @@
 (** Validation of a set of manifests taken together: stages 2 (references)
     and 3 (semantics) of doc/typst/manifest-spec.typ, section « Validation ».
 
-    Stage 1 is per file ({!Parser.diagnose_file}).
+    Stage 1 is per file for YAML ({!Parser.diagnose_file}), per set of files
+    for LOAF ({!Loaf_source.load}).
     Here the files form a stack — explicit, when a [kind: stack] is given,
     or implicit, for [hamac plan] on a list of services: its references are
     resolved, its patterns composed into a lattice, its zones, routes,
@@ -14,20 +15,83 @@ open Types
 
 type loaded = {
   file: string;
-  manifest: manifest option;     (** [None]: the file could not be parsed *)
+  manifest: manifest option;
+    (** [None]: the file could not be parsed, or the entry only carries the
+        diagnostics of a LOAF file *)
   diags: Diagnostic.t list;
 }
 
 (** A finding, attributed to a file. *)
 type finding = string * Diagnostic.t
 
+let is_loaf file = Filename.check_suffix file ".loaf"
+
+(** A YAML manifest file. *)
 let load file =
   let manifest, diags = Parser.diagnose_file (Fpath.v file) in
   { file; manifest; diags }
 
+(** A set of LOAF files, loaded together ({!Loaf_source.load}): one entry per
+    manifest, in the file of its block; the diagnostics of a file go with its
+    first entry, or with an entry without manifest. *)
+let load_loaf ?vocabulary (files : string list) : loaded list =
+  let sources, diags = Loaf_source.load ?vocabulary files in
+  let entries = List.map (fun (s : Loaf_source.source) ->
+    { file = s.file; manifest = Some s.manifest; diags = [] }) sources in
+  let of_file f = List.filter_map (fun (g, d) -> if g = f then Some d else None) diags in
+  let files_with_diags = List.sort_uniq compare (List.map fst diags) in
+  let entries, attached = List.fold_left (fun (acc, attached) e ->
+    if List.mem e.file attached then (acc @ [e], attached)
+    else (acc @ [{ e with diags = of_file e.file }], e.file :: attached))
+    ([], []) entries in
+  entries @ List.filter_map (fun f ->
+    if List.mem f attached then None
+    else Some { file = f; manifest = None; diags = of_file f }) files_with_diags
+
+(** The files given to a command: each YAML file on its own, the LOAF files
+    as one set. *)
+let load_all ?vocabulary (files : string list) : loaded list =
+  let loaf, yaml = List.partition is_loaf files in
+  List.map load yaml @ (if loaf = [] then [] else load_loaf ?vocabulary loaf)
+
+(** For commands that consume manifests: the manifests of the files and
+    their warnings, or the errors that make them unusable (the analogue of
+    {!Parser.load_file} for a set of files). *)
+let load_files ?vocabulary (files : string list)
+  : ((string * manifest) list * string list, string) result =
+  let ls = load_all ?vocabulary files in
+  let findings = List.concat_map (fun l -> List.map (fun d -> (l.file, d)) l.diags) ls in
+  let errors, warnings = List.partition (fun (_, d) -> Diagnostic.is_error d) findings in
+  let show = List.map (fun (f, d) -> Diagnostic.to_string_in f d) in
+  if errors <> [] then Error (String.concat "\n" (show errors))
+  else Ok (List.filter_map (fun l -> Option.map (fun m -> (l.file, m)) l.manifest) ls,
+           show warnings)
+
 let services_of (ls : loaded list) =
   List.filter_map (fun l -> match l.manifest with
     | Some (MService s) -> Some (l.file, s) | _ -> None) ls
+
+(** The providers of a set of LOAF files, by name. A LOAF set has to
+    include the providers its services consume (the vocabulary resolves
+    them): a service of the set that its stack does not name, or, without a
+    stack, that declares a capability, is a provider, not a service to
+    deploy. *)
+let loaf_providers (ms : (string * manifest) list) : string list =
+  let loaf = List.filter (fun (f, _) -> is_loaf f) ms in
+  let stacks = List.filter_map (fun (_, m) -> match m with MStack s -> Some s | _ -> None) loaf in
+  let named = List.concat_map (fun (s : stack_manifest) ->
+    List.map (fun (r : stack_service_ref) -> r.ref_path) s.services) stacks in
+  List.filter_map (fun (_, m) -> match m with
+    | MService svc when (if stacks <> [] then not (List.mem svc.name named)
+                         else svc.capability <> None) -> Some svc.name
+    | _ -> None) loaf
+
+(** The services to deploy: the services of [ls] but the LOAF providers. *)
+let deployed_services_of (ls : loaded list) =
+  let providers = loaf_providers
+      (List.filter_map (fun l -> Option.map (fun m -> (l.file, m)) l.manifest) ls) in
+  List.filter (fun (f, (s : service_manifest)) ->
+    not (is_loaf f && List.mem s.name providers)) (services_of ls)
 
 let patterns_of (ls : loaded list) =
   List.filter_map (fun l -> match l.manifest with
@@ -66,12 +130,15 @@ let find_pattern_file name =
 (** The files of a stack: the stack's service references, loaded relative
     to the stack file (E021 when missing), and the patterns it names,
     searched among the given files then in {!pattern_dirs} (E021), with
-    their [extends] closure. *)
+    their [extends] closure. A LOAF stack names its services and patterns,
+    which the language requires among the given files: nothing is loaded
+    for it. *)
 let expand (given : loaded list) : loaded list * finding list =
   let findings = ref [] in
   let add f d = findings := (f, d) :: !findings in
   let known = ref given in
   let has_file file = List.exists (fun l -> l.file = file) !known in
+  let yaml_stacks = List.filter (fun (f, _) -> not (is_loaf f)) in
   List.iter (fun (sfile, (stk : stack_manifest)) ->
     let dir = Filename.dirname sfile in
     List.iteri (fun i (r : stack_service_ref) ->
@@ -82,7 +149,7 @@ let expand (given : loaded list) : loaded list * finding list =
                      (Printf.sprintf "'%s' not found (looked for %s)" r.ref_path file))
       else if not (has_file file) then known := !known @ [load file])
       stk.services)
-    (stacks_of given);
+    (yaml_stacks (stacks_of given));
   (* Patterns named by stacks, then the extends closure. *)
   let find_pattern name =
     List.exists (fun (_, (p : pattern_manifest)) -> p.pat_name = name) (patterns_of !known) in
@@ -197,12 +264,20 @@ let check ~(providers : service_manifest list) (ls : loaded list) : Lattice.t * 
       List.mapi (fun i (r : stack_service_ref) -> (sfile, i, r)) stk.services)
       (stacks_of ls) in
   let service_of_ref sfile (r : stack_service_ref) =
-    let file = if Filename.is_relative r.ref_path
-      then Filename.concat (Filename.dirname sfile) r.ref_path else r.ref_path in
-    List.assoc_opt file services in
+    if is_loaf sfile then
+      (* A LOAF stack names the service. *)
+      List.find_opt (fun (s : service_manifest) -> s.name = r.ref_path) all_services
+    else
+      let file = if Filename.is_relative r.ref_path
+        then Filename.concat (Filename.dirname sfile) r.ref_path else r.ref_path in
+      List.assoc_opt file services in
+  (* For LOAF manifests, the vocabulary resolves the providers and checks
+     the overrides (E022, E023), and the model fills the inject templates
+     with the attributes of the provider: these checks are not repeated. *)
   List.iter (fun (sfile, i, (r : stack_service_ref)) ->
     match service_of_ref sfile r with
     | None -> ()
+    | Some _ when is_loaf sfile -> ()
     | Some svc ->
       List.iteri (fun j (o : stack_consume_override) ->
         if not (List.exists (fun (c : consumption) -> c.name = o.consume_name) svc.consumes) then
@@ -260,7 +335,7 @@ let check ~(providers : service_manifest list) (ls : loaded list) : Lattice.t * 
          | Some t -> check_keys (["host"; "port"; "service_name"] @ List.map fst t.provides)
          | None -> ())   (* reported by the flows below, E020 *)
       | _ -> ())   (* E013, stage 1 *)
-      svc.consumes) services;
+      svc.consumes) (List.filter (fun (file, _) -> not (is_loaf file)) services);
   (* Flows: E020, E040, E041 *)
   let _, ferrs = Flows.declared ~lattice all_services in
   List.iter (fun (e : Flows.error) ->

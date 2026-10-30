@@ -16,8 +16,10 @@
   ;; Library's dependencies
   (libraries
     bos
+    dune-site
     fmt
     fpath
+    loaf
     logs
     yaml)
 
@@ -28,3 +30,8 @@
     ppx_deriving.std
     ppx_inline_test))
 )
+
+;; Emplacement du vocabulaire LOAF installé (site [vocabulary] du paquet)
+(generate_sites_module
+  (module sites)
+  (sites hamac-manifest))

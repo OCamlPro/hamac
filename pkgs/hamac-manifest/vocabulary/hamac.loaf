@@ -1,0 +1,535 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Vocabulaire de Hamac : les blocs des six sortes de manifestes (service,
+% pattern, stack, infrastructure, provisioning_profile, bundle), les contrats
+% des capacités (database, cache), leurs énumérations, les termes que Hamac
+% rend au déploiement, et les règles qui complètent le format. Un manifeste le charge par « use hamac 0.1. ».
+%
+% Conventions :
+% - le nom d'un manifeste est le sujet de son bloc, une constante LOAF ; le
+%   nom DNS s'en déduit en remplaçant « _ » par « - » (hr_api désigne le
+%   service hr-api) ;
+% - un champ à plusieurs valeurs porte un nom au singulier : chaque
+%   instruction en donne une (port 8080 { … }, secret session_key { … }) ;
+% - un objet unique est un sous-bloc quand il a un identifiant naturel, qui
+%   en est le sujet (artifact, health_check, metrics, backup, os) ; sinon
+%   ses champs sont ceux du bloc qui le contient (ressources, placement,
+%   sécurité, mise à l'échelle…), préfixés quand leur nom serait ambigu ;
+% - les valeurs des énumérations s'écrivent avec « _ » là où le nom usuel
+%   porte « - » (measured_tpm2, oci_image) ;
+% - une quantité est un couple (entier, unité) : 512, mi pour 512 Mio ; les
+%   délais des sondes (health_check, readiness) sont des entiers en
+%   secondes ;
+% - un champ absent prend la valeur par défaut indiquée en commentaire, que
+%   Hamac applique.
+
+loaf 0.1.
+module hamac 0.1.0.
+
+% ---------------------------------------------------------------------
+% Service
+% ---------------------------------------------------------------------
+
+block service {
+  % Métadonnées, communes à toutes les sortes de manifestes.
+  description? string.
+  label* string => string.       % clés courtes, pour les sélecteurs
+  annotation* string => string.  % texte libre, ignoré par Hamac
+
+  runtime runtime.
+  artifact? string {  % sujet : chemin ou image de l'artefact
+    sha256 string.
+    format artifact_format.
+  }
+  replicas? int.      % défaut 1
+
+  % Provider : la capacité fournie, dont il remplit le contrat (le bloc de
+  % même nom, sous son nom : database postgresql { … }), et les valeurs
+  % propres à chaque instance (une instance par consommation).
+  capability? name.
+  input* name => text.
+  readiness* [text].        % commande de disponibilité
+  readiness_interval? int.  % défaut 5
+  readiness_timeout? int.   % défaut 30
+
+  % Dépendances envers une capacité ou un autre service de la stack.
+  consumes* name {
+    capability? name.
+    service? service.
+    inject* string => text.     % variable d'environnement du consommateur
+    mode? consume_mode.         % défaut request
+    derived provider? service.  % le service retenu, calculé par Hamac
+    % Ce que lisent les gabarits : le provider retenu, vu comme le contrat
+    % de la capacité consommée ({~.database.user}) ; pour un service de la
+    % stack, son point d'accès ({~.host}:{~.port}).
+    derived database? database.
+    derived cache? cache.
+    derived host? text.         % nom d'hôte du service consommé
+    derived port? int.          % son premier port
+  }
+
+  % Sécurité : la zone du service et l'autorisation de ses routes.
+  zone? name.                  % une zone des patrons de la stack
+  route* string {
+    method* string.            % aucun : toutes les méthodes
+    public.                    % aucun jeton exigé
+    classification? name.      % un niveau du treillis
+    category* name.
+    required_clearance* name.  % rôles, dont un suffit
+  }
+
+  port* int {                 % sujet : port écouté par le service
+    protocol? port_protocol.  % défaut tcp
+  }
+  environment* string => text.
+
+  % Ressources.
+  memory_request? int, size_unit.
+  memory_limit? int, size_unit.
+  cpu_request? int, cpu_unit.
+  cpu_limit? int, cpu_unit.
+
+  % Mise à l'échelle : min_replicas et max_replicas vont ensemble.
+  min_replicas? int.
+  max_replicas? int.
+  cpu_threshold? int.     % en %
+  memory_threshold? int.  % en %
+
+  health_check? string {   % sujet : chemin HTTP de la sonde
+    interval? int.         % défaut 30
+    timeout? int.          % défaut 5
+    retries? int.          % défaut 3
+  }
+  metrics? metrics_provider {
+    path string.
+    port? int.
+  }
+  log_format? log_format.  % défaut text
+  log_level? name.         % défaut info
+
+  storage* name {
+    mount string.             % chemin absolu
+    class storage_class.
+    size? int, size_unit.     % requis hors ephemeral
+    rebuild? rebuild.
+  }
+  backup? string {            % sujet : planification cron
+    retention* retention_period => int.
+    pre* [string].            % commandes de cohérence, avant
+    post* [string].           % et après la sauvegarde
+    verify? verify.           % défaut none
+  }
+  secret* name {
+    ref? string.              % <backend>:<chemin>[#<clé>]
+    generate? gen_kind, int.  % sorte de caractères, longueur
+    rotate? int, time_unit.
+    as? secret_as.            % défaut env
+  }
+
+  % Placement.
+  need* name.                          % capacités que le nœud doit offrir
+  assurance* axis => assurance_level.  % minimum par axe
+  spread? spread.                      % défaut none
+  affinity* service.
+  anti_affinity* service.
+
+  exposure* string {              % sujet : nom d'hôte public
+    path_prefix? string.          % défaut /
+    port int.                     % un port déclaré par port
+    protocol? exposure_protocol.  % défaut http
+    tls? tls.                     % défaut acme
+  }
+}
+
+enum runtime { http; cli; batch; eventloop; custom }.
+enum artifact_format {
+  oci_image;
+  native_linux_amd64;
+  native_linux_arm64;
+  incus_vm_image;
+  incus_system_image
+}.
+enum consume_mode { request; push }.
+enum port_protocol { tcp; udp }.
+enum exposure_protocol { http; tcp }.
+enum tls { acme; internal; passthrough }.
+enum metrics_provider { prometheus }.
+enum log_format { json; text }.
+enum storage_class { ephemeral; local; replicated }.
+enum rebuild { from_backup; from_object; from_replica; none }.
+enum retention_period { hourly; daily; weekly; monthly; yearly }.
+enum verify { none; restore_test }.
+enum gen_kind { alpha; alnum }.
+enum secret_as { env; file }.
+enum spread { none; host; failure_domain }.
+
+% Unités : octets (Ki, Mi, Gi, Ti), cœurs ou millicœurs, durées.
+enum size_unit { ki; mi; gi; ti }.
+enum cpu_unit { core; m }.
+enum time_unit { s; min; h; d }.
+
+% Axes d'assurance, et leurs niveaux du plus faible au plus fort.
+enum axis { boot; operator; physical }.
+enum assurance_level(boot) {
+  none;
+  provider_vtpm;
+  confidential_vm;
+  measured_tpm2
+}.
+enum assurance_level(operator) { any; eu; secnumcloud; self }.
+enum assurance_level(physical) { third_party; dedicated_rack; site }.
+
+% Termes que Hamac rend au déploiement. Ils restent opaques dans les
+% règles et peuvent remplir un gabarit.
+render gen(gen_kind, int).  % valeur aléatoire : gen(alnum, 32)
+render input(name).         % valeur d'une entrée de l'instance du provider
+render consumer(name).      % attribut du consommateur : consumer(name)
+render instance(name).      % attribut de l'instance : instance(name)
+render host(service).       % nom d'hôte d'un service
+render secret(name).        % valeur d'un secret déclaré du service
+
+% ---------------------------------------------------------------------
+% Capacités
+% ---------------------------------------------------------------------
+
+% Le contrat d'une capacité : les attributs qu'en offre tout provider, que
+% les gabarits des consommateurs lisent ({~.user}). Le sujet est le
+% provider, qui remplit le bloc de sa capacité sous son nom :
+%   database postgresql { user input(user). … }
+
+block database {
+  host text.
+  port int.
+  user text.
+  password text.
+  dbname text.
+}
+
+block cache {
+  host text.
+  port int.
+  password text.
+}
+
+% ---------------------------------------------------------------------
+% Pattern
+% ---------------------------------------------------------------------
+
+block pattern {
+  description? string.
+  label* string => string.
+  annotation* string => string.
+
+  version string.
+  extends* pattern.
+
+  % Treillis : les niveaux, du moins au plus sensible, et les catégories.
+  levels* [name].
+  category* name.
+
+  zone* name {
+    level name.
+    category* name.
+    boundary? boundary.                      % défaut firewall
+  }
+  assurance* name, axis => assurance_level.  % zone, axe : minimum
+
+  constraint* name {
+    description? string.
+    severity? severity.  % défaut hard
+    weight? int.
+    expr string.         % langage des contraintes de Hamac
+  }
+  % Objectifs : le sujet est le terme à minimiser ou à maximiser.
+  minimize* string {
+    priority? int.       % défaut 1
+    weight? int.
+  }
+  maximize* string {
+    priority? int.
+    weight? int.
+  }
+}
+
+enum boundary { firewall; diode }.
+enum severity { hard; soft }.
+
+% ---------------------------------------------------------------------
+% Stack
+% ---------------------------------------------------------------------
+
+block stack {
+  description? string.
+  label* string => string.
+  annotation* string => string.
+
+  pattern* pattern.                       % aucun : hamac-default
+  accept_experimental.
+  service* service {
+    replicas? int.                        % remplace celui du service
+    consumes* name { provider service. }  % impose le provider
+  }
+  infrastructure? infrastructure.         % aucune : calculée
+}
+
+% ---------------------------------------------------------------------
+% Infrastructure
+% ---------------------------------------------------------------------
+
+block infrastructure {
+  description? string.
+  label* string => string.
+  annotation* string => string.
+
+  backend backend.
+
+  % Exigences minimales.
+  min_nodes? int.
+  total_ram? int, size_unit.
+  total_cpu? int.
+
+  % Topologie proposée.
+  node* name {              % sujet : rôle du nœud
+    count? int.             % défaut 1
+    ram? int, size_unit.
+    cpu? int.
+    boot? assurance_level.  % un niveau de l'axe boot
+    os_image? string.
+    os_sha256? string.
+    isolated.
+    provisioning_profile? provisioning_profile.
+  }
+  segment* name {
+    cidr string.
+    vlan? int.
+  }
+  % Filtrage entre zones, à états : allow ouvre les connexions d'une zone
+  % source vers une zone destination pour le flux déclaré (consommateur,
+  % service consommé) qui le justifie ; tout le reste est refusé.
+  allow* name, name, service, service.
+  deny* name, name.
+  deny_reason* name, name => string.
+
+  warning* string.
+  certificate? string.
+}
+
+enum backend { physical; incus; qemu; kubernetes; docker_compose }.
+
+% ---------------------------------------------------------------------
+% Provisioning profile
+% ---------------------------------------------------------------------
+
+block provisioning_profile {
+  description? string.
+  label* string => string.
+  annotation* string => string.
+
+  os string {                          % sujet : identifiant logique de l'image
+    url string.                        % image de référence
+    sha256 string.
+    format os_format.
+    family? name.                      % défaut debian
+    raw_zst_url? string.               % dérivés pour l'installation physique
+    raw_zst_sha256? string.
+    bmap_url? string.
+  }
+  % Les bundles appliqués, dans l'ordre : leurs cloud-init sont fusionnés
+  % dans cet ordre, le suivant l'emportant sur une valeur scalaire.
+  bundles* [bundle].
+  bundle* bundle {                     % paramètres d'un bundle de bundles
+    param* name {
+      value? text.                     % paramètre scalaire
+      items* [text].                   % paramètre liste
+    }
+  }
+  cloud_init_extra? string.            % cloud-init fusionné, en YAML sur une ligne
+  assurance* axis => assurance_level.  % ce qu'offre une machine installée
+}
+
+enum os_format { qcow2; raw; iso; netinstall }.
+
+% ---------------------------------------------------------------------
+% Bundle
+% ---------------------------------------------------------------------
+
+block bundle {
+  description? string.
+  label* string => string.
+  annotation* string => string.
+
+  version? string.       % défaut 0.1.0
+  param* name {
+    type param_type.
+    required.
+  }
+  depends_on* bundle.
+  lifecycle? lifecycle.  % défaut install
+}
+
+enum param_type { string; int; bool; list_string; list_int; object }.
+enum lifecycle { install; converge }.
+
+% ---------------------------------------------------------------------
+% Règles
+% ---------------------------------------------------------------------
+
+namespace hamac {
+  % Rang des niveaux d'assurance sur leur axe, du plus faible au plus fort :
+  % une exigence est satisfaite par un niveau de rang supérieur ou égal.
+  assurance_rank boot, none, 0.
+  assurance_rank boot, provider_vtpm, 1.
+  assurance_rank boot, confidential_vm, 2.
+  assurance_rank boot, measured_tpm2, 3.
+  assurance_rank operator, any, 0.
+  assurance_rank operator, eu, 1.
+  assurance_rank operator, secnumcloud, 2.
+  assurance_rank operator, self, 3.
+  assurance_rank physical, third_party, 0.
+  assurance_rank physical, dedicated_rack, 1.
+  assurance_rank physical, site, 2.
+
+  % Le provider d'une consommation : le service qu'elle nomme ; pour une
+  % capacité, celui que la stack impose, sinon le seul service qui la
+  % fournit.
+  S.consumes(N).provider(T) :- S.consumes(N).service(T).
+  S.consumes(N).provider(P) :-
+      S.consumes(N).capability(C),
+      K.service(S).consumes(N).provider(P),
+      P.capability(C).
+  S.consumes(N).provider(P) :-
+      S.consumes(N).capability(C),
+      not forced(S, N),
+      P.capability(C),
+      #count { Q : Q.capability(C) } = 1.
+  forced(S, N) :- K.service(S).consumes(N).provider(_).
+
+  % Ce que lisent les gabarits d'une consommation : le contrat que remplit
+  % son provider, pour la capacité consommée ({~.database.user}, vérifié
+  % contre le bloc database : L001 pour un champ qu'il ne déclare pas) ;
+  % pour un service, son point d'accès.
+  S.consumes(N).database(P) :-
+      S.consumes(N).capability(database), S.consumes(N).provider(P), database(P).
+  S.consumes(N).cache(P) :-
+      S.consumes(N).capability(cache), S.consumes(N).provider(P), cache(P).
+  S.consumes(N).host(host(T)) :- S.consumes(N).service(T).
+  S.consumes(N).port(Pt) :- S.consumes(N).service(T), first_port(T, Pt).
+  first_port(T, Pt) :- service(T), T.port(_), Pt = #min { C : T.port(C) }.
+
+  % Un provider remplit le contrat de sa capacité, et un contrat n'est
+  % rempli que par un provider de cette capacité.
+  ::error(fmt("[E024] {S} provides the capability database without a database block"),
+          S.capability(database)) :-
+      S.capability(database), not database(S).
+  ::error(fmt("[E024] {S} provides the capability cache without a cache block"),
+          S.capability(cache)) :-
+      S.capability(cache), not cache(S).
+  ::error(fmt("[E024] database block of {P}, which is not a service providing database"),
+          database(P)) :-
+      database(P), not provider_of(P, database).
+  ::error(fmt("[E024] cache block of {P}, which is not a service providing cache"),
+          cache(P)) :-
+      cache(P), not provider_of(P, cache).
+  provider_of(P, C) :- service(P), P.capability(C).
+
+  % Contrôles qui ne lisent qu'un manifeste.
+  ::error(fmt("[E013] consumes {N} of {S}: exactly one of capability and service"),
+          S.consumes(N)) :-
+      S.consumes(N), #count { W : wants(S, N, W) } != 1.
+  wants(S, N, capability) :- S.consumes(N).capability(_).
+  wants(S, N, service) :- S.consumes(N).service(_).
+  ::error(fmt("[E034] secret {N} of {S}: exactly one of ref and generate"),
+          S.secret(N)) :-
+      S.secret(N), #count { W : source(S, N, W) } != 1.
+  source(S, N, ref) :- S.secret(N).ref(_).
+  source(S, N, generate) :- S.secret(N).generate(_, _).
+  ::error(fmt("[E020] environment {K} of {S} refers to an undeclared secret"),
+          S.environment(K, secret(N))) :-
+      S.environment(K, secret(N)), not S.secret(N).
+  ::error("[E016] replicas must be at least 1", S.replicas(R)) :-
+      S.replicas(R), R < 1.
+  ::error("[E016] expected 1 <= min_replicas <= max_replicas",
+          S.min_replicas(A)) :-
+      S.min_replicas(A), S.max_replicas(B), A < 1.
+  ::error("[E016] expected 1 <= min_replicas <= max_replicas",
+          S.min_replicas(A)) :-
+      S.min_replicas(A), S.max_replicas(B), A > B.
+  ::error("[E006] min_replicas and max_replicas go together", service(S)) :-
+      service(S), #count { W : scaled(S, W) } = 1.
+  scaled(S, min) :- S.min_replicas(_).
+  scaled(S, max) :- S.max_replicas(_).
+  ::error("[E006] readiness interval or timeout without a command",
+          service(S)) :-
+      readiness_tuned(S), not commanded(S).
+  commanded(S) :- S.readiness(_, _).
+  readiness_tuned(S) :- S.readiness_interval(_).
+  readiness_tuned(S) :- S.readiness_timeout(_).
+  ::error(fmt("[E032] size is required for the persistent volume {N}"),
+          S.storage(N)) :-
+      S.storage(N).class(C), C != ephemeral, not sized(S, N).
+  sized(S, N) :- S.storage(N).size(_, _).
+  ::error(fmt("[E035] port {P} is not declared by port"),
+          S.exposure(H).port(P)) :-
+      S.exposure(H).port(P), not S.port(P).
+  ::error(fmt("[E043] route {R} is public: it cannot also require a classification, categories or roles"),
+          S.route(R).public()) :-
+      S.route(R).public(), requires(S, R).
+  requires(S, R) :- S.route(R).classification(_).
+  requires(S, R) :- S.route(R).category(_).
+  requires(S, R) :- S.route(R).required_clearance(_).
+  ::error(fmt("[E006] route {R} of {S} without a zone"), S.route(R)) :-
+      S.route(R), not zoned(S).
+  zoned(S) :- service(S), S.zone(_).
+
+  % Un niveau d'assurance appartient à son axe.
+  ::error(fmt("[E007] {L} is not a level of the axis {A}"),
+          S.assurance(A, L)) :-
+      service(S), S.assurance(A, L), not assurance_level(A, L).
+  ::error(fmt("[E007] {L} is not a level of the axis {A}"),
+          P.assurance(Z, A, L)) :-
+      pattern(P), P.assurance(Z, A, L), not assurance_level(A, L).
+  ::error(fmt("[E007] {L} is not a level of the axis {A}"),
+          F.assurance(A, L)) :-
+      provisioning_profile(F), F.assurance(A, L), not assurance_level(A, L).
+  ::error(fmt("[E007] {L} is not a level of the axis boot"),
+          I.node(R).boot(L)) :-
+      I.node(R).boot(L), not assurance_level(boot, L).
+
+  % Treillis d'un patron : les zones n'emploient que ses niveaux et ses
+  % catégories.
+  ::error(fmt("[E042] level {L} is not in the lattice of {P}"),
+          P.zone(Z).level(L)) :-
+      P.zone(Z).level(L), P.levels(_, _), not P.levels(_, L).
+  ::error(fmt("[E042] category {C} is not in the lattice of {P}"),
+          P.zone(Z).category(C)) :-
+      P.zone(Z).category(C), not P.category(C).
+  ::error("[E006] a lattice needs at least one level", P.category(C)) :-
+      P.category(C), #count { I : P.levels(I, _) } = 0.
+
+  % Paramètre d'un bundle dans un profil : une valeur ou une liste.
+  ::error(fmt("[E007] parameter {X} of the bundle {B}: exactly one of value and items"),
+          F.bundle(B).param(X)) :-
+      F.bundle(B).param(X), #count { W : shape(F, B, X, W) } != 1.
+  shape(F, B, X, value) :- F.bundle(B).param(X).value(_).
+  shape(F, B, X, items) :- F.bundle(B).param(X).items(_, _).
+
+  % Les paramètres d'un bundle que le profil n'applique pas.
+  ::error(fmt("[E007] parameters of the bundle {B}, which bundles does not list"),
+          F.bundle(B)) :-
+      F.bundle(B), not applied(F, B).
+  applied(F, B) :- F.bundles(_, B).
+
+  % Contrôles d'une stack, quand l'ensemble de fichiers en contient une.
+  ::error(fmt("[E023] consumes {N} of {S}: no provider of capability {C}, or several without a choice by the stack"),
+          S.consumes(N)) :-
+      stack(_), S.consumes(N).capability(C), not S.consumes(N).provider(_).
+  ::error(fmt("[E023] the stack forces the provider {P} for {N}, which does not provide {C}"),
+          K.service(S).consumes(N).provider(P)) :-
+      K.service(S).consumes(N).provider(P),
+      S.consumes(N).capability(C),
+      not P.capability(C).
+  ::error(fmt("[E022] the stack overrides consumes {N}, which {S} does not declare"),
+          K.service(S).consumes(N)) :-
+      K.service(S).consumes(N), not S.consumes(N).
+}

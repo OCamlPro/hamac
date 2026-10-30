@@ -251,9 +251,12 @@ let resolve_consumption
       (k, substitute all_vars tmpl)
     ) provider.provides in
 
-    (* Resolve consumer's inject templates using resolved provides *)
+    (* Resolve consumer's inject templates using resolved provides; the
+       template of a LOAF manifest, already filled by the model with the
+       provides of the provider, refers to the instance directly
+       ({input.user}, {service_name}) *)
     let injected_env = List.map (fun (env_var, tmpl) ->
-      (env_var, substitute resolved_provides tmpl)
+      (env_var, substitute (resolved_provides @ all_vars) tmpl)
     ) cons.inject in
 
     (* Resolve provider's own environment variables *)

@@ -3,8 +3,10 @@ opam-version: "2.0"
 depends: [
   "dune" {>= "3.14"}
   "bos" {build}
+  "dune-site" {build}
   "fmt" {build}
   "fpath" {build}
+  "loaf" {build}
   "logs" {build}
   "opam-marmiton" {>= "0.1.0" & with-dev-setup}
   "yaml" {build}
@@ -28,4 +30,6 @@ build: [
   ]
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
-
+pin-depends: [
+  [ "loaf.0.1.0~beta.2" "git+https://forge.ocamlpro.com/OSS/loaf.git#v0.1.0-beta.2" ]
+]
