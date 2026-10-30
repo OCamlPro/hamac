@@ -1,3 +1,3 @@
 pin-depends: [
-  [ "loaf.0.1.0~beta.3" "git+https://forge.ocamlpro.com/OSS/loaf.git#v0.1.0-beta.3" ]
+  [ "loaf.0.1.0~beta.4" "git+https://forge.ocamlpro.com/OSS/loaf.git#v0.1.0-beta.4" ]
 ]

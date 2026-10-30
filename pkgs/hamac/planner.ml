@@ -242,8 +242,8 @@ let check ~(asp : string list) (patterns : pattern_manifest list) : Hamac_manife
   if rules = [] then malformed
   else
     let text, first = program asp rules in
-    (* Without a limit on the messages: those about the rules of the
-       patterns come after those about the manifests. *)
+    (* Without a limit on the messages: clingo stops reporting after the
+       limit, and a rule of a pattern would then go unchecked. *)
     let messages = Clingo.with_control ~message_limit:1_000_000 (fun ctl ->
       (try Clingo.add ctl text; Clingo.ground ctl with Clingo.Error _ -> ());
       Clingo.messages ctl) in
@@ -275,11 +275,8 @@ let solve ?(relax = false) ~time_limit (asp : string list) (patterns : pattern_m
       Clingo.add ctl (fst (program asp rules));
       Clingo.ground ctl;
       let r = Clingo.fold ~time_limit ctl ~init:None (fun _ m -> Some m) in
-      (* Atoms that no rule defines are expected (the manifests use a part
-         of the vocabulary); the other messages are for debugging. *)
-      List.iter (fun (w, msg) ->
-        if w <> Clingo.Atom_undefined then Logs.debug (fun f -> f "clingo: %s" msg))
-        (Clingo.messages ctl);
+      (* The program was checked ({!check}): messages are for debugging. *)
+      List.iter (fun (_, msg) -> Logs.debug (fun f -> f "clingo: %s" msg)) (Clingo.messages ctl);
       r)
   with
   | r -> r
