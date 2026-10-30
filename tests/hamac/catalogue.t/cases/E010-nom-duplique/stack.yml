@@ -1,8 +1,0 @@
-# E010-nom-duplique
-manifest_version: "1.1"
-kind: stack
-name: demo
-accept_experimental: true
-services:
-  - ref: a.yml
-  - ref: b.yml

@@ -1,7 +1,0 @@
-# E023-aucun-provider
-manifest_version: "1.1"
-kind: stack
-name: demo
-accept_experimental: true
-services:
-  - ref: web.yml

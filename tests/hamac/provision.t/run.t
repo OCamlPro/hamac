@@ -1,7 +1,7 @@
 Rendu d'un profil de provisioning : le cloud-init agrégé et le script iPXE sont
 produits sans contacter de machine ni de serveur de découverte.
 
-  $ hamac provision-dryrun --profile=profile.yaml --bundles-dir=bundles
+  $ hamac provision-dryrun --profile=profile.loaf --bundles-dir=bundles
   === cloud-init ===
   #cloud-config
   # Généré par hamac pour le profile 'dev-workstation-demo'
@@ -71,13 +71,14 @@ produits sans contacter de machine ni de serveur de découverte.
   format: qcow2
 
 Un paramètre obligatoire du bundle non fourni est une erreur, pas un rendu
-partiel. On retire le bloc `params` du profil :
+partiel. On retire du profil le sous-bloc des paramètres du bundle :
 
-  $ sed '/params:/,$d' profile.yaml > no-params.yaml
-  $ tail -3 no-params.yaml
+  $ sed '/^  bundle dev_workstation {/,/^  }/d' profile.loaf > no-params.loaf
+  $ tail -4 no-params.loaf
   
-  bundles:
-    - name: dev-workstation
-  $ hamac provision-dryrun --profile=no-params.yaml --bundles-dir=bundles
+    bundles [dev_workstation].
+  
+  }
+  $ hamac provision-dryrun --profile=no-params.loaf --bundles-dir=bundles
   hamac: [ERROR] bundle 'dev-workstation' : paramètre requis 'username' manquant
   [1]

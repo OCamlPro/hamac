@@ -1,7 +1,7 @@
 # hamac — repère pour Claude Code / contributeurs
 
 **hamac** est un orchestrateur d'infrastructure : il lit des
-manifestes déclaratifs `*.yml`, résout les dépendances de services vers des providers,
+manifestes déclaratifs écrits en LOAF (`*.loaf`), résout les dépendances de services vers des providers,
 et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OCaml, AGPL-3.0
 (+ licence commerciale). **Dépôt canonique sur Forgejo**
 (`forge.ocamlpro.com/OSS/hamac`), GitHub est un **miroir read-only**.
@@ -16,8 +16,13 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
   `kind`, champs, stabilité, treillis et patrons, catalogue des erreurs du validateur.
 - **`doc/typst/control-plane.typ`** — modèle du plan de contrôle à tours (proposition).
 - **`doc/HAMAC_ROADMAP.md`** — jalons et état d'avancement.
-- Les manifestes consommés sont des `*.yml` (kinds : `service`, `stack`,
-  `infrastructure`, `provisioning_profile`, `bundle`).
+- **`pkgs/hamac-manifest/vocabulary/hamac.loaf`** — le vocabulaire LOAF de Hamac : blocs
+  des manifestes (`service`, `pattern`, `stack`, `infrastructure`, `provisioning_profile`,
+  `bundle`), contrats des capacités (`database`, `cache`), défauts et validations.
+- Les manifestes consommés sont des `*.loaf`, chargés en un ensemble (une stack avec ses
+  services et les providers qu'ils consomment) ; un patron est un module LOAF, chargé par
+  `use` depuis un répertoire de bibliothèque (`hamac -L DIR`, `./patterns`,
+  `~/.hamac/patterns`). Langage : dépôt `~/ocp/loaf`, `spec/loaf.typ`.
 
 ## Documents officiels : Typst
 
@@ -34,9 +39,11 @@ notes de travail restent en Markdown. Typst installé par snap ne peut pas écri
   `simulate`, `deploy`, `status`, `provision-dryrun|push|clear`. Point d'entrée :
   `pkgs/hamac/main.ml`.
 - **`pkgs/hamac-manifest`** — bibliothèque du format pivot, utilisable seule : `Types`,
-  `Parser` (diagnostics codés, `diagnose_file`), `Diagnostic`, `Lattice` (treillis composé
-  depuis les patrons), `Constraint_lang` (langage des contraintes), `Flows` (flux déclarés,
-  règles de filtrage), `Stack_check` (validation étages 2 et 3). Tout code qui lit ou valide un
+  `Loaf_source` (chargeur LOAF → `Types`, vocabulaire trouvé par dune-site ou
+  `HAMAC_VOCABULARY`), `Checks` (contrôles d'un manifeste que le vocabulaire n'exprime pas),
+  `Diagnostic`, `Lattice` (treillis composé depuis les patrons), `Constraint_lang` (langage
+  des contraintes), `Flows` (flux déclarés, règles de filtrage), `Stack_check` (chargement
+  d'un ensemble, validation de l'étage 3). Tout code qui lit ou valide un
   manifeste passe par elle.
 - **`pkgs/hamac-provisioning`** — bibliothèque : rendu du provisioning (cloud-init + iPXE,
   `provisioning_gen.ml`).

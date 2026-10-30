@@ -33,7 +33,7 @@ IMG_SERVER_LOG="/tmp/hamac-e2e-imgserver.log"
 STATE_DIR="/tmp/hamac-e2e-state"
 WORK_DIR="/tmp/hamac-e2e-work"
 RAW_IMAGE="$WORK_DIR/test-os.raw"
-PROFILE_FILE="$WORK_DIR/test-profile.yml"
+PROFILE_FILE="$WORK_DIR/test-profile.loaf"
 VM_DISK="$WORK_DIR/vm-disk.qcow2"
 
 # MAC fixe pour la VM (lowercase, comme hamac normalise)
@@ -159,22 +159,23 @@ log_step "5. Create and push provisioning_profile"
 # IMPORTANT: la VM voit l'host comme 10.0.2.2 via user-mode networking
 HOST_FROM_VM="10.0.2.2"
 cat > "$PROFILE_FILE" <<EOF
-manifest_version: "1.0"
-kind: provisioning_profile
-name: e2e-test
-os:
-  image: e2e-fake-os
-  url: http://${HOST_FROM_VM}:$IMG_SERVER_PORT/test-os.raw
-  sha256: $SHA256
-  format: raw
-bundles:
-  - name: dev-workstation
-    params:
-      username: julien
-      ssh_public_keys: ["ssh-ed25519 AAAA_E2E_TEST_KEY user@e2e"]
-      timezone: UTC
-cloud_init_extra:
-  hostname: e2e-vm
+loaf 0.1.
+use hamac 0.1.
+
+provisioning_profile e2e_test {
+  os "e2e-fake-os" {
+    url "http://${HOST_FROM_VM}:$IMG_SERVER_PORT/test-os.raw".
+    sha256 "$SHA256".
+    format raw.
+  }
+  bundles [dev_workstation].
+  bundle dev_workstation {
+    param username { value "julien". }
+    param ssh_public_keys { items ["ssh-ed25519 AAAA_E2E_TEST_KEY user@e2e"]. }
+    param timezone { value "UTC". }
+  }
+  cloud_init_extra "{hostname: e2e-vm}".
+}
 EOF
 
 cd "$PROJECT_ROOT"

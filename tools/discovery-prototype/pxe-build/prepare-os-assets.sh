@@ -29,7 +29,7 @@
 #   <nom-de-sortie>.raw.zst        - disk image raw compressé zstd
 #   <nom-de-sortie>.raw.zst.bmap   - block map associé
 # Affiche sur stdout le sha256 du .raw.zst, à reporter dans
-# provisioning-profiles/*.yaml (champ os.raw_zst_sha256).
+# provisioning-profiles/*.loaf (champ os.raw_zst_sha256).
 
 set -euo pipefail
 
@@ -91,7 +91,7 @@ cat <<EOF
   $RAW_ZST_PATH
   $BMAP_PATH
 
-sha256 de ${OUT_NAME}.raw.zst (provisioning-profiles/*.yaml, champ
+sha256 de ${OUT_NAME}.raw.zst (provisioning-profiles/*.loaf, champ
 os.raw_zst_sha256) :
   $SHA256
 EOF

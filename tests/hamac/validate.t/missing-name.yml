@@ -1,3 +1,0 @@
-manifest_version: "1.0"
-kind: service
-runtime: http

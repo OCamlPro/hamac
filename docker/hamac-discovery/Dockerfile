@@ -40,6 +40,11 @@ COPY discovery_server.exe /usr/local/bin/hamac-discovery
 COPY bundles  /usr/share/hamac/bundles
 COPY profiles /usr/share/hamac/profiles
 
+# Vocabulaire LOAF de Hamac (pkgs/hamac-manifest/vocabulary), que les
+# profils et bundles chargent par « use hamac » : le binaire est copié hors
+# de son installation, dune-site ne le trouverait pas.
+COPY vocabulary /usr/share/hamac/vocabulary
+
 # Images OS dérivées (raw.zst + .bmap, cf. doc/typst/provisioning-spec.typ §3.1 et
 # tools/discovery-prototype/pxe-build/prepare-os-assets.sh) : générées et
 # copiées par la CI (build:hamac-discovery-image), PAS dans
@@ -57,6 +62,7 @@ VOLUME ["/var/lib/hamac-discovery"]
 ENV HAMAC_DISCOVERY_STATE=/var/lib/hamac-discovery \
     HAMAC_BUNDLES_DIR=/usr/share/hamac/bundles \
     HAMAC_PROFILES_DIR=/usr/share/hamac/profiles \
+    HAMAC_VOCABULARY=/usr/share/hamac/vocabulary \
     IMAGES_DIR=/usr/share/hamac/images \
     PORT=8877
 

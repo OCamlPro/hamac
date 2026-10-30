@@ -30,7 +30,6 @@
     jingoo
     logs.fmt
     lwt
-    yaml
     yojson
     build_info)
 

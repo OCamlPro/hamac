@@ -5,7 +5,7 @@ Trois services répartis sur trois zones de sécurité, consommant des providers
 filtrage Bell-LaPadula (aucune de ces informations n'est écrite dans les
 manifestes de service).
 
-  $ hamac plan analytics.yml payroll.yml web_api.yml
+  $ hamac plan analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
   Infrastructure proposal: stack-infra
   
   Minimum requirements:
@@ -17,7 +17,7 @@ manifestes de service).
     internal: 1 service(s), 8 replica(s), 8192 MB RAM, 16000 mCPU
       - analytics
     public: 1 service(s), 10 replica(s), 5120 MB RAM, 10000 mCPU
-      - web_api
+      - web-api
     secure: 1 service(s), 2 replica(s), 512 MB RAM, 1000 mCPU
       - payroll
   
@@ -45,52 +45,50 @@ manifestes de service).
 quelles, y compris leur substitution dans les URL d'injection. Sans `--seed`,
 elles viennent de /dev/urandom et changent à chaque exécution.
 
-  $ hamac resolve --seed 42 analytics.yml payroll.yml web_api.yml
+  $ hamac resolve --seed 42 analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
   hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
-  Loaded 2 provider(s) from ./providers
   Providers to instantiate:
-    postgresql-analytics-db (postgres:15-alpine)
-      env: POSTGRES_USER=jbkquuxmrgvc
-      env: POSTGRES_PASSWORD=8NCONRJsMfb5QNVfDvXs1etrbNguG1sd
-      env: POSTGRES_DB=analytics_db
     redis-analytics-cache (redis:7-alpine)
-      env: REDIS_PASSWORD=z0MnC3n6uH1Pbi0QyUaAet6W5esZAe2B
+      env: REDIS_PASSWORD=z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs
+    postgresql-analytics-db (postgres:15-alpine)
+      env: POSTGRES_DB=analytics_db
+      env: POSTGRES_PASSWORD=1etrbNguG1sdz0MnC3n6uH1Pbi0QyUaA
+      env: POSTGRES_USER=ateytyknqyqr
     postgresql-payroll-db (postgres:15-alpine)
-      env: POSTGRES_USER=jigxfhovnsau
-      env: POSTGRES_PASSWORD=sKjLFMOjVgBs4xo20BSaR4zIuflNwunR
       env: POSTGRES_DB=payroll_db
-    postgresql-web_api-db (postgres:15-alpine)
-      env: POSTGRES_USER=gyagnnaxjktc
-      env: POSTGRES_PASSWORD=9z5o8M5OwswpHEBuSHxXTNcPe1bDb8mi
-      env: POSTGRES_DB=web_api_db
+      env: POSTGRES_PASSWORD=pycXdfCZ9AemsKjLFMOjVgBs4xo20BSa
+      env: POSTGRES_USER=xqtscxjpysjh
+    postgresql-web-api-db (postgres:15-alpine)
+      env: POSTGRES_DB=web-api_db
+      env: POSTGRES_PASSWORD=oM2UtD0DZcfI9z5o8M5OwswpHEBuSHxX
+      env: POSTGRES_USER=zhyvkxnbjymw
   
   Wiring:
-    analytics.db -> postgresql
-      inject: DATABASE_URL=postgresql://jbkquuxmrgvc:8NCONRJsMfb5QNVfDvXs1etrbNguG1sd@postgresql-analytics-db:5432/analytics_db
     analytics.cache -> redis
-      inject: REDIS_URL=redis://:z0MnC3n6uH1Pbi0QyUaAet6W5esZAe2B@redis-analytics-cache:6379
+      inject: REDIS_URL=redis://:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@redis-analytics-cache:6379
+    analytics.db -> postgresql
+      inject: DATABASE_URL=postgresql://ateytyknqyqr:1etrbNguG1sdz0MnC3n6uH1Pbi0QyUaA@postgresql-analytics-db:5432/analytics_db
     payroll.db -> postgresql
-      inject: DATABASE_URL=postgresql://jigxfhovnsau:sKjLFMOjVgBs4xo20BSaR4zIuflNwunR@postgresql-payroll-db:5432/payroll_db
-    web_api.db -> postgresql
-      inject: DATABASE_URL=postgresql://gyagnnaxjktc:9z5o8M5OwswpHEBuSHxXTNcPe1bDb8mi@postgresql-web_api-db:5432/web_api_db
+      inject: DATABASE_URL=postgresql://xqtscxjpysjh:pycXdfCZ9AemsKjLFMOjVgBs4xo20BSa@postgresql-payroll-db:5432/payroll_db
+    web-api.db -> postgresql
+      inject: DATABASE_URL=postgresql://zhyvkxnbjymw:oM2UtD0DZcfI9z5o8M5OwswpHEBuSHxX@postgresql-web-api-db:5432/web-api_db
 
 `deploy` produit un docker-compose câblé : réseaux, variables injectées,
 dépendances et healthchecks portant les credentials résolus.
 
-  $ hamac deploy --seed 42 analytics.yml payroll.yml web_api.yml
+  $ hamac deploy --seed 42 analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
   hamac: [WARNING] --seed 42: generated credentials are reproducible, hence predictable. Never use this for a real deployment.
-  Loaded 2 provider(s) from ./providers
   hamac: [WARNING] deploy generates a flat docker-compose on a single network: it does not isolate the security zones (internal, public, secure). Use `hamac simulate` to deploy with zone filtering.
   Generated docker-compose.yml (3 services, 4 providers)
   $ grep -E '^(services|networks|  [a-z])' docker-compose.yml | head -20
   services:
-    postgresql-analytics-db:
     redis-analytics-cache:
+    postgresql-analytics-db:
     postgresql-payroll-db:
-    postgresql-web_api-db:
+    postgresql-web-api-db:
     analytics:
     payroll:
-    web_api:
+    web-api:
   networks:
     hamac:
 
@@ -98,7 +96,7 @@ Sans `--seed`, les credentials viennent de /dev/urandom : deux résolutions
 successives des mêmes manifestes ne coïncident pas. C'est le comportement par
 défaut, et c'est celui qui compte pour un déploiement réel.
 
-  $ hamac resolve analytics.yml > r1 2>&1
-  $ hamac resolve analytics.yml > r2 2>&1
+  $ hamac resolve analytics.loaf providers/*.loaf > r1 2>&1
+  $ hamac resolve analytics.loaf providers/*.loaf > r2 2>&1
   $ cmp -s r1 r2 && echo "identiques" || echo "differentes"
   differentes

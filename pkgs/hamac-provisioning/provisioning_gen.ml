@@ -4,7 +4,7 @@
 (** Générateur de cloud-init / iPXE à partir d'un [provisioning_profile].
 
     Pipeline :
-    1. Pour chaque [bundle_ref] du profil, charger [bundle.yaml] et le snippet
+    1. Pour chaque [bundle_ref] du profil, charger [bundle.loaf] et le snippet
        cloud-init Jinja2, le rendre avec les paramètres fournis.
     2. Merger tous les fragments cloud-init + [cloud_init_extra] du profil.
     3. Émettre le YAML final préfixé par [#cloud-config] et un script iPXE
@@ -55,21 +55,20 @@ type rendered_profile = {
 }
 
 (* ============================================================ *)
-(* Conversion Yaml.value → Jingoo.Jg_types.tvalue                       *)
+(* Conversion des paramètres → Jingoo.Jg_types.tvalue                   *)
 (* ============================================================ *)
 
-(** Conversion d'une valeur YAML (params du bundle_ref) en valeur jingoo. *)
-let rec yaml_to_jg (v : Yaml.value) : Jingoo.Jg_types.tvalue =
+(** Conversion d'une valeur de paramètre (bundle_ref) en valeur jingoo. *)
+let rec param_to_jg (v : param_value) : Jingoo.Jg_types.tvalue =
   match v with
-  | `Null -> Jingoo.Jg_types.Tnull
-  | `Bool b -> Jingoo.Jg_types.Tbool b
-  | `Float f ->
-    if Float.is_integer f then Jingoo.Jg_types.Tint (int_of_float f)
-    else Jingoo.Jg_types.Tfloat f
-  | `String s -> Jingoo.Jg_types.Tstr s
-  | `A items -> Jingoo.Jg_types.Tlist (List.map yaml_to_jg items)
-  | `O fields ->
-    Jingoo.Jg_types.Tobj (List.map (fun (k, v) -> (k, yaml_to_jg v)) fields)
+  | PNull -> Jingoo.Jg_types.Tnull
+  | PBool b -> Jingoo.Jg_types.Tbool b
+  | PInt i -> Jingoo.Jg_types.Tint i
+  | PFloat f -> Jingoo.Jg_types.Tfloat f
+  | PString s -> Jingoo.Jg_types.Tstr s
+  | PList items -> Jingoo.Jg_types.Tlist (List.map param_to_jg items)
+  | PObject fields ->
+    Jingoo.Jg_types.Tobj (List.map (fun (k, v) -> (k, param_to_jg v)) fields)
 
 (* ============================================================ *)
 (* Chargement d'un bundle depuis le filesystem                   *)
@@ -86,31 +85,22 @@ let find_bundle_dir ~(search_paths : Fpath.t list) (name : string)
     else None
   ) search_paths
 
-(** Charge le manifeste d'un répertoire de bundle : [bundle.yaml], sinon
-    [bundle.loaf] (chargé seul : un bundle LOAF qui en nomme d'autres par
-    [depends_on] se charge avec eux, cf. {!bundle_loaf_files}). *)
+(** Charge le manifeste [bundle.loaf] d'un répertoire de bundle, seul : un
+    bundle qui en nomme d'autres par [depends_on] se charge avec eux, dans
+    l'ensemble de fichiers du profil (cf. {!bundle_loaf_files}). *)
 let load_bundle_manifest (dir : Fpath.t) : (bundle_manifest, string) Stdlib.result =
-  let yaml = Fpath.(dir / "bundle.yaml") and loaf = Fpath.(dir / "bundle.loaf") in
-  let not_a_bundle p =
-    Error (Printf.sprintf "%s : pas un manifest de bundle" (Fpath.to_string p)) in
-  if Sys.file_exists (Fpath.to_string yaml) || not (Sys.file_exists (Fpath.to_string loaf))
-  then
-    match Hamac_manifest.Parser.load_file yaml with
-    | Error msg -> Error msg
-    | Ok (MBundle b, _) -> Ok b
-    | Ok _ -> not_a_bundle yaml
-  else
-    match Hamac_manifest.Stack_check.load_files [Fpath.to_string loaf] with
-    | Error msg -> Error msg
-    | Ok ([_, MBundle b], _) -> Ok b
-    | Ok _ -> not_a_bundle loaf
+  let file = Fpath.(dir / "bundle.loaf") in
+  match Hamac_manifest.Stack_check.load_files [Fpath.to_string file] with
+  | Error msg -> Error msg
+  | Ok ([_, MBundle b], _) -> Ok b
+  | Ok _ -> Error (Printf.sprintf "%s : pas un manifeste de bundle" (Fpath.to_string file))
 
 (* ============================================================ *)
 (* Validation des params                                         *)
 (* ============================================================ *)
 
 (** Vérifie que tous les params requis du bundle sont fournis par le bundle_ref. *)
-let check_required_params (b : bundle_manifest) (ref_params : (string * yaml_value) list)
+let check_required_params (b : bundle_manifest) (ref_params : (string * param_value) list)
   : (unit, error) Stdlib.result =
   let rec aux = function
     | [] -> Ok ()
@@ -125,14 +115,14 @@ let check_required_params (b : bundle_manifest) (ref_params : (string * yaml_val
 (* Rendu Jinja2 d'un fichier                                     *)
 (* ============================================================ *)
 
-let render_file ~(file : Fpath.t) ~(params : (string * yaml_value) list)
+let render_file ~(file : Fpath.t) ~(params : (string * param_value) list)
   : (string, error) Stdlib.result =
   let file_str = Fpath.to_string file in
   match Bos.OS.File.read file with
   | Error (`Msg msg) -> Error (Template_render_error (file_str, msg))
   | Ok content ->
     try
-      let models = [("params", yaml_to_jg (`O params))] in
+      let models = [("params", param_to_jg (PObject params))] in
       Ok (Jingoo.Jg_template.from_string ~models content)
     with e ->
       Error (Template_render_error (file_str, Printexc.to_string e))
@@ -286,8 +276,8 @@ let render
     in
     let* bundle_dir = bundle_dir in
 
-    (* 2. Le manifeste du bundle : déjà chargé, sinon bundle.yaml ou
-          bundle.loaf de son répertoire *)
+    (* 2. Le manifeste du bundle : déjà chargé, sinon le bundle.loaf de
+          son répertoire *)
     let* b = (match List.find_opt (fun b -> b.bdl_name = br.bundle_name) bundles with
               | Some b -> Ok b
               | None ->
@@ -331,11 +321,14 @@ let render
   in
   let* bundle_yamls = process_all [] profile.pp_bundles in
 
-  (* Merge bundles + cloud_init_extra *)
-  let all_fragments = bundle_yamls @
-    (match profile.pp_cloud_init_extra with
-     | Some v -> [v]
-     | None -> []) in
+  (* Merge bundles + cloud_init_extra, dans l'ordre du profil *)
+  let* extra = match profile.pp_cloud_init_extra with
+    | None -> Ok []
+    | Some src ->
+      match parse_snippet src with
+      | Ok v -> Ok [v]
+      | Error m -> Error (Template_render_error ("cloud_init_extra", m)) in
+  let all_fragments = bundle_yamls @ extra in
   let merged = dedup_packages (merge_many all_fragments) in
 
   (* Sérialiser *)

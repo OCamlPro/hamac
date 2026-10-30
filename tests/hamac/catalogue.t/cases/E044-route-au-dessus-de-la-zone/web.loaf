@@ -1,0 +1,13 @@
+% E044-route-au-dessus-de-la-zone
+loaf 0.1.
+use hamac 0.1.
+
+service web {
+  runtime http.
+  artifact "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+  zone internal.
+  route "/vault" { classification secure. }
+}

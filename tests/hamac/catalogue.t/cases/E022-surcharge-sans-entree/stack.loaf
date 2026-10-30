@@ -1,0 +1,9 @@
+% E022-surcharge-sans-entree
+loaf 0.1.
+use hamac 0.1.
+
+stack demo {
+  service web {
+    consumes cache { provider db. }
+  }
+}

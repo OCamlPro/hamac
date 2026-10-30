@@ -1,0 +1,8 @@
+% E042-zone-inconnue
+loaf 0.1.
+use hamac 0.1.
+
+stack demo {
+  accept_experimental.
+  service web {}
+}

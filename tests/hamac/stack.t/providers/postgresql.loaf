@@ -1,0 +1,40 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Provider de la capacité database, dont il remplit le contrat (bloc
+% database). Hamac en crée une instance par consommation : input(…) désigne une valeur propre à l'instance,
+% instance(name) son nom, qui est aussi son nom d'hôte, consumer(name) le
+% nom du service consommateur.
+
+loaf 0.1.
+use hamac 0.1.
+
+service postgresql {
+  runtime http.
+  capability database.
+  input user, gen(alpha, 12).
+  input password, gen(alnum, 32).
+  input dbname, cat(consumer(name), "_db").
+  readiness ["pg_isready", "-U", input(user)].
+  readiness_interval 5.
+  readiness_timeout 30.
+  environment "POSTGRES_USER", input(user).
+  environment "POSTGRES_PASSWORD", input(password).
+  environment "POSTGRES_DB", input(dbname).
+
+  artifact "postgres:15-alpine" {
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format oci_image.
+  }
+
+  port 5432 { protocol tcp. }
+}
+
+% Ce que le provider offre à ses consommateurs : le contrat de database.
+database postgresql {
+  host instance(name).
+  port 5432.
+  user input(user).
+  password input(password).
+  dbname input(dbname).
+}

@@ -1,7 +1,7 @@
 (* SPDX-License-Identifier: AGPL-3.0-only *)
 (* Copyright (C) 2026 OCamlPro <contact@ocamlpro.com> *)
 
-(** The constraint language of patterns ([kind: pattern]).
+(** The constraint language of patterns (block [pattern]).
 
     First-order logic over the finite domains of a candidate topology
     (services, zones, hosts, flows, volumes), with linear arithmetic on

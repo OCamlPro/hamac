@@ -1,0 +1,16 @@
+% E043-route-publique-et-exigence
+loaf 0.1.
+use hamac 0.1.
+
+service web {
+  runtime http.
+  artifact "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+  zone internal.
+  route "/health" {
+    public.
+    required_clearance admin.
+  }
+}

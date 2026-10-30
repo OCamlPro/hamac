@@ -3,8 +3,8 @@
 
 (** Manifest types for hamac.
 
-    Structured OCaml types for the manifest kinds defined in
-    doc/typst/manifest-spec.typ (format 1.1). *)
+    Structured OCaml types for the kinds of manifests that the vocabulary of
+    Hamac declares (vocabulary/hamac.loaf), built by {!Loaf_source}. *)
 
 (* ============================================================ *)
 (* Common types                                                  *)
@@ -25,19 +25,8 @@ type metadata = {
 let no_metadata = { description = None; labels = []; annotations = [] }
 
 type port = {
-  host: int option;         (** deprecated in 1.1: publication goes through [exposure] *)
   container: int;
   protocol: string;         (** tcp | udp *)
-} [@@deriving show]
-
-(** Host-side port of a port: the deprecated [host] field if given, the
-    container port otherwise. *)
-let port_host (p : port) = Option.value p.host ~default:p.container
-
-type volume = {
-  host_path: string;
-  container_path: string;
-  read_only: bool;
 } [@@deriving show]
 
 (** Authorization of a route: the subject's level must be at least
@@ -146,17 +135,11 @@ type logging = {
 
 type consumption = {
   name: string;
-  capability: string option;  (** database, cache, queue, storage *)
+  capability: string option;  (** database, cache… *)
   service: string option;     (** reference to another service *)
+  provider: string option;    (** the provider that the vocabulary retains *)
   inject: (string * string) list;
   mode: string;               (** request | push (push: experimental) *)
-} [@@deriving show]
-
-type signature = {
-  algorithm: string;
-  public_key: string;
-  value: string;
-  signed_fields: string list;
 } [@@deriving show]
 
 (* ============================================================ *)
@@ -170,7 +153,6 @@ type readiness = {
 } [@@deriving show]
 
 type service_manifest = {
-  manifest_version: string;
   name: string;
   runtime: string;           (** http | cli | batch | eventloop | custom *)
   artifact: artifact option;
@@ -181,7 +163,6 @@ type service_manifest = {
   readiness: readiness option;     (** for providers: readiness check *)
   security: security option;
   ports: port list;
-  volumes: volume list;
   environment: (string * string) list;
   resources: resources option;
   replicas: int;
@@ -230,11 +211,11 @@ type objective = {
   oweight: int option;
 } [@@deriving show]
 
+(** A pattern is the block of a LOAF module (module exemple_rh 1.0.0.),
+    which a stack loads by use; a pattern that builds on another one uses
+    its module. *)
 type pattern_manifest = {
-  pat_manifest_version: string;
   pat_name: string;
-  pat_version: string;
-  extends: string list;
   lattice: lattice_decl option;
   zones: zone_decl list;
   pat_assurance: (string * assurance) list;   (** zone name → minimum *)
@@ -247,7 +228,7 @@ type pattern_manifest = {
 (* ============================================================ *)
 
 type stack_service_ref = {
-  ref_path: string;
+  ref_service: string;            (** name of the service *)
   replicas_override: int option;
   consumes_override: stack_consume_override list;
 } [@@deriving show]
@@ -258,12 +239,10 @@ and stack_consume_override = {
 } [@@deriving show]
 
 type stack_manifest = {
-  manifest_version: string;
   name: string;
-  patterns: string list;           (** empty = the built-in hamac-default *)
   accept_experimental: bool;
   services: stack_service_ref list;
-  infrastructure: string option;   (** path to infrastructure manifest *)
+  infrastructure: string option;   (** name of an infrastructure manifest *)
 } [@@deriving show]
 
 (* ============================================================ *)
@@ -354,7 +333,6 @@ type infra_requirements = {
 } [@@deriving show]
 
 type infrastructure_manifest = {
-  manifest_version: string;
   name: string;
   backend: string;           (** physical | qemu | kubernetes | docker-compose *)
   minimum_requirements: infra_requirements option;
@@ -368,12 +346,18 @@ type infrastructure_manifest = {
 (* ============================================================ *)
 (* Cf. doc/typst/provisioning-spec.typ                                  *)
 
-(** YAML value brut (params bundle, cloud_init_extra, etc.). *)
-type yaml_value = Yaml.value
-let pp_yaml_value fmt v =
-  match Yaml.to_string v with
-  | Ok s -> Format.fprintf fmt "%s" (String.trim s)
-  | Error (`Msg m) -> Format.fprintf fmt "<invalid yaml: %s>" m
+(** Valeur d'un paramètre de bundle, transmise au gabarit Jinja2 du bundle :
+    celles d'un profil LOAF (texte, entier, liste) et celles qu'une machine
+    reçoit par l'API de découverte (JSON). *)
+type param_value =
+  | PNull
+  | PBool of bool
+  | PInt of int
+  | PFloat of float
+  | PString of string
+  | PList of param_value list
+  | PObject of (string * param_value) list
+[@@deriving show]
 
 type os_image_spec = {
   os_image_name: string;    (** Identifiant logique ex. "debian-12-amd64" *)
@@ -395,15 +379,14 @@ type os_image_spec = {
     des paramètres à passer au template Jinja2 du bundle. *)
 type bundle_ref = {
   bundle_name: string;
-  bundle_params: (string * yaml_value) list;
+  bundle_params: (string * param_value) list;
 } [@@deriving show]
 
 type provisioning_profile_manifest = {
-  pp_manifest_version: string;
   pp_name: string;
   pp_os: os_image_spec;
-  pp_bundles: bundle_ref list;
-  pp_cloud_init_extra: yaml_value option;
+  pp_bundles: bundle_ref list;     (** in the order of the cloud-init merge *)
+  pp_cloud_init_extra: string option;  (** cloud-init (YAML) merged last *)
   pp_assurance: assurance option;  (** experimental: what an installed machine offers *)
 } [@@deriving show]
 
@@ -417,7 +400,6 @@ type bundle_param_spec = {
 } [@@deriving show]
 
 type bundle_manifest = {
-  bdl_manifest_version: string;
   bdl_name: string;
   bdl_version: string;
   bdl_description: string;

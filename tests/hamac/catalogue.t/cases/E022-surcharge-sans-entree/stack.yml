@@ -1,9 +1,0 @@
-# E022-surcharge-sans-entree
-manifest_version: "1.1"
-kind: stack
-name: demo
-services:
-  - ref: web.yml
-    consumes:
-      - name: cache
-        provider: db

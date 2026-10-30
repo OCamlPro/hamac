@@ -153,7 +153,7 @@ type wire_target =
   | Provider of { provider_name: string; instance_name: string }
       (** a provider instance created for this consumer *)
   | Service of string
-      (** another service of the stack ([consumes: - service: ...]) *)
+      (** another service of the stack ([consumes n { service s. }]) *)
 
 type resolved_wire = {
   consumer_name: string;         (** service that consumes *)
@@ -305,16 +305,16 @@ let resolve_service_consumption
       injected_env = List.map (fun (k, tmpl) -> (k, substitute vars tmpl)) cons.inject;
     }
 
-(** Resolve all consumptions for a list of services with optional stack
-    overrides. [service_endpoint] locates a consumed service (default:
+(** Resolve all consumptions for a list of services. The provider of a
+    consumption is the one that the vocabulary retains ([provider]: the one
+    the stack imposes, or the single provider of the capability).
+    [service_endpoint] locates a consumed service (default:
     {!default_service_endpoint}); the infrastructure simulation passes the
     node that hosts it. *)
 let resolve_all
     ?(service_endpoint = default_service_endpoint)
     ~(registry : Provider_registry.t)
     ~(services : service_manifest list)
-    ~(overrides : (string * (string * string) list) list)
-    (** overrides: (service_name, [(consume_name, provider_name)]) *)
     ()
   : resolution =
   let wires = ref [] in
@@ -323,10 +323,6 @@ let resolve_all
   let seen_providers = Hashtbl.create 8 in
 
   List.iter (fun (svc : service_manifest) ->
-    let svc_overrides = match List.assoc_opt svc.name overrides with
-      | Some l -> l
-      | None -> []
-    in
     List.iter (fun (cons : consumption) ->
       match cons.service with
       | Some target_name ->
@@ -335,7 +331,7 @@ let resolve_all
          | Ok wire -> wires := wire :: !wires
          | Error err -> errors := err :: !errors)
       | None ->
-      let provider_override = List.assoc_opt cons.name svc_overrides in
+      let provider_override = cons.provider in
       match resolve_consumption ~registry ~consumer:svc ~provider_override cons with
       | (Some (wire, rprov), _) ->
         wires := wire :: !wires;

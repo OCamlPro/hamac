@@ -1,0 +1,11 @@
+% W010-image-non-epinglee
+loaf 0.1.
+use hamac 0.1.
+
+service web {
+  runtime http.
+  artifact "registry.example.org/web:latest" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+}

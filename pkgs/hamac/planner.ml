@@ -171,7 +171,6 @@ let plan ?lattice ~(name : string) ~(flows : Hamac_manifest.Flows.flow list) (se
   let firewall = Hamac_manifest.Flows.firewall_rules ?lattice (List.map (fun z -> z.zone_name) zones) flows in
 
   let infrastructure = {
-    manifest_version = "1.0";
     name = name ^ "-infra";
     backend = "docker-compose";
     minimum_requirements = Some {

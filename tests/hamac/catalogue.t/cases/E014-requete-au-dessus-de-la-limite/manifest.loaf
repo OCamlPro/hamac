@@ -1,0 +1,13 @@
+% E014-requete-au-dessus-de-la-limite
+loaf 0.1.
+use hamac 0.1.
+
+service web {
+  runtime http.
+  artifact "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+  memory_request 2, gi.
+  memory_limit 1, gi.
+}

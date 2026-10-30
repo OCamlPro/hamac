@@ -12,12 +12,12 @@
       (no read up) — this is an invariant, no declaration can lift it;
     - reading down (a more sensitive zone querying a less sensitive one) is
       permitted by the lattice, but only opened for flows a service declares
-      with a [consumes: - service: ...] entry (least privilege);
+      with a [consumes n { service s. }] entry (least privilege);
     - everything else between two zones is denied.
 
     Filtering is stateful: replies to an allowed connection pass. Across a
     zone whose boundary is a diode, nothing can answer a request: a flow
-    that crosses it must be declared [mode: push].
+    that crosses it must be declared [mode push].
 
     Writing down (a sensitive service sending data to a less sensitive
     zone, including inside the request of an allowed read-down connection)
@@ -106,7 +106,7 @@ let declared ?(lattice = Lattice.default) (services : service_manifest list)
                && c.mode <> "push" then
             fail "E041"
               "%s (zone %s) consumes %s (zone %s) across a diode: nothing \
-               can answer a request through it. Declare the flow 'mode: push', \
+               can answer a request through it. Declare the flow 'mode push', \
                %s sending what %s receives."
               svc.name consumer_zone target.name target_zone target.name svc.name
           else

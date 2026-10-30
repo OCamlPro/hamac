@@ -1,0 +1,9 @@
+% E040-lecture-vers-le-haut
+loaf 0.1.
+use hamac 0.1.
+
+stack demo {
+  accept_experimental.
+  service portal {}
+  service vault {}
+}

@@ -3,9 +3,9 @@ build_info:
 dune:
   name: hamac
   packages:
-    # Le format pivot : types, parser, diagnostics, treillis, langage de
-    # contraintes et validation. Utilisable sans le reste de Hamac par tout
-    # outil qui lit ou produit des manifestes.
+    # Le format pivot : types, chargeur LOAF, diagnostics, treillis, langage
+    # de contraintes et validation. Utilisable sans le reste de Hamac par
+    # tout outil qui lit ou produit des manifestes.
     #
     # Les manifestes LOAF sont lus par la bibliothèque loaf. Le vocabulaire
     # (vocabulary/hamac.loaf) est installé dans le site dune [vocabulary] du
@@ -18,9 +18,6 @@ dune:
     - name: hamac-manifest
       kind: library
       depends:
-        - name: yaml
-        - name: fpath
-        - name: bos
         - name: loaf
         - name: dune-site
       ppx:
@@ -44,7 +41,6 @@ dune:
       depends:
         - name: hamac-manifest
         - name: hamac-provisioning
-        - name: yaml
         - name: fpath
         - name: bos
         - name: logs

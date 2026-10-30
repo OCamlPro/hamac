@@ -1,24 +1,29 @@
-Manifestes LOAF : les exemples du dépôt, convertis de YAML, sont lus par
-`Loaf_source` (un ensemble de fichiers chargé d'un coup, avec le vocabulaire
-de Hamac trouvé par dune-site). On les valide, puis on compare, manifeste par
-manifeste, la valeur `Types` obtenue depuis LOAF à celle obtenue depuis le
-YAML d'origine.
+Manifestes LOAF : les exemples du dépôt sont lus par `Loaf_source` (un
+ensemble de fichiers chargé d'un coup, avec le vocabulaire de Hamac trouvé
+par dune-site, et les patrons, modules, cherchés dans les répertoires de
+bibliothèque). On les valide, on fige les valeurs `Types` que le chargeur en
+construit, puis les sorties des commandes.
 
   $ R=../../..
 
 Validation
 ==========
 
-Une stack LOAF se charge avec ses services, son patron et les providers
-qu'elle consomme : le langage refuse une référence à un bloc absent.
+Une stack se charge avec ses services et les providers qu'elle consomme ;
+son patron est un module, qu'elle charge par `use` depuis un répertoire de
+bibliothèque (`-L`) : le langage refuse une référence à un bloc absent, ou un
+module introuvable.
 
   $ hamac validate $R/examples/hr-stack/*.loaf $R/providers/*.loaf 2>&1 | sed "s|$R/||"
+  hamac: [ERROR] examples/hr-stack/stack.loaf:14:1: [L009] use exemple_rh: no available version satisfies 1.0 (available: none)
+
+  $ hamac validate -L $R/examples/hr-stack/patterns $R/examples/hr-stack/*.loaf $R/providers/*.loaf 2>&1 | sed "s|$R/||"
   examples/hr-stack/hr-api.loaf: service (name=hr-api, runtime=http)
   examples/hr-stack/payroll-report.loaf: service (name=payroll-report, runtime=batch)
   examples/hr-stack/portal.loaf: service (name=portal, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
-  examples/hr-stack/pattern.loaf: pattern (name=exemple-rh, version=1.0.0, 3 zones, 3 constraints)
+  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple-rh, 3 zones, 3 constraints)
   examples/hr-stack/stack.loaf: stack (name=hr, 3 services)
   hamac: [WARNING] providers/postgresql.loaf:25:3: [W010] artifact.path: OCI image 'postgres:15-alpine' is not pinned by digest (@sha256:…)
   hamac: [WARNING] providers/redis.loaf:19:3: [W010] artifact.path: OCI image 'redis:7-alpine' is not pinned by digest (@sha256:…)
@@ -128,357 +133,443 @@ par un provider de cette capacité (E024).
   hamac: [ERROR] contract.loaf:5:1: [E024] database block of other, which is not a service providing database
   [1]
 
-Comparaison avec les YAML d'origine
-===================================
+Valeurs construites
+===================
 
-`compare.exe` apparie les manifestes par sorte et par nom, écrit leurs deux
-valeurs `Types` et les liste ; `d` affiche l'écart d'une paire. Les listes qui
-sont des ensembles en LOAF sont triées des deux côtés (LOAF les donne dans
-l'ordre des termes, YAML dans l'ordre d'écriture) : cet écart-là n'est pas
-montré.
+`show.exe` affiche les valeurs `Types` qu'un ensemble de fichiers donne : ce
+que le reste de Hamac reçoit du chargeur. Les gabarits y sont dans le
+mini-langage `{…}` que le résolveur substitue : un `inject` arrive rempli par
+le modèle avec les termes de l'instance du provider (`{input.user}`,
+`{service_name}`), le point d'accès d'un service consommé est `{host}` et son
+premier port.
 
-  $ d () { diff -u --label yaml --label loaf $1.yaml $1.loaf; }
-
-Exemple hr-stack
-----------------
-
-  $ ../compare.exe hr $R/examples/hr-stack/*.yml $R/providers/*.yml $R/examples/hr-stack/*.loaf $R/providers/*.loaf
-  pattern-exemple-rh
-  service-hr-api
-  service-payroll-report
-  service-portal
-  service-postgresql
-  service-redis
-  stack-hr
-
-Patron : un identifiant de contrainte est une constante LOAF, qui ne peut
-pas porter de `-` ; la convention `_` → `-` ne vaut que pour les noms de
-manifestes, l'identifiant reste donc `one_level_per_host`. Le texte d'une
-contrainte écrite sur plusieurs lignes en YAML (bloc `>`) est d'une ligne en
-LOAF : l'expression analysée (`expr`) est la même.
-
-  $ d hr/pattern-exemple-rh
-  --- yaml
-  +++ loaf
-  @@ -13,7 +13,7 @@
-        pat_assurance =
-        [("rh", { Types.boot = (Some "measured-tpm2"); operator = None; physical = (Some "site") })];
-        constraints =
-  -     [{ Types.cid = "one-level-per-host";
-  +     [{ Types.cid = "one_level_per_host";
-           cdescription = "Deux niveaux ne partagent jamais un noyau"; severity = "hard";
-           weight = None; expr_src = "forall h in hosts: count(levels_on(h)) <= 1";
+  $ ../show.exe -L $R/examples/hr-stack/patterns $R/examples/hr-stack/*.loaf $R/providers/*.loaf | sed "s|$R/||"
+  == examples/hr-stack/hr-api.loaf
+  (Types.MService
+     { Types.name = "hr-api"; runtime = "http";
+       artifact =
+       (Some { Types.path =
+               "registry.example.org/rh/hr-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+               sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+               format = "oci-image" });
+       capability = None; inputs = [];
+       consumes =
+       [{ Types.name = "db"; capability = (Some "database"); service = None;
+          provider = (Some "postgresql");
+          inject =
+          [("DATABASE_URL",
+            "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
+          mode = "request" }
+         ];
+       provides = []; readiness = None;
+       security =
+       (Some { Types.zone = "rh";
+               route_labels =
+               [{ Types.route = "/employees/*"; methods = ["GET"]; public = false;
+                  classification = (Some "internal"); categories = ["rh"];
+                  required_clearance = ["admin"; "rh"] };
+                 { Types.route = "/employees/salaries"; methods = []; public = false;
+                   classification = (Some "confidential"); categories = ["finance"; "rh"];
+                   required_clearance = ["admin"; "comptable"] };
+                 { Types.route = "/health"; methods = []; public = true; 
+                   classification = None; categories = []; required_clearance = [] }
+                 ]
+               });
+       ports = [{ Types.container = 8080; protocol = "tcp" }];
+       environment = [("SESSION_KEY", "{secret.session_key}")];
+       resources =
+       (Some { Types.memory_limit = (Some "512Mi"); memory_request = (Some "256Mi");
+               cpu_limit = (Some "1"); cpu_request = None });
+       replicas = 2; autoscaling = None;
+       health_check = (Some { Types.path = "/health"; interval = 10; timeout = 3; retries = 3 });
+       metrics = None; logging = None;
+       metadata = { Types.description = None; labels = []; annotations = [] }; 
+       storage = []; backup = None;
+       secrets =
+       [{ Types.sec_name = "session_key"; sec_ref = None;
+          generate = (Some { Types.gen_kind = "alnum"; gen_length = 64 }); 
+          rotate = (Some "90d"); sec_as = "env" }
+         ];
+       placement =
+       (Some { Types.needs = []; pl_assurance = None; spread = "failure_domain"; 
+               affinity = []; anti_affinity = [] });
+       exposure =
+       [{ Types.hostname = "api.rh.example.org"; path_prefix = "/"; exp_port = 8080;
+          exp_protocol = "http"; tls = "acme" }
+         ]
+       })
+  == examples/hr-stack/payroll-report.loaf
+  (Types.MService
+     { Types.name = "payroll-report"; runtime = "batch";
+       artifact =
+       (Some { Types.path =
+               "registry.example.org/rh/payroll-report@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+               sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+               format = "oci-image" });
+       capability = None; inputs = [];
+       consumes =
+       [{ Types.name = "api"; capability = None; service = (Some "hr-api");
+          provider = (Some "hr-api"); inject = [("HR_API_URL", "http://{host}:8080")];
+          mode = "request" }
+         ];
+       provides = []; readiness = None; security = (Some { Types.zone = "rh"; route_labels = [] });
+       ports = []; environment = [];
+       resources =
+       (Some { Types.memory_limit = (Some "1Gi"); memory_request = None; 
+               cpu_limit = (Some "2"); cpu_request = None });
+       replicas = 1; autoscaling = None; health_check = None; metrics = None; 
+       logging = None; metadata = { Types.description = None; labels = []; annotations = [] };
+       storage =
+       [{ Types.st_name = "cache"; mount = "/var/cache/report"; st_class = "local";
+          size = (Some "5Gi"); rebuild = (Some "none") };
+         { Types.st_name = "scratch"; mount = "/tmp/work"; st_class = "ephemeral"; 
+           size = None; rebuild = None }
+         ];
+       backup = None; secrets = []; placement = None; exposure = [] })
+  == examples/hr-stack/portal.loaf
+  (Types.MService
+     { Types.name = "portal"; runtime = "http";
+       artifact =
+       (Some { Types.path =
+               "registry.example.org/rh/portal@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+               sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+               format = "oci-image" });
+       capability = None; inputs = []; consumes = []; provides = []; readiness = None;
+       security = (Some { Types.zone = "public"; route_labels = [] });
+       ports = [{ Types.container = 8080; protocol = "tcp" }]; environment = [];
+       resources =
+       (Some { Types.memory_limit = (Some "256Mi"); memory_request = None; 
+               cpu_limit = (Some "500m"); cpu_request = None });
+       replicas = 2; autoscaling = None;
+       health_check = (Some { Types.path = "/health"; interval = 10; timeout = 3; retries = 3 });
+       metrics = None; logging = None;
+       metadata = { Types.description = None; labels = []; annotations = [] }; 
+       storage = []; backup = None; secrets = []; placement = None;
+       exposure =
+       [{ Types.hostname = "rh.example.org"; path_prefix = "/"; exp_port = 8080;
+          exp_protocol = "http"; tls = "acme" }
+         ]
+       })
+  == providers/postgresql.loaf
+  (Types.MService
+     { Types.name = "postgresql"; runtime = "http";
+       artifact =
+       (Some { Types.path = "postgres:15-alpine";
+               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+               format = "oci-image" });
+       capability = (Some "database");
+       inputs =
+       [("dbname", "{consumer.name}_db"); ("password", "{generate.alnum(32)}");
+         ("user", "{generate.alpha(12)}")];
+       consumes = [];
+       provides =
+       [("dbname", "{input.dbname}"); ("host", "{service_name}"); ("password", "{input.password}");
+         ("port", "5432"); ("user", "{input.user}")];
+       readiness =
+       (Some { Types.command = ["pg_isready"; "-U"; "{input.user}"]; readiness_interval = 5;
+               readiness_timeout = 30 });
+       security = None; ports = [{ Types.container = 5432; protocol = "tcp" }];
+       environment =
+       [("POSTGRES_DB", "{input.dbname}"); ("POSTGRES_PASSWORD", "{input.password}");
+         ("POSTGRES_USER", "{input.user}")];
+       resources = None; replicas = 1; autoscaling = None; health_check = None; 
+       metrics = None; logging = None;
+       metadata = { Types.description = None; labels = []; annotations = [] }; 
+       storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == providers/redis.loaf
+  (Types.MService
+     { Types.name = "redis"; runtime = "http";
+       artifact =
+       (Some { Types.path = "redis:7-alpine";
+               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+               format = "oci-image" });
+       capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
+       consumes = [];
+       provides = [("host", "{service_name}"); ("password", "{input.password}"); ("port", "6379")];
+       readiness =
+       (Some { Types.command = ["redis-cli"; "-a"; "{input.password}"; "ping"];
+               readiness_interval = 5; readiness_timeout = 30 });
+       security = None; ports = [{ Types.container = 6379; protocol = "tcp" }];
+       environment = [("REDIS_PASSWORD", "{input.password}")]; resources = None; 
+       replicas = 1; autoscaling = None; health_check = None; metrics = None; 
+       logging = None; metadata = { Types.description = None; labels = []; annotations = [] };
+       storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == examples/hr-stack/patterns/exemple_rh.loaf
+  (Types.MPattern
+     { Types.pat_name = "exemple-rh";
+       lattice =
+       (Some { Types.levels = ["public"; "internal"; "confidential"];
+               lat_categories = ["finance"; "rh"] });
+       zones =
+       [{ Types.zname = "internal"; zlevel = "internal"; zcategories = []; boundary = "firewall" };
+         { Types.zname = "public"; zlevel = "public"; zcategories = []; boundary = "firewall" };
+         { Types.zname = "rh"; zlevel = "confidential"; zcategories = ["finance"; "rh"];
+           boundary = "firewall" }
+         ];
+       pat_assurance =
+       [("rh", { Types.boot = (Some "measured-tpm2"); operator = None; physical = (Some "site") })];
+       constraints =
+       [{ Types.cid = "one_level_per_host";
+          cdescription = "Deux niveaux ne partagent jamais un noyau"; severity = "hard";
+          weight = None; expr_src = "forall h in hosts: count(levels_on(h)) <= 1";
+          expr =
+          (Constraint_lang.Quant (Constraint_lang.Forall, "h", (Constraint_lang.Domain "hosts"),
+             None,
+             (Constraint_lang.Cmp (Constraint_lang.Le,
+                (Constraint_lang.App ("count",
+                   [(Constraint_lang.App ("levels_on", [(Constraint_lang.Var "h")]))])),
+                (Constraint_lang.Int 1)))
+             ))
+          };
+         { Types.cid = "rh_on_site"; cdescription = "Les donn\195\169es RH restent sur le site";
+           severity = "hard"; weight = None;
+           expr_src =
+           "forall s in services where zone(s) = \"rh\": forall h in hosts_of(s): h.physical = \"site\"";
            expr =
-  @@ -25,10 +25,10 @@
-                 (Constraint_lang.Int 1)))
+           (Constraint_lang.Quant (Constraint_lang.Forall, "s", (Constraint_lang.Domain "services"),
+              (Some (Constraint_lang.Cmp (Constraint_lang.Eq,
+                       (Constraint_lang.App ("zone", [(Constraint_lang.Var "s")])),
+                       (Constraint_lang.Str "rh")))),
+              (Constraint_lang.Quant (Constraint_lang.Forall, "h",
+                 (Constraint_lang.Set_of ("hosts_of", (Constraint_lang.Var "s"))), None,
+                 (Constraint_lang.Cmp (Constraint_lang.Eq, (Constraint_lang.Field ("h", "physical")),
+                    (Constraint_lang.Str "site")))
+                 ))
               ))
            };
-  -       { Types.cid = "rh-on-site"; cdescription = "Les donn\195\169es RH restent sur le site";
-  +       { Types.cid = "rh_on_site"; cdescription = "Les donn\195\169es RH restent sur le site";
-            severity = "hard"; weight = None;
-            expr_src =
-  -         "forall s in services where zone(s) = \"rh\":\n  forall h in hosts_of(s): h.physical = \"site\"\n";
-  +         "forall s in services where zone(s) = \"rh\": forall h in hosts_of(s): h.physical = \"site\"";
-            expr =
-            (Constraint_lang.Quant (Constraint_lang.Forall, "s", (Constraint_lang.Domain "services"),
-               (Some (Constraint_lang.Cmp (Constraint_lang.Eq,
-  @@ -41,12 +41,12 @@
-                  ))
-               ))
-            };
-  -       { Types.cid = "stateful-quorum";
-  +       { Types.cid = "stateful_quorum";
-            cdescription =
-            "Un service \195\160 \195\169tat survit \195\160 la perte d'un domaine de panne";
-            severity = "hard"; weight = None;
-            expr_src =
-  -         "forall s in services where stateful(s):\n  count(failure_domains(hosts_of(s))) >= 3\n";
-  +         "forall s in services where stateful(s): count(failure_domains(hosts_of(s))) >= 3";
-            expr =
-            (Constraint_lang.Quant (Constraint_lang.Forall, "s", (Constraint_lang.Domain "services"),
-               (Some (Constraint_lang.Term
-  [1]
+         { Types.cid = "stateful_quorum";
+           cdescription =
+           "Un service \195\160 \195\169tat survit \195\160 la perte d'un domaine de panne";
+           severity = "hard"; weight = None;
+           expr_src =
+           "forall s in services where stateful(s): count(failure_domains(hosts_of(s))) >= 3";
+           expr =
+           (Constraint_lang.Quant (Constraint_lang.Forall, "s", (Constraint_lang.Domain "services"),
+              (Some (Constraint_lang.Term
+                       (Constraint_lang.App ("stateful", [(Constraint_lang.Var "s")])))),
+              (Constraint_lang.Cmp (Constraint_lang.Ge,
+                 (Constraint_lang.App ("count",
+                    [(Constraint_lang.App ("failure_domains",
+                        [(Constraint_lang.App ("hosts_of", [(Constraint_lang.Var "s")]))]))
+                      ]
+                    )),
+                 (Constraint_lang.Int 3)))
+              ))
+           }
+         ];
+       objectives =
+       [{ Types.direction = "minimize"; term_src = "count(hosts_used)";
+          term = (Constraint_lang.App ("count", [(Constraint_lang.Var "hosts_used")])); 
+          priority = 1; oweight = None };
+         { Types.direction = "minimize"; term_src = "moves"; term = (Constraint_lang.Var "moves");
+           priority = 2; oweight = None }
+         ]
+       })
+  == examples/hr-stack/stack.loaf
+  (Types.MStack
+     { Types.name = "hr"; accept_experimental = true;
+       services =
+       [{ Types.ref_service = "hr-api"; replicas_override = None; consumes_override = [] };
+         { Types.ref_service = "payroll-report"; replicas_override = None; consumes_override = [] };
+         { Types.ref_service = "portal"; replicas_override = None; consumes_override = [] }];
+       infrastructure = None })
 
-Service consommateur d'une capacité : le modèle remplit le gabarit
-`fmt("…{~.user}…")` avec les attributs du provider qu'il a retenu ; le
-gabarit arrive donc exprimé dans les termes de l'instance du provider
-(`input(user)` → `{input.user}`, `instance(name)` → `{service_name}`, le port
-offert `5432` en clair), que le résolveur substitue, au lieu des clés de ses
-`provides` (`{user}`). Le résultat résolu est le même (voir plus bas).
-
-  $ d hr/service-hr-api
-  --- yaml
-  +++ loaf
-  @@ -8,7 +8,9 @@
-        capability = None; inputs = [];
-        consumes =
-        [{ Types.name = "db"; capability = (Some "database"); service = None;
-  -        inject = [("DATABASE_URL", "postgresql://{user}:{password}@{host}:{port}/{dbname}")];
-  +        inject =
-  +        [("DATABASE_URL",
-  +          "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
+  $ ../show.exe $R/examples/enterprise-stack/*.loaf $R/providers/*.loaf | sed "s|$R/||"
+  == examples/enterprise-stack/analytics.loaf
+  (Types.MService
+     { Types.name = "analytics"; runtime = "eventloop";
+       artifact =
+       (Some { Types.path = "./bin/analytics";
+               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+               format = "native-linux-amd64" });
+       capability = None; inputs = [];
+       consumes =
+       [{ Types.name = "api"; capability = None; service = (Some "web-api");
+          provider = (Some "web-api"); inject = [("API_URL", "http://{host}:8080")]; 
+          mode = "request" };
+         { Types.name = "cache"; capability = (Some "cache"); service = None;
+           provider = (Some "redis");
+           inject = [("REDIS_URL", "redis://:{input.password}@{service_name}:6379")];
+           mode = "request" };
+         { Types.name = "db"; capability = (Some "database"); service = None;
+           provider = (Some "postgresql");
+           inject =
+           [("DATABASE_URL",
+             "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
            mode = "request" }
-          ];
-        provides = []; readiness = None;
-  [1]
+         ];
+       provides = []; readiness = None;
+       security = (Some { Types.zone = "internal"; route_labels = [] }); 
+       ports = []; environment = [];
+       resources =
+       (Some { Types.memory_limit = (Some "1Gi"); memory_request = None; 
+               cpu_limit = (Some "2"); cpu_request = None });
+       replicas = 2;
+       autoscaling =
+       (Some { Types.min_replicas = 2; max_replicas = 8; cpu_threshold = (Some 60);
+               memory_threshold = None });
+       health_check = None; metrics = None; logging = None;
+       metadata = { Types.description = None; labels = []; annotations = [] }; 
+       storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == examples/enterprise-stack/payroll.loaf
+  (Types.MService
+     { Types.name = "payroll"; runtime = "http";
+       artifact =
+       (Some { Types.path = "./bin/payroll";
+               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+               format = "native-linux-amd64" });
+       capability = None; inputs = [];
+       consumes =
+       [{ Types.name = "db"; capability = (Some "database"); service = None;
+          provider = (Some "postgresql");
+          inject =
+          [("DATABASE_URL",
+            "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
+          mode = "request" }
+         ];
+       provides = []; readiness = None;
+       security =
+       (Some { Types.zone = "secure";
+               route_labels =
+               [{ Types.route = "/employees/*"; methods = []; public = false; 
+                  classification = None; categories = []; required_clearance = ["admin"] };
+                 { Types.route = "/salary/*"; methods = []; public = false; 
+                   classification = None; categories = [];
+                   required_clearance = ["admin"; "comptable"] }
+                 ]
+               });
+       ports = []; environment = [];
+       resources =
+       (Some { Types.memory_limit = (Some "256Mi"); memory_request = None; 
+               cpu_limit = (Some "500m"); cpu_request = None });
+       replicas = 2; autoscaling = None; health_check = None; metrics = None; 
+       logging = None; metadata = { Types.description = None; labels = []; annotations = [] };
+       storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == providers/postgresql.loaf
+  (Types.MService
+     { Types.name = "postgresql"; runtime = "http";
+       artifact =
+       (Some { Types.path = "postgres:15-alpine";
+               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+               format = "oci-image" });
+       capability = (Some "database");
+       inputs =
+       [("dbname", "{consumer.name}_db"); ("password", "{generate.alnum(32)}");
+         ("user", "{generate.alpha(12)}")];
+       consumes = [];
+       provides =
+       [("dbname", "{input.dbname}"); ("host", "{service_name}"); ("password", "{input.password}");
+         ("port", "5432"); ("user", "{input.user}")];
+       readiness =
+       (Some { Types.command = ["pg_isready"; "-U"; "{input.user}"]; readiness_interval = 5;
+               readiness_timeout = 30 });
+       security = None; ports = [{ Types.container = 5432; protocol = "tcp" }];
+       environment =
+       [("POSTGRES_DB", "{input.dbname}"); ("POSTGRES_PASSWORD", "{input.password}");
+         ("POSTGRES_USER", "{input.user}")];
+       resources = None; replicas = 1; autoscaling = None; health_check = None; 
+       metrics = None; logging = None;
+       metadata = { Types.description = None; labels = []; annotations = [] }; 
+       storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == providers/redis.loaf
+  (Types.MService
+     { Types.name = "redis"; runtime = "http";
+       artifact =
+       (Some { Types.path = "redis:7-alpine";
+               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+               format = "oci-image" });
+       capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
+       consumes = [];
+       provides = [("host", "{service_name}"); ("password", "{input.password}"); ("port", "6379")];
+       readiness =
+       (Some { Types.command = ["redis-cli"; "-a"; "{input.password}"; "ping"];
+               readiness_interval = 5; readiness_timeout = 30 });
+       security = None; ports = [{ Types.container = 6379; protocol = "tcp" }];
+       environment = [("REDIS_PASSWORD", "{input.password}")]; resources = None; 
+       replicas = 1; autoscaling = None; health_check = None; metrics = None; 
+       logging = None; metadata = { Types.description = None; labels = []; annotations = [] };
+       storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == examples/enterprise-stack/web_api.loaf
+  (Types.MService
+     { Types.name = "web-api"; runtime = "http";
+       artifact =
+       (Some { Types.path = "./bin/web_api";
+               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+               format = "native-linux-amd64" });
+       capability = None; inputs = [];
+       consumes =
+       [{ Types.name = "db"; capability = (Some "database"); service = None;
+          provider = (Some "postgresql");
+          inject =
+          [("DATABASE_URL",
+            "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
+          mode = "request" }
+         ];
+       provides = []; readiness = None;
+       security = (Some { Types.zone = "public"; route_labels = [] });
+       ports = [{ Types.container = 8080; protocol = "tcp" }]; environment = [];
+       resources =
+       (Some { Types.memory_limit = (Some "512Mi"); memory_request = None; 
+               cpu_limit = (Some "1"); cpu_request = None });
+       replicas = 3;
+       autoscaling =
+       (Some { Types.min_replicas = 3; max_replicas = 10; cpu_threshold = (Some 70);
+               memory_threshold = None });
+       health_check = None; metrics = None; logging = None;
+       metadata = { Types.description = None; labels = []; annotations = [] }; 
+       storage = []; backup = None; secrets = []; placement = None; exposure = [] })
 
-Consommation d'un service : `{~.host}` est `host(hr_api)`, rendu `{host}`
-que le résolveur substitue par le point d'accès du service ; `{~.port}` est le
-premier port déclaré, que le modèle donne en clair.
-
-  $ d hr/service-payroll-report
-  --- yaml
-  +++ loaf
-  @@ -8,7 +8,7 @@
-        capability = None; inputs = [];
-        consumes =
-        [{ Types.name = "api"; capability = None; service = (Some "hr-api");
-  -        inject = [("HR_API_URL", "http://{host}:{port}")]; mode = "request" }
-  +        inject = [("HR_API_URL", "http://{host}:8080")]; mode = "request" }
-          ];
-        provides = []; readiness = None; security = (Some { Types.zone = "rh"; route_labels = [] });
-        ports = []; volumes = []; environment = [];
-  [1]
-
-La quantité CPU est écrite `500, m` dans l'exemple LOAF : `500m`, la même
-que `0.5` en YAML.
-
-  $ d hr/service-portal
-  --- yaml
-  +++ loaf
-  @@ -11,7 +11,7 @@
-        volumes = []; environment = [];
-        resources =
-        (Some { Types.memory_limit = (Some "256Mi"); memory_request = None; 
-  -             cpu_limit = (Some "0.5"); cpu_request = None });
-  +             cpu_limit = (Some "500m"); cpu_request = None });
-        replicas = 2; autoscaling = None;
-        health_check = (Some { Types.path = "/health"; interval = 10; timeout = 3; retries = 3 });
-        metrics = None; logging = None;
-  [1]
-
-Provider : ses `provides` viennent du contrat de sa capacité (`database
-postgresql { … }`) et sont ceux du YAML. Le YAML est au format 1.0, le
-vocabulaire implémente le 1.1 (`manifest_version` d'un manifeste LOAF) ;
-`port.host`, déprécié en 1.1, n'est plus dans le vocabulaire.
-
-  $ d hr/service-postgresql
-  --- yaml
-  +++ loaf
-  @@ -1,5 +1,5 @@
-   (Types.MService
-  -   { Types.manifest_version = "1.0"; name = "postgresql"; runtime = "http";
-  +   { Types.manifest_version = "1.1"; name = "postgresql"; runtime = "http";
-        artifact =
-        (Some { Types.path = "postgres:15-alpine";
-                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-  @@ -15,7 +15,7 @@
-        readiness =
-        (Some { Types.command = ["pg_isready"; "-U"; "{input.user}"]; readiness_interval = 5;
-                readiness_timeout = 30 });
-  -     security = None; ports = [{ Types.host = (Some 5432); container = 5432; protocol = "tcp" }];
-  +     security = None; ports = [{ Types.host = None; container = 5432; protocol = "tcp" }];
-        volumes = [];
-        environment =
-        [("POSTGRES_DB", "{input.dbname}"); ("POSTGRES_PASSWORD", "{input.password}");
-  [1]
-
-Même écart pour redis.
-
-  $ d hr/service-redis
-  --- yaml
-  +++ loaf
-  @@ -1,5 +1,5 @@
-   (Types.MService
-  -   { Types.manifest_version = "1.0"; name = "redis"; runtime = "http";
-  +   { Types.manifest_version = "1.1"; name = "redis"; runtime = "http";
-        artifact =
-        (Some { Types.path = "redis:7-alpine";
-                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-  @@ -10,7 +10,7 @@
-        readiness =
-        (Some { Types.command = ["redis-cli"; "-a"; "{input.password}"; "ping"];
-                readiness_interval = 5; readiness_timeout = 30 });
-  -     security = None; ports = [{ Types.host = (Some 6379); container = 6379; protocol = "tcp" }];
-  +     security = None; ports = [{ Types.host = None; container = 6379; protocol = "tcp" }];
-        volumes = []; environment = [("REDIS_PASSWORD", "{input.password}")]; 
-        resources = None; replicas = 1; autoscaling = None; health_check = None; 
-        metrics = None; logging = None;
-  [1]
-
-Une stack LOAF nomme ses services : `ref_path` est le nom du service, et non
-plus le chemin de son fichier.
-
-  $ d hr/stack-hr
-  --- yaml
-  +++ loaf
-  @@ -2,7 +2,7 @@
-      { Types.manifest_version = "1.1"; name = "hr"; patterns = ["exemple-rh"];
-        accept_experimental = true;
-        services =
-  -     [{ Types.ref_path = "hr-api.yml"; replicas_override = None; consumes_override = [] };
-  -       { Types.ref_path = "payroll-report.yml"; replicas_override = None; consumes_override = [] };
-  -       { Types.ref_path = "portal.yml"; replicas_override = None; consumes_override = [] }];
-  +     [{ Types.ref_path = "hr-api"; replicas_override = None; consumes_override = [] };
-  +       { Types.ref_path = "payroll-report"; replicas_override = None; consumes_override = [] };
-  +       { Types.ref_path = "portal"; replicas_override = None; consumes_override = [] }];
-        infrastructure = None })
-  [1]
-
-Exemple enterprise-stack
-------------------------
-
-  $ ../compare.exe ent $R/examples/enterprise-stack/*.yml $R/providers/*.yml $R/examples/enterprise-stack/*.loaf $R/providers/*.loaf
-  service-analytics
-  service-payroll
-  service-postgresql
-  service-redis
-  service-web-api
-
-Les mêmes écarts : version 1.0, gabarits remplis par le modèle, et la
-référence `web_api`, nom 1.0 avec `_`, devenue `web-api`.
-
-  $ d ent/service-analytics
-  --- yaml
-  +++ loaf
-  @@ -1,18 +1,20 @@
-   (Types.MService
-  -   { Types.manifest_version = "1.0"; name = "analytics"; runtime = "eventloop";
-  +   { Types.manifest_version = "1.1"; name = "analytics"; runtime = "eventloop";
-        artifact =
-        (Some { Types.path = "./bin/analytics";
-                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-                format = "native-linux-amd64" });
-        capability = None; inputs = [];
-        consumes =
-  -     [{ Types.name = "api"; capability = None; service = (Some "web_api");
-  -        inject = [("API_URL", "http://{host}:{port}")]; mode = "request" };
-  +     [{ Types.name = "api"; capability = None; service = (Some "web-api");
-  +        inject = [("API_URL", "http://{host}:8080")]; mode = "request" };
-          { Types.name = "cache"; capability = (Some "cache"); service = None;
-  -         inject = [("REDIS_URL", "redis://:{password}@{host}:{port}")]; 
-  +         inject = [("REDIS_URL", "redis://:{input.password}@{service_name}:6379")];
-            mode = "request" };
-          { Types.name = "db"; capability = (Some "database"); service = None;
-  -         inject = [("DATABASE_URL", "postgresql://{user}:{password}@{host}:{port}/{dbname}")];
-  +         inject =
-  +         [("DATABASE_URL",
-  +           "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
-            mode = "request" }
-          ];
-        provides = []; readiness = None;
-  [1]
-
-Version, gabarit, et la quantité CPU `500, m`.
-
-  $ d ent/service-payroll
-  --- yaml
-  +++ loaf
-  @@ -1,5 +1,5 @@
-   (Types.MService
-  -   { Types.manifest_version = "1.0"; name = "payroll"; runtime = "http";
-  +   { Types.manifest_version = "1.1"; name = "payroll"; runtime = "http";
-        artifact =
-        (Some { Types.path = "./bin/payroll";
-                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-  @@ -7,7 +7,9 @@
-        capability = None; inputs = [];
-        consumes =
-        [{ Types.name = "db"; capability = (Some "database"); service = None;
-  -        inject = [("DATABASE_URL", "postgresql://{user}:{password}@{host}:{port}/{dbname}")];
-  +        inject =
-  +        [("DATABASE_URL",
-  +          "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
-           mode = "request" }
-          ];
-        provides = []; readiness = None;
-  @@ -24,7 +26,7 @@
-        ports = []; volumes = []; environment = [];
-        resources =
-        (Some { Types.memory_limit = (Some "256Mi"); memory_request = None; 
-  -             cpu_limit = (Some "0.5"); cpu_request = None });
-  +             cpu_limit = (Some "500m"); cpu_request = None });
-        replicas = 2; autoscaling = None; health_check = None; metrics = None; 
-        logging = None; metadata = { Types.description = None; labels = []; annotations = [] };
-        storage = []; backup = None; secrets = []; placement = None; exposure = [] })
-  [1]
-
-Version, nom `web_api` → `web-api`, gabarit, port sans `host`.
-
-  $ d ent/service-web-api
-  --- yaml
-  +++ loaf
-  @@ -1,5 +1,5 @@
-   (Types.MService
-  -   { Types.manifest_version = "1.0"; name = "web_api"; runtime = "http";
-  +   { Types.manifest_version = "1.1"; name = "web-api"; runtime = "http";
-        artifact =
-        (Some { Types.path = "./bin/web_api";
-                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-  @@ -7,12 +7,14 @@
-        capability = None; inputs = [];
-        consumes =
-        [{ Types.name = "db"; capability = (Some "database"); service = None;
-  -        inject = [("DATABASE_URL", "postgresql://{user}:{password}@{host}:{port}/{dbname}")];
-  +        inject =
-  +        [("DATABASE_URL",
-  +          "postgresql://{input.user}:{input.password}@{service_name}:5432/{input.dbname}")];
-           mode = "request" }
-          ];
-        provides = []; readiness = None;
-        security = (Some { Types.zone = "public"; route_labels = [] });
-  -     ports = [{ Types.host = (Some 8080); container = 8080; protocol = "tcp" }]; 
-  +     ports = [{ Types.host = None; container = 8080; protocol = "tcp" }]; 
-        volumes = []; environment = [];
-        resources =
-        (Some { Types.memory_limit = (Some "512Mi"); memory_request = None; 
-  [1]
-
-Profils et bundle
------------------
-
-  $ ../compare.exe pp $R/provisioning-profiles/*.yaml $R/templates/bundles/dev-workstation/bundle.yaml $R/provisioning-profiles/*.loaf $R/templates/bundles/dev-workstation/bundle.loaf
-  bundle-dev-workstation
-  provisioning_profile-dev-workstation
-  provisioning_profile-dev-workstation-demo
-
-Bundle et profils : seule la version du format diffère.
-
-  $ d pp/bundle-dev-workstation
-  --- yaml
-  +++ loaf
-  @@ -1,5 +1,5 @@
-   (Types.MBundle
-  -   { Types.bdl_manifest_version = "1.0"; bdl_name = "dev-workstation"; 
-  +   { Types.bdl_manifest_version = "1.1"; bdl_name = "dev-workstation"; 
-        bdl_version = "0.1.0";
-        bdl_description = "Poste de dev minimal : utilisateur sudo, SSH, docker, dotfiles optionnels";
-        bdl_params =
-  [1]
-
-  $ d pp/provisioning_profile-dev-workstation
-  --- yaml
-  +++ loaf
-  @@ -1,5 +1,5 @@
-   (Types.MProvisioningProfile
-  -   { Types.pp_manifest_version = "1.0"; pp_name = "dev-workstation";
-  +   { Types.pp_manifest_version = "1.1"; pp_name = "dev-workstation";
-        pp_os =
-        { Types.os_image_name = "debian-12-amd64-genericcloud";
-          os_url =
-  [1]
-
-  $ d pp/provisioning_profile-dev-workstation-demo
-  --- yaml
-  +++ loaf
-  @@ -1,5 +1,5 @@
-   (Types.MProvisioningProfile
-  -   { Types.pp_manifest_version = "1.0"; pp_name = "dev-workstation-demo";
-  +   { Types.pp_manifest_version = "1.1"; pp_name = "dev-workstation-demo";
-        pp_os =
-        { Types.os_image_name = "debian-12-amd64-genericcloud";
-          os_url =
-  [1]
+  $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev-workstation/bundle.loaf | sed "s|$R/||"
+  == provisioning-profiles/dev-workstation.loaf
+  (Types.MProvisioningProfile
+     { Types.pp_name = "dev-workstation";
+       pp_os =
+       { Types.os_image_name = "debian-12-amd64-genericcloud";
+         os_url =
+         "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2";
+         os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+         os_format = "qcow2"; os_family = "debian"; os_raw_zst_url = ""; 
+         os_raw_zst_sha256 = ""; os_bmap_url = "" };
+       pp_bundles = [{ Types.bundle_name = "dev-workstation"; bundle_params = [] }];
+       pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
+       pp_assurance = None })
+  == provisioning-profiles/dev-workstation-demo.loaf
+  (Types.MProvisioningProfile
+     { Types.pp_name = "dev-workstation-demo";
+       pp_os =
+       { Types.os_image_name = "debian-12-amd64-genericcloud";
+         os_url =
+         "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2";
+         os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+         os_format = "qcow2"; os_family = "debian"; os_raw_zst_url = ""; 
+         os_raw_zst_sha256 = ""; os_bmap_url = "" };
+       pp_bundles =
+       [{ Types.bundle_name = "dev-workstation";
+          bundle_params =
+          [("full_name", (Types.PString "Example Developer"));
+            ("ssh_public_keys",
+             (Types.PList
+                [(Types.PString
+                    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE example@hamac")
+                  ]));
+            ("timezone", (Types.PString "Europe/Paris")); ("username", (Types.PString "devuser"))]
+          }
+         ];
+       pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
+       pp_assurance = None })
+  == templates/bundles/dev-workstation/bundle.loaf
+  (Types.MBundle
+     { Types.bdl_name = "dev-workstation"; bdl_version = "0.1.0";
+       bdl_description = "Poste de dev minimal : utilisateur sudo, SSH, docker, dotfiles optionnels";
+       bdl_params =
+       [{ Types.param_name = "dotfiles_repo"; param_type = "string"; param_required = false };
+         { Types.param_name = "full_name"; param_type = "string"; param_required = false };
+         { Types.param_name = "initial_password"; param_type = "string"; param_required = false };
+         { Types.param_name = "ssh_public_keys"; param_type = "list[string]"; 
+           param_required = false };
+         { Types.param_name = "timezone"; param_type = "string"; param_required = false };
+         { Types.param_name = "username"; param_type = "string"; param_required = true }];
+       bdl_depends_on = []; bdl_lifecycle = "install" })
 
 Ordre des bundles
 =================
@@ -507,22 +598,114 @@ paramètres d'un bundle que la liste ne nomme pas sont refusés (E007).
 Effet sur les commandes
 =======================
 
-Le résolveur substitue dans le gabarit déjà rempli les termes de l'instance
-du provider : les injections résolues ont la forme de celles du YAML.
+Le résolveur substitue les termes de l'instance du provider dans le gabarit
+déjà rempli.
 
-  $ hamac resolve --seed 42 $R/examples/hr-stack/*.loaf $R/providers/*.loaf 2>/dev/null | sed -n '/^Wiring/,$p'
+  $ hamac resolve --seed 42 -L $R/examples/hr-stack/patterns $R/examples/hr-stack/*.loaf $R/providers/*.loaf 2>/dev/null | sed -n '/^Wiring/,$p'
   Wiring:
     hr-api.db -> postgresql
       inject: DATABASE_URL=postgresql://pottxvuimhan:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@postgresql-hr-api-db:5432/hr-api_db
     payroll-report.api -> hr-api (service)
       inject: HR_API_URL=http://hr-api:8080
 
-Le plan d'une stack LOAF ne compte pas les providers comme des services : il
-est celui du YAML. Le rendu d'un profil LOAF est aussi celui du YAML.
+Le plan d'une stack ne compte pas les providers comme des services ; il suit
+le treillis de son patron.
 
-  $ (cd $R && hamac plan examples/hr-stack/*.yml) > plan-yaml.txt 2>&1
-  $ (cd $R && hamac plan examples/hr-stack/*.loaf providers/*.loaf) > plan-loaf.txt 2>&1
-  $ diff plan-yaml.txt plan-loaf.txt
-  $ hamac provision-dryrun --profile=$R/provisioning-profiles/dev-workstation-demo.yaml --bundles-dir=$R/templates/bundles > dry-yaml.txt 2>&1
-  $ hamac provision-dryrun --profile=$R/provisioning-profiles/dev-workstation-demo.loaf --bundles-dir=$R/templates/bundles > dry-loaf.txt 2>&1
-  $ diff dry-yaml.txt dry-loaf.txt
+  $ (cd $R && hamac plan -L examples/hr-stack/patterns examples/hr-stack/*.loaf providers/*.loaf)
+  Infrastructure proposal: stack-infra
+  
+  Minimum requirements:
+    Nodes: 2
+    RAM: 2560Mi
+    CPU: 5 cores
+  
+  Zones:
+    public: 1 service(s), 2 replica(s), 512 MB RAM, 1000 mCPU
+      - portal
+    rh: 2 service(s), 3 replica(s), 2048 MB RAM, 4000 mCPU
+      - hr-api
+      - payroll-report
+  
+  Proposed topology:
+    1x node [public] — 4096Mi RAM, 4 CPU
+    1x node [rh] — 4096Mi RAM, 4 CPU
+  
+  Network segments:
+    public: 10.10.0.0/24 (VLAN 100)
+    rh: 10.11.0.0/24 (VLAN 101)
+  
+  Firewall rules:
+    DENY public -> rh (no read up)
+    DENY rh -> public (no declared flow)
+  
+
+Le rendu d'un profil.
+
+  $ hamac provision-dryrun --profile=$R/provisioning-profiles/dev-workstation-demo.loaf --bundles-dir=$R/templates/bundles
+  === cloud-init ===
+  #cloud-config
+  # Généré par hamac pour le profile 'dev-workstation-demo'
+  users:
+  - name: devuser
+    gecos: Example Developer
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: docker, sudo
+    lock_passwd: true
+    ssh_authorized_keys:
+    - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE
+      example@hamac
+  timezone: Europe/Paris
+  package_update: true
+  packages:
+  - git
+  - vim
+  - curl
+  - ca-certificates
+  - sudo
+  - openssh-server
+  - docker.io
+  - python3
+  - python3-pip
+  - tmux
+  - htop
+  - jq
+  - rsync
+  write_files:
+  - path: /etc/motd
+    permissions: "0644"
+    content: '============================================================
+  
+      Provisioned by hamac (bundle: dev-workstation)
+  
+      User: Example Developer (devuser)
+  
+      ============================================================
+  
+      '
+  runcmd:
+  - install -d -o devuser -g devuser /home/devuser/.config /home/devuser/.local/bin
+    /home/devuser/projects
+  - bash -c 'printf "\n# hamac/dev-workstation\nexport PATH=\"$HOME/.local/bin:$PATH\"\nalias
+    ll=\"ls -lah\"\n" >> /home/devuser/.bashrc'
+  - chown devuser:devuser /home/devuser/.bashrc
+  - systemctl enable --now ssh || systemctl enable --now sshd
+  - systemctl enable --now docker
+  - usermod -aG docker devuser || true
+  - echo "hamac dev-workstation provisioning done"
+  - systemctl enable --now ssh
+  
+  === iPXE ===
+  #!ipxe
+  # Généré par hamac (provisioning_gen)
+  # Image: debian-12-amd64-genericcloud (qcow2)
+  
+  set base-url https://cdimage.debian.org/cdimage/cloud/bookworm/latest
+  kernel https://cdimage.debian.org/cdimage/cloud/bookworm/latest/vmlinuz initrd=initrd.img boot=live components
+  initrd https://cdimage.debian.org/cdimage/cloud/bookworm/latest/initrd.img
+  boot
+  
+  === OS ===
+  url: https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000
+  format: qcow2

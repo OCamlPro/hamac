@@ -3,8 +3,11 @@
 
 (** Provider registry for hamac.
 
-    Loads provider manifests from a search path and indexes them
-    by name and capability for resolution. *)
+    Indexes the providers of a set of manifests by name and capability for
+    resolution. The providers are files of the set, like the services that
+    consume them: the vocabulary resolves a consumption against them, and
+    LOAF refuses a set whose templates read a provider that is not in it
+    (L014). There is thus no search path of providers. *)
 
 open Hamac_manifest.Types
 
@@ -46,55 +49,6 @@ let resolve (registry : t) ~(provider_name : string option) ~(capability : strin
     match capability with
     | Some cap -> find_by_capability registry cap
     | None -> None
-
-(** Load all .yml files from a directory into the registry *)
-let load_dir (registry : t) (dir : Fpath.t) : (int, string) result =
-  match Bos.OS.Dir.exists dir with
-  | Error (`Msg msg) -> Error msg
-  | Ok false -> Ok 0
-  | Ok true ->
-    match Bos.OS.Dir.contents dir with
-    | Error (`Msg msg) -> Error msg
-    | Ok paths ->
-      let count = ref 0 in
-      List.iter (fun path ->
-        let ext = Fpath.get_ext path in
-        if ext = ".yml" || ext = ".yaml" then begin
-          match Hamac_manifest.Parser.load_file path with
-          | Ok (MService svc, _warnings) when svc.capability <> None ->
-            register registry svc;
-            incr count;
-            Logs.debug (fun m -> m "Loaded provider: %s (capability=%s)"
-              svc.name (Option.value ~default:"?" svc.capability))
-          | Ok (MService svc, _) ->
-            (* Service without capability — still register by name *)
-            register registry svc;
-            incr count;
-            Logs.debug (fun m -> m "Loaded provider: %s (no capability)" svc.name)
-          | Ok _ ->
-            Logs.debug (fun m -> m "Skipping non-service manifest: %a" Fpath.pp path)
-          | Error msg ->
-            Logs.warn (fun m -> m "Skipping invalid provider %a: %s" Fpath.pp path msg)
-        end
-      ) paths;
-      Ok !count
-
-(** Load from default search paths *)
-let load_defaults ?(verbose = true) (registry : t) : unit =
-  let search_paths = [
-    Fpath.v "./providers";
-  ] in
-  (* Add ~/.hamac/providers if HOME is set *)
-  let search_paths = match Sys.getenv_opt "HOME" with
-    | Some home -> search_paths @ [Fpath.(v home / ".hamac" / "providers")]
-    | None -> search_paths
-  in
-  List.iter (fun dir ->
-    match load_dir registry dir with
-    | Ok 0 -> ()
-    | Ok n -> if verbose then Logs.app (fun m -> m "Loaded %d provider(s) from %a" n Fpath.pp dir)
-    | Error msg -> Logs.debug (fun m -> m "Cannot load providers from %a: %s" Fpath.pp dir msg)
-  ) search_paths
 
 let all_providers (registry : t) : service_manifest list =
   Hashtbl.fold (fun _name svc acc -> svc :: acc) registry.by_name []

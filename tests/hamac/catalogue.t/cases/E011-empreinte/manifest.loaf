@@ -1,0 +1,11 @@
+% E011-empreinte
+loaf 0.1.
+use hamac 0.1.
+
+service web {
+  runtime http.
+  artifact "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "abc".
+    format oci_image.
+  }
+}

@@ -41,11 +41,14 @@ echo "==> Binary: $BIN ($(du -h "$BIN" | cut -f1))"
 #  - le binaire
 #  - les bundles (templates cloud-init + schémas de params)
 #  - les profils built-in (seed du catalogue)
+#  - le vocabulaire LOAF de Hamac (profils et bundles le chargent)
 cp "$BIN" "$SCRIPT_DIR/discovery_server.exe"
-rm -rf "$SCRIPT_DIR/bundles" "$SCRIPT_DIR/profiles"
+rm -rf "$SCRIPT_DIR/bundles" "$SCRIPT_DIR/profiles" "$SCRIPT_DIR/vocabulary"
 cp -r "$PROJECT_ROOT/templates/bundles"        "$SCRIPT_DIR/bundles"
 cp -r "$PROJECT_ROOT/provisioning-profiles"    "$SCRIPT_DIR/profiles"
-trap 'rm -rf "$SCRIPT_DIR/discovery_server.exe" "$SCRIPT_DIR/bundles" "$SCRIPT_DIR/profiles"' EXIT
+mkdir -p "$SCRIPT_DIR/vocabulary"
+cp "$PROJECT_ROOT/pkgs/hamac-manifest/vocabulary/hamac.loaf" "$SCRIPT_DIR/vocabulary/"
+trap 'rm -rf "$SCRIPT_DIR/discovery_server.exe" "$SCRIPT_DIR/bundles" "$SCRIPT_DIR/profiles" "$SCRIPT_DIR/vocabulary"' EXIT
 
 echo "==> docker build $TAG ..."
 docker build -t "$TAG" -t "$LATEST_TAG" "$SCRIPT_DIR"

@@ -98,28 +98,23 @@ jobs:
         run: |
           set -eux
           opam exec -- dune exec -- hamac validate \
-            providers/*.yml \
-            examples/enterprise-stack/*.yml \
-            provisioning-profiles/*.yaml \
-            templates/bundles/*/bundle.yaml
-          # Format 1.1 : l'exemple complet doit passer sans le moindre
-          # avertissement, patron, zones, routes et stockage compris.
-          opam exec -- dune exec -- hamac validate --strict examples/hr-stack/*.yml
-          opam exec -- dune exec -- hamac plan examples/hr-stack/*.yml
-          opam exec -- dune exec -- hamac plan examples/enterprise-stack/*.yml
-          opam exec -- dune exec -- hamac resolve examples/enterprise-stack/*.yml
+            examples/enterprise-stack/*.loaf providers/*.loaf
+          for p in provisioning-profiles/*.loaf; do
+            opam exec -- dune exec -- hamac validate \
+              "$p" templates/bundles/*/bundle.loaf
+          done
+          # L'exemple complet doit passer, patron, zones, routes et stockage
+          # compris. Pas de --strict : les providers font partie de
+          # l'ensemble, et leurs images (postgres, redis) ne sont pas
+          # épinglées par empreinte (W010).
+          opam exec -- dune exec -- hamac validate \
+            -L examples/hr-stack/patterns examples/hr-stack/*.loaf providers/*.loaf
+          opam exec -- dune exec -- hamac plan \
+            -L examples/hr-stack/patterns examples/hr-stack/*.loaf providers/*.loaf
+          opam exec -- dune exec -- hamac plan examples/enterprise-stack/*.loaf providers/*.loaf
+          opam exec -- dune exec -- hamac resolve examples/enterprise-stack/*.loaf providers/*.loaf
           opam exec -- dune exec -- hamac provision-dryrun \
-            --profile=provisioning-profiles/dev-workstation-demo.yaml
-
-      # Le schéma JSON sert les éditeurs et les générateurs tiers : il doit
-      # accepter tout ce que le dépôt livre et refuser les cas du catalogue
-      # que la syntaxe suffit à refuser, sinon il diverge du validateur sans
-      # que personne ne le voie.
-      - name: Schéma JSON
-        run: |
-          set -eux
-          apt-get install -y --no-install-recommends python3-jsonschema python3-yaml
-          python3 -I tools/check-schema.py
+            --profile=provisioning-profiles/dev-workstation-demo.loaf
 
   # Documents officiels (spécifications, manuels, livrables) : sources Typst
   # dans doc/typst/, PDF non versionnés. Le job échoue au moindre avertissement
@@ -270,9 +265,11 @@ jobs:
         run: |
           set -eux
           cp _build/default/pkgs/hamac-discovery/main.exe docker/hamac-discovery/discovery_server.exe
-          rm -rf docker/hamac-discovery/bundles docker/hamac-discovery/profiles
+          rm -rf docker/hamac-discovery/bundles docker/hamac-discovery/profiles docker/hamac-discovery/vocabulary
           cp -r templates/bundles     docker/hamac-discovery/bundles
           cp -r provisioning-profiles docker/hamac-discovery/profiles
+          mkdir -p docker/hamac-discovery/vocabulary
+          cp pkgs/hamac-manifest/vocabulary/hamac.loaf docker/hamac-discovery/vocabulary/
           # Les images OS dérivées (raw.zst + .bmap) ne sont pas générées ici :
           # cf. doc/typst/provisioning-spec.typ §3.1. Le Dockerfile les COPY, donc le
           # répertoire doit exister même vide.

@@ -1,41 +1,43 @@
-Un manifeste de service valide est accepté, et `validate` en résume le kind :
+Un manifeste de service valide est accepté, et `validate` en résume la sorte :
 
-  $ hamac validate service.yml
-  service.yml: service (name=web, runtime=http)
+  $ hamac validate service.loaf
+  service.loaf: service (name=web, runtime=http)
 
-Les erreurs sont rapportées avec le chemin YAML fautif, et `validate` sort en
-échec — la CI ne doit pas passer sur un manifeste invalide.
+Les erreurs sont rapportées avec le fichier, la ligne et la colonne fautifs, et
+`validate` sort en échec — la CI ne doit pas passer sur un manifeste invalide.
+Ces fautes-là, le langage les refuse lui-même (codes `L…` de LOAF).
 
 Champ obligatoire absent :
 
-  $ hamac validate missing-name.yml
-  hamac: [ERROR] missing-name.yml: name: [E006] required field 'name' is missing
+  $ hamac validate missing-runtime.loaf
+  hamac: [ERROR] missing-runtime.loaf:7:1: [L007] service(api): field runtime has no value
   [1]
 
-Kind inconnu — le message énumère les kinds acceptés :
+Sorte de manifeste inconnue : LOAF l'accepte aujourd'hui sans rien dire (un
+prédicat non déclaré est permis, défini par un seul fichier : un bloc mal
+orthographié passe pour un prédicat intermédiaire), et Hamac ne lit que ses
+sortes. Défaut signalé à LOAF : ce test changera avec lui.
 
-  $ hamac validate unknown-kind.yml
-  hamac: [ERROR] unknown-kind.yml: kind: [E005] unknown manifest kind 'widget' (expected: service, pattern, stack, infrastructure, provisioning_profile, bundle)
+  $ hamac validate unknown-block.loaf
+
+Valeur hors de la sorte du champ :
+
+  $ hamac validate bad-port.loaf
+  hamac: [ERROR] bad-port.loaf:9:3: [L002] service.port(web, "huit mille"): "huit mille" does not belong to sort int
   [1]
 
-Type de champ incorrect, repéré jusque dans un élément de liste :
+Plusieurs fichiers en un appel forment un ensemble, examiné en entier.
 
-  $ hamac validate bad-port.yml
-  hamac: [ERROR] bad-port.yml: ports.0.host: [E007] expected an integer
+  $ hamac validate service.loaf missing-runtime.loaf
+  service.loaf: service (name=web, runtime=http)
+  hamac: [ERROR] missing-runtime.loaf:7:1: [L007] service(api): field runtime has no value
   [1]
 
-Plusieurs fichiers en un appel : tous sont examinés, pas seulement le premier.
+Les règles de filtrage d'un manifeste d'infrastructure sont des faits typés :
+une règle `allow` nomme le flux (consommateur, service consommé) qui la
+justifie, les services nommés doivent exister.
 
-  $ hamac validate service.yml missing-name.yml
-  service.yml: service (name=web, runtime=http)
-  hamac: [ERROR] missing-name.yml: name: [E006] required field 'name' is missing
-  [1]
-
-Les règles de filtrage d'un manifeste d'infrastructure sont lues et vérifiées ;
-une règle mal formée est refusée avec le format attendu :
-
-  $ hamac validate infra.yml
-  infra.yml: infrastructure (name=lab, backend=docker-compose)
-  $ hamac validate bad-firewall.yml
-  hamac: [ERROR] bad-firewall.yml: proposed_topology.network.firewall.0: [E007] invalid firewall rule 'PERMIT public secure' (expected: ALLOW|DENY <zone> -> <zone> [(detail)])
-  [1]
+  $ hamac validate infra.loaf
+  infra.loaf: service (name=analytics, runtime=eventloop)
+  infra.loaf: service (name=web-api, runtime=http)
+  infra.loaf: infrastructure (name=lab, backend=docker-compose)

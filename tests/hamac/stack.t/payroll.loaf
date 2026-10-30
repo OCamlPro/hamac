@@ -1,0 +1,26 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.1.
+
+service payroll {
+  runtime http.
+  replicas 2.
+  zone secure.
+  memory_limit 256, mi.
+  cpu_limit 500, m.
+  artifact "./bin/payroll" {
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format native_linux_amd64.
+  }
+
+  consumes db {
+    capability database.
+    inject "DATABASE_URL",
+           fmt("postgresql://{~.database.user}:{~.database.password}@{~.database.host}:{~.database.port}/{~.database.dbname}").
+  }
+
+  route "/salary/*" { required_clearance comptable; admin. }
+  route "/employees/*" { required_clearance admin. }
+}

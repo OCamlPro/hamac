@@ -1,0 +1,13 @@
+% E041-requete-a-travers-une-diode
+loaf 0.1.
+use hamac 0.1.
+
+service analyst {
+  runtime http.
+  artifact "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+  zone high.
+  consumes feed { service sensor. }
+}

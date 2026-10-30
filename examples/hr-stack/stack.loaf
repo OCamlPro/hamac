@@ -2,18 +2,19 @@
 % Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
 %
 % Exemple : une petite application RH, ses zones et ses exigences données
-% par un patron, et non par Hamac. La stack nomme ses services et son
-% patron : leurs fichiers sont chargés avec elle, ainsi que les providers.
+% par un patron, et non par Hamac. La stack charge son patron, un module,
+% et nomme ses services : leurs fichiers sont chargés avec elle, ainsi que
+% les providers.
 %
-%   loaf check -L pkgs/hamac-manifest/vocabulary examples/hr-stack/*.loaf \
+%   hamac validate -L examples/hr-stack/patterns examples/hr-stack/*.loaf \
 %     providers/*.loaf
 
 loaf 0.1.
 use hamac 0.1.
+use exemple_rh 1.0.
 
 stack hr {
   description "Application RH : portail public, API RH, consolidation".
-  pattern exemple_rh.
   accept_experimental.
 
   service portal {}

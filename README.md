@@ -12,7 +12,8 @@
 > **Canonical repository:** https://forge.ocamlpro.com/OSS/hamac — the GitHub repository is a read-only mirror. Please file issues and merge requests on Forgejo.
 
 **Hamac** is an infrastructure orchestrator. It reads
-declarative YAML manifests describing services and infrastructure,
+declarative manifests, written in [LOAF](https://forge.ocamlpro.com/OSS/loaf),
+describing services and infrastructure,
 resolves their dependencies to concrete providers, and provisions/deploys them —
 including **bare-metal provisioning over PXE**.
 
@@ -24,7 +25,7 @@ Developed by [OCamlPro](https://www.ocamlpro.com) and released under the
 | Package | Path | Role |
 |---|---|---|
 | `hamac` | `pkgs/hamac` | CLI: `validate` / `plan` / `resolve` / `simulate` / `deploy`, and `provision-*` (render + push cloud-init/iPXE to the discovery server). |
-| `hamac-manifest` | `pkgs/hamac-manifest` | Library: the pivot manifest format — types, parser, coded diagnostics, security lattice, pattern constraint language, flow and stack validation. Usable on its own by any tool that reads or writes manifests. |
+| `hamac-manifest` | `pkgs/hamac-manifest` | Library: the pivot manifest format — types, LOAF loader and vocabulary of Hamac, coded diagnostics, security lattice, pattern constraint language, flow and stack validation. Usable on its own by any tool that reads or writes manifests. |
 | `hamac-provisioning` | `pkgs/hamac-provisioning` | Library: provisioning-profile rendering (cloud-init + iPXE). |
 | `hamac-discovery` | `pkgs/hamac-discovery` | Discovery server: stores a provisioning record per MAC and serves the aggregated cloud-init to PXE-booting machines. |
 
@@ -48,18 +49,22 @@ The commands below run as-is from the root of this repository, against the
 example manifests it ships.
 
 ```sh
-# Validate / plan / resolve manifests
-hamac validate examples/enterprise-stack/*.yml
-hamac plan     examples/enterprise-stack/*.yml
-hamac resolve  examples/enterprise-stack/*.yml
+# Validate / plan / resolve manifests. The files given form one set: it
+# includes the providers that the services consume.
+hamac validate examples/enterprise-stack/*.loaf providers/*.loaf
+hamac plan     examples/enterprise-stack/*.loaf providers/*.loaf
+hamac resolve  examples/enterprise-stack/*.loaf providers/*.loaf
+
+# A stack loads its pattern, a LOAF module, from a library directory (-L).
+hamac plan -L examples/hr-stack/patterns examples/hr-stack/*.loaf providers/*.loaf
 
 # Credentials come from the system CSPRNG. --seed makes them reproducible for
 # tests and demos, and therefore predictable: never use it for a real deployment.
-hamac resolve --seed 42 examples/enterprise-stack/*.yml
+hamac resolve --seed 42 examples/enterprise-stack/*.loaf providers/*.loaf
 
 # Bare-metal provisioning
-hamac provision-dryrun --profile=provisioning-profiles/dev-workstation-demo.yaml
-hamac provision-push   --profile=provisioning-profiles/dev-workstation.yaml \
+hamac provision-dryrun --profile=provisioning-profiles/dev-workstation-demo.loaf
+hamac provision-push   --profile=provisioning-profiles/dev-workstation.loaf \
                        --mac=aa:bb:cc:dd:ee:ff \
                        --discovery=http://discovery:8877
 hamac provision-clear  --mac=aa:bb:cc:dd:ee:ff --discovery=http://discovery:8877
@@ -71,10 +76,12 @@ Run `hamac --help` for the full command list.
 
 | Directory | Contents | Looked up |
 |---|---|---|
-| `providers/` | Provider manifests (`postgresql`, `redis`) — a provider is a `kind: service` manifest, not a compiled plugin. | `./providers`, then `~/.hamac/providers` |
-| `templates/bundles/<name>/` | Provisioning bundles: `bundle.yaml` + cloud-init Jinja2 templates. | `./templates/bundles`, `/usr/share/hamac/bundles`, or `--bundles-dir` |
-| `provisioning-profiles/` | `kind: provisioning_profile` manifests. `dev-workstation.yaml` takes its parameters from the machine record; `dev-workstation-demo.yaml` carries them inline so a dry run needs nothing else. | passed with `--profile` |
+| `providers/` | Provider manifests (`postgresql`, `redis`) — a provider is a `service` block that fills the contract of its capability (`database postgresql { … }`), not a compiled plugin. | passed on the command line, with the services that consume them |
+| `patterns/` | Patterns: LOAF modules (`module exemple_rh 1.0.0.`) that a stack loads by `use`. | `-L DIR`, then `./patterns`, then `~/.hamac/patterns` |
+| `templates/bundles/<name>/` | Provisioning bundles: `bundle.loaf` + cloud-init Jinja2 templates. | `./templates/bundles`, `/usr/share/hamac/bundles`, or `--bundles-dir` |
+| `provisioning-profiles/` | `provisioning_profile` manifests. `dev-workstation.loaf` takes its parameters from the machine record; `dev-workstation-demo.loaf` carries them inline so a dry run needs nothing else. | passed with `--profile` |
 | `examples/enterprise-stack/` | Three services across three security zones, consuming a database and a cache; `analytics` (internal) reads `web_api` (public). | passed on the command line |
+| `examples/hr-stack/` | A stack with its pattern (`patterns/exemple_rh.loaf`): lattice, zones, routes, storage. | passed on the command line, pattern with `-L` |
 
 ## Security zones and flows
 
@@ -86,18 +93,17 @@ Hamac derives the network filtering from it:
   a zone can never open a connection to a more sensitive zone. `hamac plan`
   rejects any service that declares such a dependency.
 - **Read down, only when declared.** A service may consume a service of a less
-  sensitive zone (`consumes: - service: web_api`); Hamac then opens exactly that
+  sensitive zone (`consumes api { service web_api. }`); Hamac then opens exactly that
   flow, to that service's port, and nothing else between the two zones.
 - **Stateful.** Replies to an allowed connection pass; every other connection
   between zones is denied.
 
-```yaml
-# analytics (zone internal) reads the public API: allowed, and opened
-consumes:
-  - name: api
-    service: web_api
-    inject:
-      API_URL: "http://{host}:{port}"
+```loaf
+% analytics (zone internal) reads the public API: allowed, and opened
+consumes api {
+  service web_api.
+  inject "API_URL", fmt("http://{~.host}:{~.port}").
+}
 ```
 
 Writing down — a sensitive service sending data to a less sensitive zone,
@@ -126,7 +132,7 @@ PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and, on
 <https://forge.ocamlpro.com/OSS/-/packages/generic/hamac-docs/latest>.
 
 - [`doc/typst/manifest-spec.typ`](doc/typst/manifest-spec.typ) — manifest format specification (1.1, draft).
-- [`doc/schema/hamac-manifest-1.1.schema.json`](doc/schema/hamac-manifest-1.1.schema.json) — JSON Schema of the format (syntax and types), for editors and third-party generators.
+- [`pkgs/hamac-manifest/vocabulary/hamac.loaf`](pkgs/hamac-manifest/vocabulary/hamac.loaf) — the vocabulary of Hamac: the blocks of the manifests, their defaults and validations, in LOAF.
 - [`doc/typst/provisioning-spec.typ`](doc/typst/provisioning-spec.typ) — provisioning profile & disk-write spec.
 - [`doc/typst/control-plane.typ`](doc/typst/control-plane.typ) — round-based control plane (design proposal).
 - [`doc/HAMAC_ROADMAP.md`](doc/HAMAC_ROADMAP.md) — milestones.

@@ -7,6 +7,10 @@
 
 let manifest_files = ref []
 
+(** Directories of modules (patterns) given by -L, before the default ones
+    ({!Hamac_manifest.Loaf_source.library_dirs}). *)
+let library_dirs = ref []
+
 (* ============================================================ *)
 (* Helpers                                                       *)
 (* ============================================================ *)
@@ -17,8 +21,8 @@ let kind_label = function
   | MStack s ->
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
   | MPattern p ->
-    Printf.sprintf "pattern (name=%s, version=%s, %d zones, %d constraints)"
-      p.pat_name p.pat_version (List.length p.zones) (List.length p.constraints)
+    Printf.sprintf "pattern (name=%s, %d zones, %d constraints)"
+      p.pat_name (List.length p.zones) (List.length p.constraints)
   | MInfrastructure i ->
     Printf.sprintf "infrastructure (name=%s, backend=%s)" i.name i.backend
   | MProvisioningProfile p ->
@@ -28,67 +32,30 @@ let kind_label = function
     Printf.sprintf "bundle (name=%s, version=%s, %d params)"
       b.bdl_name b.bdl_version (List.length b.bdl_params)
 
-(** Load a registry from default search paths *)
-let load_registry () =
-  let registry = Provider_registry.create () in
-  Provider_registry.load_defaults registry;
-  registry
-
-(** The manifests of the file arguments: each YAML file on its own, the
-    LOAF files as one set. Errors stop the command. *)
+(** The manifests of the file arguments, loaded as one set. Errors stop the
+    command. *)
 let load_manifests () =
-  let loaf, yaml = List.partition Hamac_manifest.Stack_check.is_loaf !manifest_files in
-  let of_yaml = List.map (fun path ->
-    match Hamac_manifest.Parser.load_file (Fpath.v path) with
-    | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-    | Ok (m, _) -> (path, m)) yaml in
-  let of_loaf = if loaf = [] then [] else
-      match Hamac_manifest.Stack_check.load_files loaf with
-      | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-      | Ok (ms, _) -> ms in
-  of_yaml @ of_loaf
+  match Hamac_manifest.Stack_check.load_files ~lib:!library_dirs !manifest_files with
+  | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
+  | Ok (ms, _) -> ms
 
-(** In a set of LOAF files, the providers come with the services
-    ({!Hamac_manifest.Stack_check.loaf_providers}): they are added to
-    [registry], not deployed as services. *)
-let split_loaf_providers registry (manifests : (string * Hamac_manifest.Types.manifest) list) =
-  let providers = Hamac_manifest.Stack_check.loaf_providers manifests in
-  List.filter (fun (f, m) ->
+(** The services to deploy of the file arguments, and the registry of the
+    providers that come with them
+    ({!Hamac_manifest.Stack_check.providers_of_set}). *)
+let load_services () =
+  let manifests = load_manifests () in
+  let registry = Provider_registry.create () in
+  let providers = Hamac_manifest.Stack_check.providers_of_set manifests in
+  let services = List.filter_map (fun (path, m) ->
     match m with
-    | Hamac_manifest.Types.MService svc
-      when Hamac_manifest.Stack_check.is_loaf f && List.mem svc.name providers ->
-      Provider_registry.register registry svc;
-      false
-    | _ -> true) manifests
-
-(** Load services and stack overrides from file arguments *)
-let load_services_and_overrides registry =
-  let services = ref [] in
-  let overrides = ref [] in
-  List.iter (fun (path, m) ->
-    let fpath = Fpath.v path in
-    match m with
-    | Hamac_manifest.Types.MService svc ->
-      services := svc :: !services
-    | Hamac_manifest.Types.MStack stk ->
-      (* Extract overrides from stack manifest *)
-      List.iter (fun (sref : Hamac_manifest.Types.stack_service_ref) ->
-        let svc_overrides = List.map (fun (o : Hamac_manifest.Types.stack_consume_override) ->
-          (o.consume_name, o.provider)
-        ) sref.consumes_override in
-        if svc_overrides <> [] then begin
-          (* Use ref_path basename without extension as service name (a
-             LOAF stack gives the name itself) *)
-          let base = Filename.basename sref.ref_path in
-          let name = try Filename.chop_extension base with _ -> base in
-          overrides := (name, svc_overrides) :: !overrides
-        end
-      ) stk.services
+    | Hamac_manifest.Types.MService svc when List.mem svc.name providers ->
+      Provider_registry.register registry svc; None
+    | Hamac_manifest.Types.MService svc -> Some svc
+    | MStack _ | MPattern _ -> None
     | other ->
-      Logs.warn (fun m -> m "%a: got %s (skipping)"
-        Fpath.pp fpath (kind_label other))
-  ) (split_loaf_providers registry (load_manifests ()));
-  (List.rev !services, !overrides)
+      Logs.warn (fun m -> m "%s: got %s (skipping)" path (kind_label other)); None)
+    manifests in
+  (services, registry)
 
 (** Flows the services declare between each other, checked against the
     zone lattice (no read up). Any invalid declaration stops the command. *)
@@ -112,16 +79,11 @@ let report (findings : Hamac_manifest.Stack_check.finding list) =
     | D.Warning -> Logs.warn (fun m -> m "%s" (D.to_string_in file d)); (e, w + 1))
     (0, 0) findings
 
-let quiet_providers () =
-  let registry = Provider_registry.create () in
-  Provider_registry.load_defaults ~verbose:false registry;
-  Provider_registry.all_providers registry
-
 (** [hamac validate]: stage 1 on every file; stages 2 and 3 as well when a
     stack is among them (its references, patterns, zones, providers and
     flows). *)
 let run_validate ~strict () =
-  let given = Hamac_manifest.Stack_check.load_all !manifest_files in
+  let given = Hamac_manifest.Stack_check.load_all ~lib:!library_dirs !manifest_files in
   List.iter (fun (l : Hamac_manifest.Stack_check.loaded) ->
     Option.iter (fun m -> Logs.app (fun f -> f "%s: %s" l.file (kind_label m))) l.manifest)
     given;
@@ -129,7 +91,7 @@ let run_validate ~strict () =
     if Hamac_manifest.Stack_check.stacks_of given = [] then
       List.concat_map (fun (l : Hamac_manifest.Stack_check.loaded) -> List.map (fun d -> (l.file, d)) l.diags) given
     else
-      let _, _, findings = Hamac_manifest.Stack_check.run ~providers:(quiet_providers ()) given in
+      let _, _, findings = Hamac_manifest.Stack_check.run given in
       findings
   in
   let errors, warnings = report findings in
@@ -138,8 +100,8 @@ let run_validate ~strict () =
 (** [hamac plan]: the given files form a stack (stages 1 to 3), then the
     topology is inferred under the stack's lattice. *)
 let run_plan () =
-  let given = Hamac_manifest.Stack_check.load_all !manifest_files in
-  let ls, lattice, findings = Hamac_manifest.Stack_check.run ~providers:(quiet_providers ()) given in
+  let given = Hamac_manifest.Stack_check.load_all ~lib:!library_dirs !manifest_files in
+  let ls, lattice, findings = Hamac_manifest.Stack_check.run given in
   let errors = List.filter (fun (_, d) -> Hamac_manifest.Diagnostic.is_error d) findings in
   let _ = report errors in
   if errors <> [] then exit 1;
@@ -153,15 +115,14 @@ let run_plan () =
   Planner.display_plan plan
 
 let run_resolve () =
-  let registry = load_registry () in
-  let services, overrides = load_services_and_overrides registry in
+  let services, registry = load_services () in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
   end;
 
   let _flows = checked_flows services in
-  let resolution = Resolver.resolve_all ~registry ~services ~overrides () in
+  let resolution = Resolver.resolve_all ~registry ~services () in
 
   (* Report errors *)
   List.iter (fun err ->
@@ -200,8 +161,7 @@ let run_resolve () =
   if resolution.errors <> [] then exit 1
 
 let run_simulate () =
-  let registry = load_registry () in
-  let services, overrides = load_services_and_overrides registry in
+  let services, registry = load_services () in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
@@ -214,7 +174,7 @@ let run_simulate () =
 
   (* Resolve providers; consumed services are reached on their node *)
   let resolution = Resolver.resolve_all ~service_endpoint:Infra_sim.service_endpoint
-      ~registry ~services ~overrides () in
+      ~registry ~services () in
   List.iter (fun err -> Logs.err (fun m -> m "%s" err)) resolution.errors;
   if resolution.errors <> [] then exit 1;
 
@@ -250,8 +210,7 @@ let run_simulate () =
   Logs.app (fun m -> m "Run: docker compose up -d")
 
 let run_deploy () =
-  let registry = load_registry () in
-  let services, overrides = load_services_and_overrides registry in
+  let services, registry = load_services () in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
@@ -263,7 +222,7 @@ let run_deploy () =
     Logs.warn (fun m -> m "deploy generates a flat docker-compose on a single \
       network: it does not isolate the security zones (%s). Use `hamac \
       simulate` to deploy with zone filtering." (String.concat ", " zones));
-  let resolution = Resolver.resolve_all ~registry ~services ~overrides () in
+  let resolution = Resolver.resolve_all ~registry ~services () in
 
   (* Report errors *)
   List.iter (fun err ->
@@ -292,9 +251,8 @@ let provision_mac = ref ""
 let provision_discovery_url = ref "http://localhost:8877"
 
 (** The profile given to a provisioning command, the bundle search paths
-    and the bundles already loaded. A YAML profile is read on its own; a
-    LOAF profile with the [bundle.loaf] of the bundle search paths, since it
-    names its bundles. *)
+    and the bundles of its set: the profile is loaded with the [bundle.loaf]
+    of the bundle search paths, since it names its bundles. *)
 let load_profile () =
   let extra = if !provision_bundles_dir = ""
     then [] else [Fpath.v !provision_bundles_dir] in
@@ -302,31 +260,23 @@ let load_profile () =
   | [] ->
     Logs.err (fun m -> m "Provide a provisioning_profile manifest as argument.");
     exit 1
-  | path :: _ when Hamac_manifest.Stack_check.is_loaf path ->
+  | path :: _ ->
     let module G = Hamac_provisioning.Provisioning_gen in
     let bundle_files = G.bundle_loaf_files
         ~search_paths:(extra @ G.default_search_paths ()) in
     let files = path :: List.filter (fun f -> f <> path) bundle_files in
-    (match Hamac_manifest.Stack_check.load_files files with
-     | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-     | Ok (ms, _) ->
-       let bundles = List.filter_map (function
-         | (_, Hamac_manifest.Types.MBundle b) -> Some b | _ -> None) ms in
-       match List.find_map (function
-         | (f, Hamac_manifest.Types.MProvisioningProfile p) when f = path -> Some p
-         | _ -> None) ms with
-       | Some profile -> (profile, extra, bundles)
-       | None ->
-         Logs.err (fun m -> m "%s: expected a provisioning_profile" path);
-         exit 1)
-  | path :: _ ->
-    match Hamac_manifest.Parser.load_file (Fpath.v path) with
+    match Hamac_manifest.Stack_check.load_files files with
     | Error msg -> Logs.err (fun m -> m "%s" msg); exit 1
-    | Ok (Hamac_manifest.Types.MProvisioningProfile profile, _) -> (profile, extra, [])
-    | Ok (other, _) ->
-      Logs.err (fun m -> m "Expected a provisioning_profile, got %s"
-                  (kind_label other));
-      exit 1
+    | Ok (ms, _) ->
+      let bundles = List.filter_map (function
+        | (_, Hamac_manifest.Types.MBundle b) -> Some b | _ -> None) ms in
+      match List.find_map (function
+        | (f, Hamac_manifest.Types.MProvisioningProfile p) when f = path -> Some p
+        | _ -> None) ms with
+      | Some profile -> (profile, extra, bundles)
+      | None ->
+        Logs.err (fun m -> m "%s: expected a provisioning_profile" path);
+        exit 1
 
 let run_provision_dryrun () =
   let profile, extra, bundles = load_profile () in
@@ -391,10 +341,17 @@ let set_debug d = if d then Logs.set_level (Some Logs.Debug)
 
 let files_arg =
   let doc =
-    "Manifest files: YAML (.yml), each read on its own, or LOAF (.loaf), read \
-     together as one set with the vocabulary of Hamac (installed with \
-     hamac-manifest; $(b,HAMAC_VOCABULARY) names another directory)." in
+    "Manifest files (.loaf), read together as one set with the vocabulary of \
+     Hamac (installed with hamac-manifest; $(b,HAMAC_VOCABULARY) names \
+     another directory). The set includes the providers that its services \
+     consume." in
   Arg.(value & pos_all string [] & info [] ~docv:"FILES" ~doc)
+
+let lib_arg =
+  let doc =
+    "Directory of modules (patterns) that the manifests load by use, \
+     searched before ./patterns and ~/.hamac/patterns. Repeatable." in
+  Arg.(value & opt_all string [] & info ["L"; "lib"] ~docv:"DIR" ~doc)
 
 let debug_arg =
   let doc = "Enable debug mode." in
@@ -416,8 +373,8 @@ let bundles_dir_arg =
 
 let profile_arg =
   let doc =
-    "Provisioning profile manifest (.yaml, or .loaf: read with the bundle.loaf \
-     of the bundle search paths). Required." in
+    "Provisioning profile manifest (.loaf), read with the bundle.loaf of the \
+     bundle search paths. Required." in
   Arg.(value & opt string "" & info ["profile"] ~docv:"FILE" ~doc)
 
 let mac_arg =
@@ -432,13 +389,15 @@ let discovery_arg =
 
 (* Commandes qui consomment les fichiers positionnels + debug. *)
 let files_term run =
-  let go files debug = manifest_files := files; set_debug debug; run () in
-  Term.(const go $ files_arg $ debug_arg)
+  let go files lib debug =
+    manifest_files := files; library_dirs := lib; set_debug debug; run () in
+  Term.(const go $ files_arg $ lib_arg $ debug_arg)
 
 (* Commandes qui génèrent des credentials : mêmes arguments, plus --seed. *)
 let files_seed_term run =
-  let go files seed debug =
+  let go files lib seed debug =
     manifest_files := files;
+    library_dirs := lib;
     set_debug debug;
     (match seed with
      | Some s ->
@@ -449,22 +408,23 @@ let files_seed_term run =
      | None -> ());
     run ()
   in
-  Term.(const go $ files_arg $ seed_arg $ debug_arg)
+  Term.(const go $ files_arg $ lib_arg $ seed_arg $ debug_arg)
 
 let strict_arg =
   let doc = "Fail on warnings too, not only on errors." in
   Arg.(value & flag & info ["strict"] ~doc)
 
 let validate_cmd =
-  let go files strict debug =
+  let go files lib strict debug =
     set_debug debug;
     manifest_files := files;
+    library_dirs := lib;
     run_validate ~strict ()
   in
   Cmd.v (Cmd.info "validate"
            ~doc:"Validate manifest files (and, for a stack, its references, \
                  patterns, zones, providers and flows).")
-    Term.(const go $ files_arg $ strict_arg $ debug_arg)
+    Term.(const go $ files_arg $ lib_arg $ strict_arg $ debug_arg)
 let plan_cmd =
   Cmd.v (Cmd.info "plan" ~doc:"Plan infrastructure from service manifests.")
     (files_term run_plan)

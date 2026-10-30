@@ -13,7 +13,6 @@ depends: [
   "logs" {build}
   "lwt" {build}
   "opam-marmiton" {>= "0.1.0" & with-dev-setup}
-  "yaml" {build}
   "yojson" {build}
   "ppx_deriving" {build}
   "odoc" {with-doc}

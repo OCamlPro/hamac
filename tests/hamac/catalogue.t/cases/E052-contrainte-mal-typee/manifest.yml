@@ -1,8 +1,0 @@
-# E052-contrainte-mal-typee
-manifest_version: "1.1"
-kind: pattern
-name: p
-version: "1.0.0"
-constraints:
-  - id: c1
-    expr: "forall h in hosts: count(h) <= 1"

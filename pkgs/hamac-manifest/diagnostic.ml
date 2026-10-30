@@ -4,14 +4,12 @@
 (** Diagnostics of the validator.
 
     Every finding has a code from the catalogue of the manifest
-    specification (doc/typst/manifest-spec.typ, section « Validation »), the
-    YAML path it is about, and a message. Errors ([E…]) make a command fail;
-    warnings ([W…]) only with [--strict].
-
-    A finding about a LOAF manifest also has the location of the element at
-    fault (file, line, column), and its path may be empty; a refusal of the
-    language itself has a code of the LOAF specification, [L001] to [L013]
-    ({!Loaf_source}). *)
+    specification (doc/typst/manifest-spec.typ, section « Validation »), or,
+    for a refusal of the language itself, a code of the LOAF specification
+    ([L001]…); the location of the element at fault (file, line, column),
+    when known; the path of the value in {!Types} it is about, possibly
+    empty; and a message. Errors ([E…], [L…]) make a command fail; warnings
+    ([W…]) only with [--strict]. *)
 
 type severity = Error | Warning [@@deriving show]
 
@@ -25,7 +23,7 @@ type loc = {
 type t = {
   code: string;            (** "E003", "W002", "L002"… *)
   severity: severity;
-  path: string list;       (** YAML path, e.g. ["security"; "route_labels"; "1"] *)
+  path: string list;       (** path in {!Types}, e.g. ["security"; "route_labels"; "1"] *)
   loc: loc option;         (** location in a LOAF file *)
   message: string;
 } [@@deriving show]

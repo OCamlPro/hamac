@@ -1,0 +1,5 @@
+% W002-stack-vide
+loaf 0.1.
+use hamac 0.1.
+
+stack demo { accept_experimental. }

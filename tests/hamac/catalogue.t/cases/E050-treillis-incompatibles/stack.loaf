@@ -1,0 +1,10 @@
+% E050-treillis-incompatibles
+loaf 0.1.
+use hamac 0.1.
+use a 1.0.
+use b 1.0.
+
+stack demo {
+  accept_experimental.
+  service web {}
+}

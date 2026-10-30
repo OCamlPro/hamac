@@ -1,0 +1,21 @@
+% E022-surcharge-sans-entree
+loaf 0.1.
+use hamac 0.1.
+
+service db {
+  runtime http.
+  capability database.
+  artifact "registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+    sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".
+    format oci_image.
+  }
+  port 5432 {}
+}
+
+database db {
+  host instance(name).
+  port 5432.
+  user "u".
+  password "p".
+  dbname "d".
+}

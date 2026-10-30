@@ -1,28 +1,26 @@
 (* SPDX-License-Identifier: AGPL-3.0-only *)
 (* Copyright (C) 2026 OCamlPro <contact@ocamlpro.com> *)
 
-(** Manifests written in LOAF.
+(** Manifests, written in LOAF.
 
     A set of [.loaf] files is loaded as a whole: a manifest may name a block
     of another file (a stack its services, a profile its bundles), and the
     language checks these references against the whole set. The vocabulary
     of Hamac, [vocabulary/hamac.loaf] (module [hamac]), gives the blocks of
-    the six kinds of manifests, their defaults (in comments, the same as
-    {!Parser}) and the validations that only read the model.
+    the six kinds of manifests, their defaults (in comments) and the
+    validations that only read the model. A pattern is a module, which a
+    stack loads by [use] from the library directories ({!library_dirs}).
 
-    Each subject of a block of the vocabulary becomes a {!Types.manifest},
-    the value that {!Parser} builds from a YAML manifest:
+    Each subject of a block of the vocabulary becomes a {!Types.manifest}:
 
     - the name of a manifest, and every reference to one, is its subject
       with [_] replaced by [-] (convention of the vocabulary);
-    - enumerated values take the spelling of the YAML format
-      ([oci_image] → [oci-image], [list_string] → [list[string]]);
+    - enumerated values are spelt with [-] ([oci_image] → [oci-image],
+      [list_string] → [list[string]]), as the rest of Hamac expects;
     - a quantity [(512, mi)] becomes ["512Mi"], [(500, m)] ["500m"],
       [(90, d)] ["90d"];
-    - terms rendered by Hamac and templates become the [{…}] strings of the
-      YAML format ({!render});
-    - the reference of a stack to a service, [ref_path], is the name of the
-      service, not a path: the service is in the set of files.
+    - terms rendered by Hamac and templates become the [{…}] strings that
+      the resolver substitutes ({!render}).
 
     The model is read by {!Loaf.atoms}, with the locations of the facts,
     which the diagnostics need.
@@ -31,9 +29,9 @@
     of the model ({!Loaf.errors}) becomes a {!Diagnostic.t} located in its
     file; its code is the Hamac code that starts the message of a
     validation of the vocabulary ([[E013] …]), otherwise the code of the
-    language ([L002]), or [E001] for a lexical or syntax error. The checks of {!Parser.check} that the vocabulary does not
-    express (digests, quantities, paths…) are run on the manifests built
-    here. *)
+    language ([L002]), or [E001] for a lexical or syntax error. The checks
+    that the vocabulary does not express (digests, quantities, paths…),
+    {!Checks.check}, are run on the manifests built here. *)
 
 open Types
 
@@ -42,6 +40,15 @@ open Types
 (* ============================================================ *)
 
 let vocabulary_file = "hamac.loaf"
+
+(** Directories of the modules that a manifest may [use], after the
+    vocabulary: [./patterns] and [~/.hamac/patterns], when they exist. *)
+let library_dirs () =
+  ["./patterns"] @
+  (match Sys.getenv_opt "HOME" with
+   | Some home -> [Filename.concat home ".hamac/patterns"]
+   | None -> [])
+  |> List.filter (fun d -> Sys.file_exists d && Sys.is_directory d)
 
 (** The directory of the vocabulary: [vocabulary] if given, otherwise the
     variable [HAMAC_VOCABULARY], otherwise the site where the package
@@ -121,7 +128,7 @@ let dns c = String.map (fun ch -> if ch = '_' then '-' else ch) c
 
 let name v = dns (const v)
 
-(** An enumerated value, in the spelling of the YAML format. *)
+(** An enumerated value, spelt with [-] as the rest of Hamac expects. *)
 let enum v = dns (const v)
 
 let str = function Loaf.Str s -> s | v -> const v
@@ -131,7 +138,7 @@ let int = function Loaf.Int n -> n | v -> raise (Missing (Fmt.str "integer %a" L
 let size_unit = function
   | "ki" -> "Ki" | "mi" -> "Mi" | "gi" -> "Gi" | "ti" -> "Ti" | u -> u
 
-(** A quantity (integer, unit) in the notation of the YAML format. *)
+(** A quantity (integer, unit) as a string: [512Mi], [500m], [90d]. *)
 let quantity n u =
   match const u with
   | "core" -> string_of_int (int n)
@@ -148,7 +155,8 @@ type cx = {
 let note cx ?loc code path message =
   cx.diags <- Diagnostic.make ?loc code path message :: cx.diags
 
-(** A term rendered by Hamac, or a template, as a string of the YAML format:
+(** A term rendered by Hamac, or a template, as a string of the [{…}]
+    mini-language that the resolver substitutes:
 
     - [gen(alnum, 32)] → [{generate.alnum(32)}], [input(user)] →
       [{input.user}], [consumer(name)] → [{consumer.name}],
@@ -185,12 +193,12 @@ let rec render cx ?loc ?host_of (v : value) : string =
       (Fmt.str "%a has no rendering in Hamac" Loaf.pp_value v);
     Fmt.str "%a" Loaf.pp_value v
 
-(** A value of a bundle parameter, as the YAML value its template gets. *)
-let yaml_of_text cx ?loc (v : value) : Yaml.value =
+(** A value of a bundle parameter: an integer, otherwise its rendering. *)
+let param_of_text cx ?loc (v : value) : param_value =
   match v with
-  | Loaf.Int n -> `Float (float_of_int n)
-  | Loaf.Str s -> `String s
-  | v -> `String (render cx ?loc v)
+  | Loaf.Int n -> PInt n
+  | Loaf.Str s -> PString s
+  | v -> PString (render cx ?loc v)
 
 (* ============================================================ *)
 (* Field access                                                  *)
@@ -303,6 +311,7 @@ let service cx s : service_manifest =
       { name = const n;
         capability = F.opt1 cx k q "consumes.capability" const;
         service = Option.map dns service;
+        provider = F.opt1 cx k q "consumes.provider" name;
         inject = F.table cx k q "consumes.inject" str
             (fun v -> render cx ?loc ?host_of:service v);
         mode = Option.value (F.opt1 cx k q "consumes.mode" const) ~default:"request" }) in
@@ -325,7 +334,7 @@ let service cx s : service_manifest =
           required_clearance = F.list1 cx k q "route.required_clearance" const }) in
       { zone; route_labels }) in
   let ports = F.list1 cx k p "port" Fun.id |> List.map (fun c ->
-    { host = None; container = int c;
+    { container = int c;
       protocol = Option.value (F.opt1 cx k [s; c] "port.protocol" const) ~default:"tcp" }) in
   let resources =
     let q field = F.pair cx k p field quantity in
@@ -399,8 +408,7 @@ let service cx s : service_manifest =
       exp_port = F.req1 cx k q "exposure.port" int;
       exp_protocol = Option.value (F.opt1 cx k q "exposure.protocol" const) ~default:"http";
       tls = Option.value (F.opt1 cx k q "exposure.tls" const) ~default:"acme" }) in
-  { manifest_version = Parser.supported_version;
-    name = dns sname;
+  { name = dns sname;
     runtime = F.req1 cx k p "runtime" const;
     artifact;
     capability = F.opt1 cx k p "capability" const;
@@ -408,7 +416,6 @@ let service cx s : service_manifest =
     consumes;
     provides = provides cx s;
     readiness; security; ports;
-    volumes = [];
     environment = F.table cx k p "environment" str (render_at "environment");
     resources;
     replicas = Option.value (F.opt1 cx k p "replicas" int) ~default:1;
@@ -466,10 +473,7 @@ let pattern cx pt : pattern_manifest =
       Some { direction; term_src; term;
              priority = Option.value (F.opt1 cx k q (direction ^ ".priority") int) ~default:1;
              oweight = F.opt1 cx k q (direction ^ ".weight") int }) in
-  { pat_manifest_version = Parser.supported_version;
-    pat_name = name pt;
-    pat_version = F.req1 cx k p "version" str;
-    extends = F.list1 cx k p "extends" name;
+  { pat_name = name pt;
     lattice; zones; pat_assurance; constraints;
     objectives = objectives "minimize" @ objectives "maximize" }
 
@@ -482,14 +486,12 @@ let stack cx st : stack_manifest =
   let p = [st] in
   let services = F.list1 cx k p "service" Fun.id |> List.map (fun s ->
     let q = [st; s] in
-    { ref_path = name s;
+    { ref_service = name s;
       replicas_override = F.opt1 cx k q "service.replicas" int;
       consumes_override = F.list1 cx k q "service.consumes" Fun.id |> List.map (fun n ->
         { consume_name = const n;
           provider = F.req1 cx k (q @ [n]) "service.consumes.provider" name }) }) in
-  { manifest_version = Parser.supported_version;
-    name = name st;
-    patterns = F.list1 cx k p "pattern" name;
+  { name = name st;
     accept_experimental = F.flag cx k p "accept_experimental";
     services;
     infrastructure = F.opt1 cx k p "infrastructure" name }
@@ -538,8 +540,7 @@ let infrastructure cx i : infrastructure_manifest =
   let proposed_topology =
     if nodes = [] && segments = [] && allow = [] && deny = [] then None
     else Some { nodes; segments; firewall = allow @ deny } in
-  { manifest_version = Parser.supported_version;
-    name = name i;
+  { name = name i;
     backend = F.req1 cx k p "backend" enum;
     minimum_requirements; proposed_topology;
     warnings = F.list1 cx k p "warning" str;
@@ -573,21 +574,13 @@ let provisioning_profile cx f : provisioning_profile_manifest =
       let r = q @ [x] in
       let loc = F.loc cx k r "bundle.param" in
       match F.opt1 cx k r "bundle.param.value" Fun.id,
-            F.indexed cx k r "bundle.param.items" (yaml_of_text cx ?loc) with
-      | Some v, _ -> Some (const x, yaml_of_text cx ?loc v)
-      | None, (_ :: _ as items) -> Some (const x, `A items)
+            F.indexed cx k r "bundle.param.items" (param_of_text cx ?loc) with
+      | Some v, _ -> Some (const x, param_of_text cx ?loc v)
+      | None, (_ :: _ as items) -> Some (const x, PList items)
       | None, [] -> None (* neither: E007 of the vocabulary *)) in
     { bundle_name = name b; bundle_params }) in
-  let pp_cloud_init_extra =
-    F.opt1 cx k p "cloud_init_extra" str |> Option.map (fun src ->
-      match Yaml.of_string src with
-      | Ok v -> v
-      | Error (`Msg msg) ->
-        note cx ?loc:(F.loc cx k p "cloud_init_extra") "E007" ["cloud_init_extra"]
-          ("invalid YAML: " ^ msg);
-        `String src) in
-  { pp_manifest_version = Parser.supported_version;
-    pp_name = name f;
+  let pp_cloud_init_extra = F.opt1 cx k p "cloud_init_extra" str in
+  { pp_name = name f;
     pp_os; pp_bundles; pp_cloud_init_extra;
     pp_assurance = assurance_of (axis_rows (F.table cx k p "assurance" Fun.id Fun.id)) }
 
@@ -603,8 +596,7 @@ let param_type v = match const v with
 let bundle cx b : bundle_manifest =
   let k = "bundle" in
   let p = [b] in
-  { bdl_manifest_version = Parser.supported_version;
-    bdl_name = name b;
+  { bdl_name = name b;
     bdl_version = Option.value (F.opt1 cx k p "version" str) ~default:"0.1.0";
     bdl_description = Option.value (F.opt1 cx k p "description" str) ~default:"";
     bdl_params = F.list1 cx k p "param" Fun.id |> List.map (fun x ->
@@ -619,8 +611,8 @@ let bundle cx b : bundle_manifest =
 (* Stage-1 checks of Hamac                                       *)
 (* ============================================================ *)
 
-(** Fields that {!Parser} notes as experimental (W001), as the LOAF fields
-    that write them: one finding per manifest and field. *)
+(** Experimental fields (W001): one finding per manifest and field, unless
+    the stack writes accept_experimental ({!Stack_check.run}). *)
 let experimental = [
   "service", [ "storage", "storage"; "backup", "backup"; "secret", "secrets";
                "need", "placement"; "assurance", "placement"; "spread", "placement";
@@ -635,25 +627,16 @@ let experimental = [
 
 let note_experimental cx kind subj =
   let seen = Hashtbl.create 8 in
-  List.iter (fun (field, yaml) ->
+  List.iter (fun (field, label) ->
     match rows cx.model (kind ^ "." ^ field) [subj] with
-    | (_, f) :: _ when not (Hashtbl.mem seen yaml) ->
-      Hashtbl.add seen yaml ();
-      note cx ?loc:(first_loc f) "W001" [yaml]
+    | (_, f) :: _ when not (Hashtbl.mem seen label) ->
+      Hashtbl.add seen label ();
+      note cx ?loc:(first_loc f) "W001" [label]
         (Printf.sprintf "'%s' is experimental: its meaning may change in a minor version \
-                         (write accept_experimental in the stack to acknowledge)" yaml)
+                         (write accept_experimental in the stack to acknowledge)" label)
     | _ -> ()) (Option.value (List.assoc_opt kind experimental) ~default:[])
 
-(** Whether a finding of {!Parser.check} is already a validation of the
-    vocabulary: those are dropped, not to report a fault twice. *)
-let checked_by_vocabulary (d : Diagnostic.t) =
-  match d.code, d.path with
-  | ("E013" | "E016" | "E032" | "E034" | "E035" | "E043"), _ -> true
-  | "E020", "environment" :: _ -> true
-  | "E042", "zones" :: _ -> true
-  | _ -> false
-
-(** The location of the LOAF fact that a path of {!Parser} designates, or
+(** The location of the LOAF fact that a path of {!Checks} designates, or
     that of the block. *)
 let loc_of_path cx kind subj (m : manifest) (path : string list) : Diagnostic.loc option =
   let at field prefix = match rows cx.model (kind ^ "." ^ field) (subj :: prefix) with
@@ -744,15 +727,14 @@ let attribute files (d : Diagnostic.t) =
     subjects, and the diagnostics of the set, attributed to their file and
     sorted. [lib] adds directories of modules to that of the vocabulary
     ({!vocabulary_dir}). The manifests are returned even when the model has
-    errors (as {!Parser.diagnose_file} does), but not when the language
-    refuses the files. *)
+    errors, but not when the language refuses the files. *)
 let load ?vocabulary ?(lib = []) (files : string list)
   : source list * (string * Diagnostic.t) list =
   let located ds = List.map (fun d -> (attribute files d, d)) ds in
   match vocabulary_dir ?vocabulary () with
   | Error msg -> ([], located [Diagnostic.make "E001" [] msg])
   | Ok vocab ->
-    match Loaf.load ~lib:(vocab :: lib) files with
+    match Loaf.load ~lib:(vocab :: lib @ library_dirs ()) files with
     | exception Loaf.Diag.Error ds ->
       ([], located (List.sort_uniq compare (List.map diagnostic_of_loaf ds)))
     | exception Sys_error msg -> ([], located [Diagnostic.make "E001" [] ("cannot read file: " ^ msg)])
@@ -772,12 +754,9 @@ let load ?vocabulary ?(lib = []) (files : string list)
              | exception Missing _ -> None   (* reported by the language (L007) *)
              | m ->
                note_experimental cx kind subj;
-               let pcx = { Parser.minor = Parser.supported_minor; diags = [] } in
-               Parser.check pcx m;
                List.iter (fun (d : Diagnostic.t) ->
-                 if not (checked_by_vocabulary d) then
-                   cx.diags <- { d with loc = loc_of_path cx kind subj m d.path } :: cx.diags)
-                 (List.rev pcx.diags);
+                 cx.diags <- { d with loc = loc_of_path cx kind subj m d.path } :: cx.diags)
+                 (Checks.check m);
                Some { file; manifest = m })
           | _ -> None)) kinds in
       let diags = Diagnostic.sort (errors @ List.rev cx.diags) in

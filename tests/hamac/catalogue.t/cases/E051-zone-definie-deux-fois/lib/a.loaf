@@ -1,0 +1,8 @@
+% E051-zone-definie-deux-fois
+loaf 0.1.
+module a 1.0.0.
+use hamac 0.1.
+
+pattern a {
+  zone rh { level internal. }
+}

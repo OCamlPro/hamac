@@ -1,0 +1,13 @@
+% E041-requete-a-travers-une-diode
+loaf 0.1.
+module enclave 1.0.0.
+use hamac 0.1.
+
+pattern enclave {
+  levels [low, high].
+  zone low { level low. }
+  zone high {
+    level high.
+    boundary diode.
+  }
+}

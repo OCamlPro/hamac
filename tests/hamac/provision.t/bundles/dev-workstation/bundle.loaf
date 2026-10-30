@@ -1,0 +1,34 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Le contenu (paquets, utilisateurs, runcmd…) vit dans les gabarits
+% cloud-init du bundle : cloud-init.yaml.j2 (apt : Debian, Ubuntu), et au
+% besoin cloud-init.<family>.yaml.j2 pour une famille d'OS particulière.
+% Aucune dépendance vers d'autres bundles pour le moment.
+
+loaf 0.1.
+use hamac 0.1.
+
+bundle dev_workstation {
+  version "0.1.0".
+  description "Poste de dev minimal : utilisateur sudo, SSH, docker, dotfiles optionnels".
+
+  param username {
+    type string.
+    required.
+  }
+
+  % Nom affiché (champ GECOS de /etc/passwd). Vide : username.
+  param full_name { type string. }
+
+  % Clés SSH publiques. Peut être vide si initial_password est fourni.
+  param ssh_public_keys { type list_string. }
+
+  % Mot de passe initial en clair, expiré au premier login. À utiliser quand
+  % l'utilisateur n'a pas encore de clé SSH : il en générera une après son
+  % premier login console.
+  param initial_password { type string. }
+
+  param dotfiles_repo { type string. }
+  param timezone { type string. }
+}

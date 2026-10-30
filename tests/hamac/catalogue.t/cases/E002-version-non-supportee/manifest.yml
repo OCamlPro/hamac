@@ -1,9 +1,0 @@
-# E002-version-non-supportee
-manifest_version: "2.0"
-kind: service
-name: web
-runtime: http
-artifact:
-  path: registry.example.org/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  format: oci-image

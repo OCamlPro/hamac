@@ -116,7 +116,7 @@ let emit_service buf (resolution : resolution) (svc : service_manifest) =
   if svc.ports <> [] then begin
     emit_line buf 2 "ports:";
     List.iter (fun (p : port) ->
-      emit_line buf 3 "- \"%d:%d\"" (port_host p) p.container
+      emit_line buf 3 "- \"%d:%d\"" p.container p.container
     ) svc.ports
   end;
   (* Resources *)

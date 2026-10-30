@@ -1,0 +1,10 @@
+% E041-requete-a-travers-une-diode
+loaf 0.1.
+use hamac 0.1.
+use enclave 1.0.
+
+stack demo {
+  accept_experimental.
+  service analyst {}
+  service sensor {}
+}

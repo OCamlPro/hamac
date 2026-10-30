@@ -1,0 +1,14 @@
+% E012-bundle-liste-deux-fois
+loaf 0.1.
+use hamac 0.1.
+
+provisioning_profile p {
+  os "debian-13-amd64" {
+    url "https://example.org/debian-13.qcow2".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format qcow2.
+  }
+  bundles [base, base].
+}
+
+bundle base {}

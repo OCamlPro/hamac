@@ -1,0 +1,11 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.1.
+
+service web {
+  runtime http.
+  zone public.
+  port 8080 { protocol tcp. }
+}

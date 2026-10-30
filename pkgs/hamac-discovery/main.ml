@@ -1711,60 +1711,81 @@ let handle_allowed_macs_dnsmasq_hostsfile () =
 
 module MT = Hamac_manifest.Types
 
-(** Conversion Yojson (params venant de l'API REST) → Yaml.value
-    (format attendu par provisioning_gen). *)
-let rec yojson_to_yaml (j : Yojson.Safe.t) : Yaml.value =
+(** Conversion Yojson (params venant de l'API REST) → valeur de paramètre
+    de bundle (format attendu par provisioning_gen). *)
+let rec yojson_to_param (j : Yojson.Safe.t) : MT.param_value =
   (* On ne matche que les constructeurs communs à toutes les versions de
      Yojson.Safe.t. Le catch-all couvre `Intlit (toujours présent → garantit
      que le cas est utilisé) ainsi que `Tuple/`Variant qui ne sont pas dans
      toutes les versions. Nos params (username, ssh_keys, password...) ne
      contiennent jamais ces formes exotiques. *)
   match j with
-  | `Null -> `Null
-  | `Bool b -> `Bool b
-  | `Int i -> `Float (float_of_int i)
-  | `Float f -> `Float f
-  | `String s -> `String s
-  | `List l -> `A (List.map yojson_to_yaml l)
-  | `Assoc a -> `O (List.map (fun (k, v) -> (k, yojson_to_yaml v)) a)
-  | _ -> `Null
+  | `Null -> MT.PNull
+  | `Bool b -> MT.PBool b
+  | `Int i -> MT.PInt i
+  | `Float f -> MT.PFloat f
+  | `String s -> MT.PString s
+  | `List l -> MT.PList (List.map yojson_to_param l)
+  | `Assoc a -> MT.PObject (List.map (fun (k, v) -> (k, yojson_to_param v)) a)
+  | _ -> MT.PNull
 
-(** Charge les profils d'un répertoire : les .yaml → provisioning_profile_manifest. *)
-let load_profiles_from_dir (dir : string)
-  : (string * MT.provisioning_profile_manifest) list =
+(** Les [.loaf] d'un répertoire, triés. *)
+let loaf_files (dir : string) : string list =
   if Sys.file_exists dir && Sys.is_directory dir then
-    Sys.readdir dir |> Array.to_list
-    |> List.filter (fun f ->
-         Filename.check_suffix f ".yaml" || Filename.check_suffix f ".yml")
-    |> List.filter_map (fun f ->
-         let path = Fpath.v (Filename.concat dir f) in
-         match Hamac_manifest.Parser.load_file path with
-         | Ok (MT.MProvisioningProfile p, _) -> Some (p.MT.pp_name, p)
-         | _ -> None)
+    Sys.readdir dir |> Array.to_list |> List.sort compare
+    |> List.filter (fun f -> Filename.check_suffix f ".loaf")
+    |> List.map (Filename.concat dir)
   else []
 
-(** Catalogue effectif : built-in ∪ custom (custom prioritaire à nom égal). *)
-let catalog () : (string * MT.provisioning_profile_manifest) list =
+(** Les profils d'un répertoire et les bundles qu'ils nomment : les [.loaf]
+    du répertoire sont chargés avec les [bundle.loaf] du répertoire des
+    bundles, en un ensemble (un profil nomme ses bundles). Un ensemble
+    refusé est signalé et ne donne aucun profil. *)
+let load_profiles_from_dir (dir : string)
+  : (string * MT.provisioning_profile_manifest) list * MT.bundle_manifest list =
+  match loaf_files dir with
+  | [] -> ([], [])
+  | profiles ->
+    let bundles = Hamac_provisioning.Provisioning_gen.bundle_loaf_files
+        ~search_paths:[Fpath.v bundles_dir] in
+    match Hamac_manifest.Stack_check.load_files (profiles @ bundles) with
+    | Error msg ->
+      Printf.eprintf "[profiles] %s refusés :\n%s\n" dir msg; ([], [])
+    | Ok (ms, _) ->
+      (List.filter_map (function
+         | (_, MT.MProvisioningProfile p) -> Some (p.MT.pp_name, p) | _ -> None) ms,
+       List.filter_map (function (_, MT.MBundle b) -> Some b | _ -> None) ms)
+
+(** Catalogue effectif : built-in ∪ custom (custom prioritaire à nom égal),
+    et les bundles chargés avec eux. Les deux répertoires sont chargés
+    séparément : un même nom de profil dans les deux fusionnerait leurs
+    blocs en un seul ensemble LOAF. *)
+let catalog_with_bundles ()
+  : (string * MT.provisioning_profile_manifest) list * MT.bundle_manifest list =
   let tbl : (string, MT.provisioning_profile_manifest) Hashtbl.t = Hashtbl.create 16 in
-  List.iter (fun (n, p) -> Hashtbl.replace tbl n p)
-    (load_profiles_from_dir builtin_profiles_dir);
-  List.iter (fun (n, p) -> Hashtbl.replace tbl n p)
-    (load_profiles_from_dir (custom_profiles_dir ()));
-  Hashtbl.fold (fun n p acc -> (n, p) :: acc) tbl []
+  let builtin, b1 = load_profiles_from_dir builtin_profiles_dir in
+  let custom, b2 = load_profiles_from_dir (custom_profiles_dir ()) in
+  List.iter (fun (n, p) -> Hashtbl.replace tbl n p) builtin;
+  List.iter (fun (n, p) -> Hashtbl.replace tbl n p) custom;
+  let bundles = b1 @ List.filter (fun (b : MT.bundle_manifest) ->
+    not (List.exists (fun (x : MT.bundle_manifest) -> x.MT.bdl_name = b.MT.bdl_name) b1)) b2 in
+  (Hashtbl.fold (fun n p acc -> (n, p) :: acc) tbl [], bundles)
+
+let catalog () = fst (catalog_with_bundles ())
 
 let find_profile (name : string) : MT.provisioning_profile_manifest option =
   List.assoc_opt name (catalog ())
 
 (** Params requis agrégés d'un profil = union (par nom) des params de ses
-    bundles, lus depuis leur bundle.yaml. *)
+    bundles. *)
 let profile_required_params (p : MT.provisioning_profile_manifest)
   : MT.bundle_param_spec list =
+  let _, bundles = catalog_with_bundles () in
   List.concat_map (fun (br : MT.bundle_ref) ->
-    let bpath = Fpath.v
-      (Filename.concat (Filename.concat bundles_dir br.MT.bundle_name) "bundle.yaml") in
-    match Hamac_manifest.Parser.load_file bpath with
-    | Ok (MT.MBundle b, _) -> b.MT.bdl_params
-    | _ -> []
+    match List.find_opt (fun (b : MT.bundle_manifest) -> b.MT.bdl_name = br.MT.bundle_name)
+            bundles with
+    | Some b -> b.MT.bdl_params
+    | None -> []
   ) p.MT.pp_bundles
   |> List.fold_left (fun acc (s : MT.bundle_param_spec) ->
        if List.exists (fun (x : MT.bundle_param_spec) ->
@@ -1860,7 +1881,7 @@ let load_machines_from_disk () : unit =
 let build_manifest_for_machine
     (profile : MT.provisioning_profile_manifest) (m : machine)
   : MT.provisioning_profile_manifest =
-  let machine_params = List.map (fun (k, v) -> (k, yojson_to_yaml v)) m.mc_params in
+  let machine_params = List.map (fun (k, v) -> (k, yojson_to_param v)) m.mc_params in
   let merged_bundles = List.map (fun (br : MT.bundle_ref) ->
     let from_profile = List.filter (fun (k, _) ->
       not (List.mem_assoc k machine_params)) br.MT.bundle_params in
@@ -1876,7 +1897,8 @@ let render_and_store_machine (m : machine) : (unit, string) Stdlib.result =
   | Some profile ->
     let manifest = build_manifest_for_machine profile m in
     let extra = [Fpath.v bundles_dir] in
-    match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra manifest with
+    let _, bundles = catalog_with_bundles () in
+    match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles manifest with
     | Error e ->
       Error (Format.asprintf "%a" Hamac_provisioning.Provisioning_gen.pp_error e)
     | Ok r ->
