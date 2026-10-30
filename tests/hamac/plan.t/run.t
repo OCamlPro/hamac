@@ -56,11 +56,16 @@ s'il n'en a trouvé aucun.
   $ hamac plan --time-limit 0 packing.loaf
   hamac: [ERROR] plan: no placement found within the time limit (0s)
   [1]
-  $ hamac plan --time-limit=-1 packing.loaf
+
+Selon le terminal, cmdliner cite ou non le nom de l'option : la sortie est
+ramenée à une forme.
+
+  $ hamac plan --time-limit=-1 packing.loaf > out 2>&1; echo "exit $?"
+  exit 124
+  $ sed "s/'--time-limit'/--time-limit/" out
   Usage: hamac plan [--help] [--debug] [--lib=DIR] [--time-limit=SECONDS]
          [OPTION]… [FILES]…
   hamac: option --time-limit: "-1" is not a non-negative number of seconds
-  [124]
 
 Les contraintes et objectifs des patrons s'ajoutent à hamac.lp. Une
 contrainte hard qu'aucun placement ne satisfait est nommée, avec ses
