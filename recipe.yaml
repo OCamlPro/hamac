@@ -24,6 +24,18 @@ dune:
         - name: ppx_deriving
           modules: [ppx_deriving.std]
 
+    # Liaison OCaml de libclingo (API C de clingo, solveur ASP), sans
+    # dépendance à Hamac. marmiton ne sait exprimer ni les stubs C ni la
+    # découverte d'une bibliothèque système : les champs foreign_stubs et
+    # c_library_flags de pkgs/hamac-clingo/dune, sa règle de découverte
+    # (pkgs/hamac-clingo/config/, dune-configurator) et la dépendance
+    # dune-configurator de dune-project sont reportés à la main. libclingo
+    # est une dépendance système (depexts : opam/hamac-clingo.opam.template).
+    - name: hamac-clingo
+      kind: library
+      depends:
+        - name: fmt
+
     - name: hamac-provisioning
       kind: library
       depends:
@@ -43,6 +55,7 @@ dune:
         - name: hamac-provisioning
         - name: fpath
         - name: bos
+        - name: hamac-clingo
         - name: logs
           modules: [logs.fmt]
         - name: cmdliner
@@ -53,6 +66,9 @@ dune:
       ppx:
         - name: ppx_deriving
           modules: [ppx_deriving.std]
+      # Reporté à la main dans pkgs/hamac/dune : la règle qui embarque le
+      # programme du planificateur (hamac.lp → module Hamac_lp) et son
+      # installation dans share/hamac.
       target: bytecode
 
     - name: hamac-discovery

@@ -664,13 +664,15 @@ déjà rempli.
       inject: HR_API_URL=http://hr-api:8080
 
 Le plan d'une stack ne compte pas les providers comme des services ; il suit
-le treillis de son patron.
+le treillis de son patron. hr_api est réparti par domaine de panne (spread
+failure_domain) : ses deux répliques occupent deux nœuds de rh, alors que la
+zone tiendrait en volume sur un seul.
 
   $ (cd $R && hamac plan examples/hr-stack providers)
   Infrastructure proposal: stack-infra
   
   Minimum requirements:
-    Nodes: 2
+    Nodes: 3
     RAM: 2560Mi
     CPU: 5 cores
   
@@ -683,7 +685,7 @@ le treillis de son patron.
   
   Proposed topology:
     1x node [public] — 4096Mi RAM, 4 CPU
-    1x node [rh] — 4096Mi RAM, 4 CPU
+    2x node [rh] — 4096Mi RAM, 4 CPU
   
   Network segments:
     public: 10.10.0.0/24 (VLAN 100)

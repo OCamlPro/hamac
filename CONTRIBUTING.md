@@ -27,5 +27,9 @@ on it (they cannot be merged from the mirror).
     dune build
     dune runtest
 
+The planner links libclingo (clingo 5.x, C API): see the Build section of
+the README. Outside the default search paths, give its installation prefix
+by `CLINGO_PREFIX` (or the flags by `CLINGO_CFLAGS` and `CLINGO_LIBS`).
+
 Build files (`dune`, `dune-project`, `opam/*.opam`) are generated from
 `recipe.yaml` by marmiton — edit the recipe, then run `marmiton build`.

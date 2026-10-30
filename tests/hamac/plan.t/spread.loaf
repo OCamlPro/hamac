@@ -1,0 +1,12 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+% Trois petites répliques, réparties sur des nœuds distincts.
+service web {
+  runtime http.
+  replicas 3.
+  spread host.
+}

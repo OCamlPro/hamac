@@ -186,10 +186,15 @@ type placement = {
 }
 
 (** Where a consumed service is reached in the simulation: the node that
-    hosts its first replica (round-robin starts with node 1 of its zone)
-    and the host port of its first published port. *)
-let service_endpoint (svc : service_manifest) : string * string =
-  let host = node_name (Planner.service_zone svc) 0 in
+    hosts its first replica in the plan, and the host port of its first
+    published port. *)
+let service_endpoint ~(plan : Planner.plan) (svc : service_manifest) : string * string =
+  let zone = Planner.service_zone svc in
+  let node = match List.find_opt (fun (r : Planner.replica) ->
+      r.service = svc.name && r.index = 1) plan.placement with
+    | Some r -> r.node
+    | None -> 0 in
+  let host = node_name zone node in
   match svc.ports with
   | p :: _ -> (host, string_of_int p.container)
   | [] -> (host, "")
@@ -201,56 +206,29 @@ let service_port_range (svc : service_manifest) : (int * int) option =
   | p :: _ -> Some (p.container, p.container + Planner.service_max_replicas svc - 1)
   | [] -> None
 
-(** Simple round-robin placement within a zone *)
+(** The nodes of the plan and the replicas it places on each
+    ({!Planner.plan}), with the environment of each service. *)
 let place_services
     ~(plan : Planner.plan)
     ~(resolution : resolution)
     (services : service_manifest list)
   : placement list =
-  let placements : (string, placement) Hashtbl.t = Hashtbl.create 16 in
-
-  (* Initialize empty nodes *)
-  List.iter (fun (z : Planner.zone_info) ->
-    let node_count = Planner.nodes_for_zone z in
-    for i = 0 to node_count - 1 do
-      let name = node_name z.zone_name i in
-      Hashtbl.replace placements name {
-        node = name;
-        zone = z.zone_name;
-        services = [];
-      }
-    done
-  ) plan.zones;
-
-  (* Place each service replica into nodes of its zone *)
-  List.iter (fun (svc : service_manifest) ->
-    let zone = Planner.service_zone svc in
-    (* Collect injected env for this service *)
+  let env_of (svc : service_manifest) =
     let injected_env = List.fold_left (fun acc (w : resolved_wire) ->
       if w.consumer_name = svc.name then acc @ w.injected_env
       else acc
     ) [] resolution.wires in
-    let all_env = svc.environment @ injected_env in
-
-    (* Find nodes in this zone *)
-    let zone_nodes = Hashtbl.fold (fun _ (p : placement) acc ->
-      if p.zone = zone then p :: acc else acc
-    ) placements [] |> List.sort (fun a b -> String.compare a.node b.node) in
-
-    let max_replicas = Planner.service_max_replicas svc in
-    let n_nodes = List.length zone_nodes in
-    if n_nodes > 0 then
-      for i = 0 to max_replicas - 1 do
-        let target_node = List.nth zone_nodes (i mod n_nodes) in
-        let current = Hashtbl.find placements target_node.node in
-        Hashtbl.replace placements target_node.node {
-          current with
-          services = current.services @ [(svc, all_env)];
-        }
-      done
-  ) services;
-
-  Hashtbl.fold (fun _ v acc -> v :: acc) placements []
+    svc.environment @ injected_env in
+  List.concat_map (fun (z : Planner.zone_info) ->
+    List.init z.nodes (fun i ->
+      let replicas = List.filter (fun (r : Planner.replica) ->
+        r.zone = z.zone_name && r.node = i) plan.placement in
+      { node = node_name z.zone_name i;
+        zone = z.zone_name;
+        services = List.filter_map (fun (r : Planner.replica) ->
+          List.find_opt (fun (s : service_manifest) -> s.name = r.service) services
+          |> Option.map (fun svc -> (svc, env_of svc))) replicas }))
+    plan.zones
   |> List.sort (fun a b -> String.compare a.node b.node)
 
 (* ============================================================ *)

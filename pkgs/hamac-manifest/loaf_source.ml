@@ -789,3 +789,22 @@ let load ?vocabulary ?(lib = []) (paths : string list)
           | _ -> None)) kinds in
       let diags = Diagnostic.sort (errors @ List.rev cx.diags) in
       (sources, located diags)
+
+(** [asp ~lib paths]: the ASP form of a set of LOAF files ({!Loaf.asp}),
+    the vocabulary and library directories found as by {!load}: one line
+    per rule, for an application that adds its own rules (the planner). The
+    files are expected to have been accepted by {!load}; a refusal is
+    returned as its diagnostics. *)
+let asp ?vocabulary ?(lib = []) (paths : string list)
+  : (string list, (string * Diagnostic.t) list) result =
+  let files = Loaf.sources paths in
+  let located ds = List.map (fun d -> (attribute files d, d)) ds in
+  match vocabulary_dir ?vocabulary () with
+  | Error msg -> Error (located [Diagnostic.make "E001" [] msg])
+  | Ok vocab ->
+    match Loaf.asp ~lib:(vocab :: lib @ library_dirs ()) files with
+    | lines -> Ok lines
+    | exception Loaf.Diag.Error ds ->
+      Error (located (List.sort_uniq compare (List.map diagnostic_of_loaf ds)))
+    | exception Sys_error msg ->
+      Error (located [Diagnostic.make "E001" [] ("cannot read file: " ^ msg)])

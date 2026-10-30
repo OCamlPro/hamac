@@ -1,0 +1,13 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+% Trois répliques de 2100 Mi : deux ne tiennent pas sur un nœud de 4096 Mi.
+service batch {
+  runtime batch.
+  replicas 3.
+  memory_limit 2100, mi.
+  cpu_limit 1, core.
+}

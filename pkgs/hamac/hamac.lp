@@ -1,0 +1,171 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Le programme du planificateur de Hamac (ASP, clingo 5).
+%
+% Il s'ajoute à la forme ASP des manifestes (Loaf.asp : service/1,
+% service_zone/2, service_memory_limit/3…) et place chaque réplique de
+% chaque service à déployer sur un nœud de sa zone, en respectant la
+% capacité des nœuds et la répartition demandée, avec le moins de nœuds
+% possible.
+%
+% Le planificateur (planner.ml) fixe la taille d'un nœud par -c node_memory=…
+% -c node_cpu=… ; les valeurs ci-dessous ne servent qu'à lancer clingo à la
+% main sur ce fichier et la forme ASP d'un ensemble de manifestes :
+%
+%   loaf export --asp -L <vocabulaire> <fichiers> > m.lp
+%   clingo m.lp hamac.lp
+%
+% Le placement est un problème de bin packing (à deux dimensions) : prouver
+% l'optimum peut être long. Le planificateur borne la recherche
+% (--time-limit) et garde alors le meilleur placement trouvé.
+%
+% La forme ASP des manifestes et ce programme partagent un seul espace de
+% noms : aucun prédicat d'ici ne doit être celui d'un bloc, d'un champ ou
+% d'une énumération du vocabulaire (spread/1, par exemple, est l'énumération
+% des répartitions ; d'où spread_out/1).
+%
+% Prédicats publiés, sur lesquels les contraintes et objectifs des patrons
+% s'écriront (ne pas les renommer sans changer le vocabulaire des patrons) :
+%
+%   deployed(S)          S est un service à déployer
+%   zone_of(S, Z)        sa zone (default sans zone déclarée)
+%   replicas(S, N)       son nombre de répliques (max_replicas s'il est
+%                        dimensionné automatiquement)
+%   memory(S, M)         mémoire d'une réplique, en Mi (défaut 256)
+%   cpu(S, C)            processeur d'une réplique, en millicœurs (défaut 500)
+%   replica(S, I)        la réplique I de S, I dans 1..N
+%   rank(S, I, R)        rang de la réplique dans sa zone (plus grandes d'abord)
+%   host(H)              un nœud candidat, H = (Z, K)
+%   host_zone(H, Z)      la zone d'un nœud
+%   place(S, I, H)       la réplique I de S est sur le nœud H
+%   on(S, H)             au moins une réplique de S est sur H
+%   used(H)              le nœud H porte au moins une réplique
+%   oversized(S, M, C)   une réplique de S dépasse un nœud (non placée)
+
+#const node_memory = 4096.
+#const node_cpu = 4000.
+
+% ------------------------------------------------------------ services
+% Les services à déployer : ceux que nomme la stack ; sans stack, ceux qui
+% ne fournissent pas de capacité. Les autres sont des providers
+% (cf. Stack_check.providers_of_set).
+stacked :- stack(_).
+deployed(S) :- service(S), stack_service(_, S).
+deployed(S) :- service(S), not stacked, not service_capability(S, _).
+
+zone_of(S, Z) :- deployed(S), service_zone(S, Z).
+zone_of(S, default) :- deployed(S), not service_zone(S, _).
+
+% Un service dimensionné automatiquement est planifié à son maximum.
+replicas(S, N) :- deployed(S), service_max_replicas(S, N).
+replicas(S, N) :- deployed(S), service_replicas(S, N), not service_max_replicas(S, _).
+replicas(S, 1) :- deployed(S), not service_replicas(S, _), not service_max_replicas(S, _).
+
+% La demande d'une réplique est sa limite (pas sa réservation) : le plan
+% dimensionne pour le pire cas.
+memory(S, (N + 1023) / 1024) :- deployed(S), service_memory_limit(S, N, ki).
+memory(S, N)                 :- deployed(S), service_memory_limit(S, N, mi).
+memory(S, N * 1024)          :- deployed(S), service_memory_limit(S, N, gi).
+memory(S, N * 1048576)       :- deployed(S), service_memory_limit(S, N, ti).
+memory(S, 256)               :- deployed(S), not service_memory_limit(S, _, _).
+
+cpu(S, N * 1000) :- deployed(S), service_cpu_limit(S, N, core).
+cpu(S, N)        :- deployed(S), service_cpu_limit(S, N, m).
+cpu(S, 500)      :- deployed(S), not service_cpu_limit(S, _, _).
+
+% Une réplique plus grande qu'un nœud ne peut être placée : le planificateur
+% le signale au lieu de conclure à l'absence de plan.
+oversized(S, M, C) :- memory(S, M), cpu(S, C), M > node_memory.
+oversized(S, M, C) :- memory(S, M), cpu(S, C), C > node_cpu.
+
+% ------------------------------------------------------------ nœuds
+% Autant de nœuds candidats par zone que de répliques : une réplique par
+% nœud est toujours une solution, la minimisation retire les autres.
+replica(S, 1..N) :- replicas(S, N).
+zone_replicas(Z, N) :- zone_of(_, Z), N = #sum { R, S : zone_of(S, Z), replicas(S, R) }.
+host((Z, 1..N)) :- zone_replicas(Z, N).
+host_zone((Z, K), Z) :- host((Z, K)).
+
+% ------------------------------------------------------------ rangs
+% Les nœuds proposés sont identiques, et les répliques d'un service aussi :
+% sans briser ces symétries, le solveur parcourt des placements qui ne
+% diffèrent que par les numéros des nœuds, et ne prouve plus l'optimum
+% au-delà d'une vingtaine de répliques. Les règles qui suivent ne retirent
+% aucun coût : tout placement se renumérote pour les satisfaire. (À revoir
+% quand les nœuds seront ceux d'un inventaire, qui ne sont plus
+% interchangeables.)
+%
+% Rang d'une réplique dans sa zone : les plus grandes d'abord (mémoire puis
+% processeur), puis par service et par numéro ; les répliques d'un service
+% ont des rangs consécutifs.
+key(S, I, Z, (-M, -C, S, I)) :- replica(S, I), zone_of(S, Z), memory(S, M), cpu(S, C),
+                                not oversized(S, _, _).
+rank(S, I, N + 1) :- key(S, I, Z, X), N = #count { Y : key(_, _, Z, Y), Y < X }.
+
+% ------------------------------------------------------------ placement
+% Les nœuds sont numérotés dans l'ordre de leur réplique de plus petit
+% rang : la réplique de rang R est sur l'un des nœuds 1..R.
+1 { place(S, I, (Z, K)) : host_zone((Z, K), Z), K <= R } 1 :- rank(S, I, R), zone_of(S, Z).
+on(S, H) :- place(S, _, H).
+used(H) :- place(_, _, H).
+
+% Capacité d'un nœud.
+:- host(H), #sum { M, S, I : place(S, I, H), memory(S, M) } > node_memory.
+:- host(H), #sum { C, S, I : place(S, I, H), cpu(S, C) } > node_cpu.
+
+% Répartition : les répliques d'un service réparti sont sur des nœuds
+% distincts. Un nœud proposé est son propre domaine de panne : tant que la
+% topologie ne déclare pas de domaines plus larges, failure_domain ne
+% demande pas plus que host.
+spread_out(S) :- deployed(S), service_spread(S, host).
+spread_out(S) :- deployed(S), service_spread(S, failure_domain).
+:- spread_out(S), host(H), 2 { place(S, I, H) : replica(S, I) }.
+
+% Anti-affinité : deux services à séparer ne partagent pas de nœud.
+:- deployed(S), service_anti_affinity(S, T), on(S, H), on(T, H).
+
+% ------------------------------------------------------------ symétries
+% Les nœuds utilisés sont les premiers.
+:- host_zone((Z, K), Z), K > 1, used((Z, K)), not used((Z, K - 1)).
+% Les répliques d'un service occupent des nœuds de numéro croissant :
+% at_most(S, I, K), la réplique I de S est sur un nœud de numéro au plus K.
+at_most(S, I, K) :- place(S, I, (Z, K)).
+at_most(S, I, K) :- at_most(S, I, K - 1), zone_of(S, Z), host_zone((Z, K), Z).
+:- place(S, I + 1, (Z, K)), replica(S, I), not at_most(S, I, K).
+
+% Borne inférieure : en volume, une zone demande au moins
+% ⌈mémoire / node_memory⌉ et ⌈processeur / node_cpu⌉ nœuds.
+lower_bound(Z, (M + node_memory - 1) / node_memory) :- zone_of(_, Z),
+    M = #sum { N * R, S : zone_of(S, Z), memory(S, N), replicas(S, R), not oversized(S, _, _) }.
+lower_bound(Z, (C + node_cpu - 1) / node_cpu) :- zone_of(_, Z),
+    C = #sum { N * R, S : zone_of(S, Z), cpu(S, N), replicas(S, R), not oversized(S, _, _) }.
+% Et deux répliques qui demandent chacune plus de la moitié d'un nœud (en
+% mémoire ou en processeur) ne le partagent pas.
+lower_bound(Z, N) :- zone_of(_, Z),
+    N = #count { S, I : key(S, I, Z, _), memory(S, M), 2 * M > node_memory;
+                 S, I : key(S, I, Z, _), cpu(S, C), 2 * C > node_cpu }.
+:- lower_bound(Z, L), host_zone((Z, K), Z), K <= L, not used((Z, K)).
+
+% ------------------------------------------------------------ objectif
+% Le moins de nœuds possible, à la priorité 0 : les objectifs des patrons,
+% de priorité 1 ou plus, passent avant.
+#minimize { 1@0, H : used(H) }.
+
+% ------------------------------------------------------------ sortie
+#show place/3.
+#show zone_of/2.
+#show replicas/2.
+#show memory/2.
+#show cpu/2.
+#show oversized/3.
+#show error/2.
+
+% Prédicats des manifestes qu'un ensemble peut ne pas définir.
+#defined stack/1.             #defined stack_service/2.
+#defined service_capability/2.
+#defined service_zone/2.      #defined service_replicas/2.
+#defined service_max_replicas/2.
+#defined service_memory_limit/3.  #defined service_cpu_limit/3.
+#defined service_spread/2.    #defined service_anti_affinity/2.
+#defined error/2.

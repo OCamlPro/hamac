@@ -37,8 +37,39 @@ jobs:
           t=$(date +%s)
           apt-get update
           apt-get install -y --no-install-recommends \
-            git ca-certificates opam m4 pkg-config build-essential libyaml-dev
+            git ca-certificates opam m4 pkg-config build-essential libyaml-dev \
+            cmake curl
           echo "TIMING apt=$(($(date +%s)-t))s"
+
+      # libclingo (API C du solveur ASP clingo), dont dépend le planificateur
+      # par la liaison pkgs/hamac-clingo. Debian n'en a pas de paquet de
+      # développement (son paquet gringo n'installe que les exécutables) :
+      # clingo est construit depuis l'archive de son tag officiel, vérifiée
+      # par empreinte, et installé dans /usr/local, où la découverte de
+      # hamac-clingo le trouve sans configuration. Même version que celle des
+      # postes de développement : le plan optimal retenu entre plusieurs
+      # plans de même coût dépend de la version du solveur.
+      - name: libclingo (sources officielles)
+        env:
+          CLINGO_VERSION: "5.8.2"
+          CLINGO_SHA256: af961e4e8122b9e1fa325ae20c98f0a17b2087e2c777832ae6e47025ec921331
+        run: |
+          set -eux
+          t=$(date +%s)
+          curl -fsSL -o /tmp/clingo.tar.gz \
+            "https://github.com/potassco/clingo/archive/refs/tags/v${CLINGO_VERSION}.tar.gz"
+          echo "${CLINGO_SHA256}  /tmp/clingo.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/clingo-src
+          tar -xzf /tmp/clingo.tar.gz -C /tmp/clingo-src --strip-components=1
+          cmake -S /tmp/clingo-src -B /tmp/clingo-build \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DCLINGO_BUILD_WITH_PYTHON=OFF -DCLINGO_BUILD_WITH_LUA=OFF \
+            -DCLINGO_BUILD_APPS=OFF
+          cmake --build /tmp/clingo-build -j "$(nproc)"
+          cmake --install /tmp/clingo-build
+          ldconfig
+          rm -rf /tmp/clingo.tar.gz /tmp/clingo-src /tmp/clingo-build
+          echo "TIMING clingo=$(($(date +%s)-t))s"
 
       - name: Checkout (URL publique, authentifié)
         env:

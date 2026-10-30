@@ -1,0 +1,5 @@
+;; Écrit à la main : marmiton ne sait pas exprimer la découverte d'une
+;; bibliothèque C (dune-configurator).
+(executable
+ (name discover)
+ (libraries dune-configurator))

@@ -25,6 +25,7 @@
     cohttp-lwt-unix
     fmt
     fpath
+    hamac-clingo
     hamac-manifest
     hamac-provisioning
     jingoo
@@ -37,3 +38,24 @@
   (preprocess (pps
     ppx_deriving.std))
 )
+
+;; Reporté à la main (marmiton ne sait pas exprimer une règle ni une
+;; installation de fichier) : le programme du planificateur, hamac.lp, est
+;; embarqué dans l'exécutable (module Hamac_lp) et installé dans
+;; share/hamac pour qui veut lancer clingo à la main sur la forme ASP d'un
+;; ensemble de manifestes.
+(rule
+  (target hamac_lp.ml)
+  (deps hamac.lp)
+  (action
+    (with-stdout-to %{target}
+      (progn
+        (echo "(* Généré depuis hamac.lp : ne pas éditer. *)\n")
+        (echo "let text = {hamac_lp|")
+        (cat hamac.lp)
+        (echo "|hamac_lp}\n")))))
+
+(install
+  (section share)
+  (files hamac.lp)
+  (package hamac))

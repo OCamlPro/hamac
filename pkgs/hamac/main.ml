@@ -67,6 +67,24 @@ let checked_flows ?lattice services =
   if errors <> [] then exit 1;
   flows
 
+(** The plan of the services of the file arguments
+    ({!Planner.plan}, on the ASP form of the files). A failure stops the
+    command. *)
+let plan_time_limit = ref Planner.default_time_limit
+
+let make_plan ?lattice ~flows services =
+  match Hamac_manifest.Loaf_source.asp ~lib:!library_dirs !manifest_files with
+  | Error findings ->
+    List.iter (fun (file, d) ->
+      Logs.err (fun m -> m "%s" (Hamac_manifest.Diagnostic.to_string_in file d))) findings;
+    exit 1
+  | Ok asp ->
+    match Planner.plan ?lattice ~time_limit:!plan_time_limit ~name:"stack" ~flows ~asp services with
+    | plan -> plan
+    | exception Planner.Error msgs ->
+      List.iter (fun msg -> Logs.err (fun m -> m "plan: %s" msg)) msgs;
+      exit 1
+
 (* ============================================================ *)
 (* Commands                                                      *)
 (* ============================================================ *)
@@ -113,7 +131,7 @@ let run_plan () =
     exit 1
   end;
   let flows, _ = Hamac_manifest.Flows.declared ~lattice services in
-  let plan = Planner.plan ~lattice ~name:"stack" ~flows services in
+  let plan = make_plan ~lattice ~flows services in
   Planner.display_plan plan
 
 let run_resolve () =
@@ -171,11 +189,11 @@ let run_simulate () =
 
   (* Plan infrastructure *)
   let flows = checked_flows services in
-  let plan = Planner.plan ~name:"stack" ~flows services in
+  let plan = make_plan ~flows services in
   Planner.display_plan plan;
 
   (* Resolve providers; consumed services are reached on their node *)
-  let resolution = Resolver.resolve_all ~service_endpoint:Infra_sim.service_endpoint
+  let resolution = Resolver.resolve_all ~service_endpoint:(Infra_sim.service_endpoint ~plan)
       ~registry ~services () in
   List.iter (fun err -> Logs.err (fun m -> m "%s" err)) resolution.errors;
   if resolution.errors <> [] then exit 1;
@@ -391,14 +409,28 @@ let discovery_arg =
 (* ---- Termes / commandes ---- *)
 
 (* Commandes qui consomment les fichiers positionnels + debug. *)
-let files_term run =
-  let go files lib debug =
+let time_limit_arg =
+  let doc =
+    "Bound on the search for the placement with the fewest nodes, in seconds. \
+     At the limit, the plan has the best placement found, and a warning." in
+  let seconds =
+    let parse s = match float_of_string_opt s with
+      | Some t when t >= 0. -> Ok t
+      | _ -> Error (`Msg (Printf.sprintf "%S is not a non-negative number of seconds" s)) in
+    Arg.conv (parse, Format.pp_print_float) in
+  Arg.(value & opt seconds Planner.default_time_limit & info ["time-limit"] ~docv:"SECONDS" ~doc)
+
+(* Options des commandes qui planifient, évaluées avant la commande. *)
+let planning_term = Term.(const (fun t -> plan_time_limit := t) $ time_limit_arg)
+
+let files_term ?(extra = Term.const ()) run =
+  let go files lib debug () =
     manifest_files := files; library_dirs := lib; set_debug debug; run () in
-  Term.(const go $ files_arg $ lib_arg $ debug_arg)
+  Term.(const go $ files_arg $ lib_arg $ debug_arg $ extra)
 
 (* Commandes qui génèrent des credentials : mêmes arguments, plus --seed. *)
-let files_seed_term run =
-  let go files lib seed debug =
+let files_seed_term ?(extra = Term.const ()) run =
+  let go files lib seed debug () =
     manifest_files := files;
     library_dirs := lib;
     set_debug debug;
@@ -411,7 +443,7 @@ let files_seed_term run =
      | None -> ());
     run ()
   in
-  Term.(const go $ files_arg $ lib_arg $ seed_arg $ debug_arg)
+  Term.(const go $ files_arg $ lib_arg $ seed_arg $ debug_arg $ extra)
 
 let strict_arg =
   let doc = "Fail on warnings too, not only on errors." in
@@ -430,7 +462,7 @@ let validate_cmd =
     Term.(const go $ files_arg $ lib_arg $ strict_arg $ debug_arg)
 let plan_cmd =
   Cmd.v (Cmd.info "plan" ~doc:"Plan infrastructure from service manifests.")
-    (files_term run_plan)
+    (files_term ~extra:planning_term run_plan)
 let resolve_cmd =
   Cmd.v (Cmd.info "resolve"
            ~doc:"Resolve service dependencies to concrete providers.")
@@ -438,7 +470,7 @@ let resolve_cmd =
 let simulate_cmd =
   Cmd.v (Cmd.info "simulate"
            ~doc:"Simulate infrastructure with DinD nodes and zone isolation.")
-    (files_seed_term run_simulate)
+    (files_seed_term ~extra:planning_term run_simulate)
 let deploy_cmd =
   Cmd.v (Cmd.info "deploy"
            ~doc:"Generate flat docker-compose.yml from resolved stack.")

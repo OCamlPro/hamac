@@ -1,0 +1,8 @@
+# libclingo (API C de clingo 5) : paquet des distributions qui la
+# fournissent. Debian et Ubuntu n'en ont pas (leur paquet gringo n'installe
+# que les exécutables) : construire clingo depuis ses sources et donner son
+# préfixe par CLINGO_PREFIX (cf. pkgs/hamac-clingo/config/discover.ml).
+depexts: [
+  ["clingo-devel"] {os-family = "fedora"}
+  ["clingo"] {os = "macos" & os-distribution = "homebrew"}
+]

@@ -1,0 +1,9 @@
+;; Écrit à la main : la liaison de libclingo, exercée par un petit
+;; programme dont les sorties sont figées dans un test cram.
+(executable
+ (name clingo_demo)
+ (libraries hamac-clingo fmt))
+
+(cram
+ (deps clingo_demo.exe)
+ (package hamac-clingo))

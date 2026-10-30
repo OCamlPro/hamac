@@ -26,12 +26,29 @@ Developed by [OCamlPro](https://www.ocamlpro.com) and released under the
 |---|---|---|
 | `hamac` | `pkgs/hamac` | CLI: `validate` / `plan` / `resolve` / `simulate` / `deploy`, and `provision-*` (render + push cloud-init/iPXE to the discovery server). |
 | `hamac-manifest` | `pkgs/hamac-manifest` | Library: the pivot manifest format — types, LOAF loader and vocabulary of Hamac, coded diagnostics, security lattice, pattern constraint language, flow and stack validation. Usable on its own by any tool that reads or writes manifests. |
+| `hamac-clingo` | `pkgs/hamac-clingo` | Library: OCaml binding of libclingo (C API of the clingo ASP solver), independent of Hamac. The planner places replicas with it. |
 | `hamac-provisioning` | `pkgs/hamac-provisioning` | Library: provisioning-profile rendering (cloud-init + iPXE). |
 | `hamac-discovery` | `pkgs/hamac-discovery` | Discovery server: stores a provisioning record per MAC and serves the aggregated cloud-init to PXE-booting machines. |
 
 ## Build
 
-Requires OCaml, opam and dune. **All dependencies are public opam packages.**
+Requires OCaml, opam and dune. **All OCaml dependencies are public opam
+packages.** The planner also needs **libclingo**, the C library of the
+[clingo](https://potassco.org/clingo/) ASP solver (5.x): Fedora packages it
+(`clingo-devel`), Homebrew too (`clingo`). Debian and Ubuntu do not (their
+`gringo` package only ships the executables): build it from its official
+sources, as the CI does, and give its prefix to the build:
+
+```sh
+curl -fsSL https://github.com/potassco/clingo/archive/refs/tags/v5.8.2.tar.gz | tar -xz
+cmake -S clingo-5.8.2 -B clingo-build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$HOME/.local/clingo" \
+  -DCLINGO_BUILD_WITH_PYTHON=OFF -DCLINGO_BUILD_WITH_LUA=OFF
+cmake --build clingo-build -j && cmake --install clingo-build
+export CLINGO_PREFIX="$HOME/.local/clingo"   # not needed for /usr or /usr/local
+```
+
+then:
 
 ```sh
 opam install --deps-only .

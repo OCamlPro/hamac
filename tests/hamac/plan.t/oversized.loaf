@@ -1,0 +1,15 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+% Une réplique plus grande qu'un nœud.
+service huge {
+  runtime batch.
+  memory_limit 8, gi.
+}
+
+service small {
+  runtime http.
+}
