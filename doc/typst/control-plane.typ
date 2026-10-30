@@ -313,7 +313,7 @@ découpage préserve la sémantique du tour global (§10).
 - *Milestone 11* (haute disponibilité PostgreSQL) : le scénario 4.2 est le
   comportement attendu du provider PostgreSQL HA, et le scénario 4.3 le remède
   au split-brain constaté.
-- La spécification du format de manifeste (`doc/typst/manifest-spec.typ`,
+- La spécification du format de manifeste (`doc/typst/manifest.typ`,
   en brouillon) doit exposer les seuils et les classes de volume sur lesquels
   ces scénarios s'appuient.
 

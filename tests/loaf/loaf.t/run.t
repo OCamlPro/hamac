@@ -34,6 +34,7 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
   examples/enterprise-stack/web_api.loaf: service (name=web-api, runtime=http)
+  examples/enterprise-stack/organisation.loaf: pattern (name=organisation, 0 zones, 0 constraints)
 
 Un profil nomme ses bundles : il se charge avec eux.
 
@@ -308,13 +309,14 @@ premier port.
          ];
        pat_assurance =
        [("rh", { Types.boot = (Some "measured-tpm2"); operator = None; physical = (Some "site") })];
+       pat_roles = ["admin"; "comptable"; "rh"];
        constraints =
        [{ Types.cid = "one_level_per_host";
           cdescription = "Deux niveaux ne partagent jamais un noyau"; severity = "hard"; 
           weight = 1; cpriority = 1; violation = "H : level_on(H, L1), level_on(H, L2), L1 != L2";
           cloc =
           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 30; column = 5 })
+                  line = 31; column = 5 })
           };
          { Types.cid = "stateful_quorum";
            cdescription =
@@ -323,14 +325,14 @@ premier port.
            violation = "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3";
            cloc =
            (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf";
-                   line = 36; column = 5 })
+                   line = 37; column = 5 })
            }
          ];
        objectives =
        [{ Types.direction = "minimize"; element = "1, H : used(H)"; priority = 1;
           oloc =
           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 39; column = 3 })
+                  line = 40; column = 3 })
           }
          ]
        })
@@ -489,6 +491,11 @@ premier port.
        health_check = None; metrics = None; logging = None;
        metadata = { Types.description = None; labels = []; annotations = [] }; 
        storage = []; backup = None; secrets = []; placement = None; exposure = [] })
+  == examples/enterprise-stack/organisation.loaf
+  (Types.MPattern
+     { Types.pat_name = "organisation"; pat_version = None; lattice = None; 
+       zones = []; pat_assurance = []; pat_roles = ["admin"; "comptable"]; 
+       constraints = []; objectives = [] })
 
   $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev-workstation/bundle.loaf | sed "s|$R/||"
   == provisioning-profiles/dev-workstation.loaf

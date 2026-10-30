@@ -29,7 +29,7 @@
 %
 % Prédicats publiés, sur lesquels s'écrivent les contraintes et objectifs
 % des patrons (ne pas les renommer sans changer leur spécification,
-% doc/typst/manifest-spec.typ, section « Contraintes ») :
+% doc/typst/manifest.typ, section « Contraintes ») :
 %
 %   deployed(S)          S est un service à déployer
 %   zone_of(S, Z)        sa zone (default sans zone déclarée)

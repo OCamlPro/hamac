@@ -4,7 +4,7 @@
 (** Diagnostics of the validator.
 
     Every finding has a code from the catalogue of the manifest
-    specification (doc/typst/manifest-spec.typ, section « Validation »), or,
+    specification (doc/typst/manifest.typ, section « Validation »), or,
     for a refusal of the language itself, a code of the LOAF specification
     ([L001]…); the location of the element at fault (file, line, column),
     when known; the path of the value in {!Types} it is about, possibly

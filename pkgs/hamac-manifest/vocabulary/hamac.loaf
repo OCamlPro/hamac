@@ -230,6 +230,8 @@ block pattern {
   % Treillis : les niveaux, du moins au plus sensible, et les catégories.
   levels* [name].
   category* name.
+  % Les rôles que l'organisation attribue, seuls exigibles par une route.
+  role* name.
 
   zone* name {
     level name.

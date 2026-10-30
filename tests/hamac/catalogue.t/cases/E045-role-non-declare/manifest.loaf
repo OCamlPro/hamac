@@ -1,0 +1,15 @@
+% E045-role-non-declare
+loaf 0.1.
+use hamac 0.2.
+
+pattern p {
+  role admin.
+}
+
+service web {
+  runtime http.
+  zone internal.
+  route "/admin" { required_clearance admn. }
+}
+
+stack s { service web {} }

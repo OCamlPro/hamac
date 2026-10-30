@@ -14,6 +14,7 @@ use hamac 0.2.
 pattern exemple_rh {
   levels [public, internal, confidential].
   category rh; finance.
+  role rh; comptable; admin.
   assurance rh, boot, measured_tpm2.
   assurance rh, physical, site.
 

@@ -197,7 +197,7 @@ type zone_decl = {
 (** A constraint of a pattern: [violation] is an element of an aggregate
     of clingo, [terms : body], whose instances are the violations of the
     constraint, written on the predicates that the planner publishes
-    (doc/typst/manifest-spec.typ, section « Contraintes »). *)
+    (doc/typst/manifest.typ, section « Contraintes »). *)
 type constraint_decl = {
   cid: string;
   cdescription: string;
@@ -226,6 +226,7 @@ type pattern_manifest = {
   lattice: lattice_decl option;
   zones: zone_decl list;
   pat_assurance: (string * assurance) list;   (** zone name → minimum *)
+  pat_roles: string list;    (** roles a route may require *)
   constraints: constraint_decl list;
   objectives: objective list;
 } [@@deriving show]
@@ -351,7 +352,7 @@ type infrastructure_manifest = {
 (* ============================================================ *)
 (* kind: provisioning_profile (+ kind: bundle)                   *)
 (* ============================================================ *)
-(* Cf. doc/typst/provisioning-spec.typ                                  *)
+(* Cf. doc/typst/provisioning.typ                                  *)
 
 (** Valeur d'un paramètre de bundle, transmise au gabarit Jinja2 du bundle :
     celles d'un profil LOAF (texte, entier, liste) et celles qu'une machine
@@ -377,7 +378,7 @@ type os_image_spec = {
                                   (bmaptool copy), vide si absent — le qcow2
                                   ci-dessus reste la référence, consommée
                                   directement par les VMs. Cf. §3.1 de
-                                  provisioning-spec.typ. *)
+                                  provisioning.typ. *)
   os_raw_zst_sha256: string; (** Hash du raw.zst, vide si os_raw_zst_url l'est *)
   os_bmap_url: string;       (** URL du .bmap associé, vide si absent *)
 } [@@deriving show]

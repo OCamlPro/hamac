@@ -140,7 +140,7 @@ single network and does not isolate zones (it warns about it).
 `hamac-discovery` runs alongside a PXE stack (`docker/hamac-pxe`, dnsmasq proxy
 DHCP + TFTP + iPXE). A machine boots over PXE, fetches its cloud-init from the
 discovery server (keyed by MAC), and the OS image is written to disk. See
-[`doc/typst/provisioning-spec.typ`](doc/typst/provisioning-spec.typ) for the full contract
+[`doc/typst/provisioning.typ`](doc/typst/provisioning.typ) for the full contract
 (image formats, `bmaptool` write path, first-boot resize).
 
 ## Documentation
@@ -150,9 +150,9 @@ PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and, on
 `master`, publishes them to the forge's package registry:
 <https://forge.ocamlpro.com/OSS/-/packages/generic/hamac-docs/latest>.
 
-- [`doc/typst/manifest-spec.typ`](doc/typst/manifest-spec.typ) — manifest format specification (0.2, draft).
+- [`doc/typst/manifest.typ`](doc/typst/manifest.typ) — manifest format specification (0.2, draft).
 - [`pkgs/hamac-manifest/vocabulary/hamac.loaf`](pkgs/hamac-manifest/vocabulary/hamac.loaf) — the vocabulary of Hamac: the blocks of the manifests, their defaults and validations, in LOAF.
-- [`doc/typst/provisioning-spec.typ`](doc/typst/provisioning-spec.typ) — provisioning profile & disk-write spec.
+- [`doc/typst/provisioning.typ`](doc/typst/provisioning.typ) — provisioning profile & disk-write spec.
 - [`doc/typst/control-plane.typ`](doc/typst/control-plane.typ) — round-based control plane (design proposal).
 - [`doc/HAMAC_ROADMAP.md`](doc/HAMAC_ROADMAP.md) — milestones.
 

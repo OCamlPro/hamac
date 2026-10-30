@@ -63,7 +63,7 @@ cette spécification.
 
 Les manifestes `provisioning_profile` et `bundle` sont des blocs du
 vocabulaire LOAF de Hamac, définis par la spécification des manifestes
-(`doc/typst/manifest-spec.typ`, sections « Bundle » et « Profil de
+(`doc/typst/manifest.typ`, sections « Bundle » et « Profil de
 provisioning ») : champs, valeurs par défaut, diagnostics. Ce document décrit
 la façon dont Hamac les applique.
 
@@ -416,7 +416,7 @@ pourra alors envisager :
 
 = Références
 
-- `doc/typst/manifest-spec.typ` : spécification des manifestes (vocabulaire
+- `doc/typst/manifest.typ` : spécification des manifestes (vocabulaire
   LOAF de Hamac, dont les blocs `provisioning_profile` et `bundle`).
 - `pkgs/hamac-manifest/vocabulary/hamac.loaf` : le vocabulaire.
 - `pkgs/hamac-provisioning/provisioning_gen.ml` : rendu du cloud-init et du

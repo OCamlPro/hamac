@@ -5,7 +5,7 @@ Trois services répartis sur trois zones de sécurité, consommant des providers
 filtrage Bell-LaPadula (aucune de ces informations n'est écrite dans les
 manifestes de service).
 
-  $ hamac plan analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
+  $ hamac plan organisation.loaf analytics.loaf payroll.loaf web_api.loaf providers/*.loaf
   Infrastructure proposal: stack-infra
   
   Minimum requirements:

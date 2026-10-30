@@ -36,7 +36,7 @@ provisioning_profile dev_workstation {
     % raw_zst_sha256 et bmap_url. Facultatifs : absents, ou si l'initrd
     % hamac-pxe déployée ne connaît pas encore bmaptool, pxe-build/init
     % retombe sur url, format et sha256 via qemu-img. Cf.
-    % provisioning-spec.typ §3.1.
+    % provisioning.typ §3.1.
   }
 
   % Aucun paramètre : tout vient de /api/machines à la création.

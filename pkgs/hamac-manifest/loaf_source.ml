@@ -467,6 +467,7 @@ let pattern cx pt : pattern_manifest =
   { pat_name = name pt;
     pat_version = None;  (* that of its module: set by load *)
     lattice; zones; pat_assurance; constraints;
+    pat_roles = F.list1 cx k p "role" const;
     objectives = objectives "minimize" @ objectives "maximize" }
 
 (* ============================================================ *)
@@ -674,6 +675,7 @@ let loc_of_path cx kind subj (m : manifest) (path : string list) : Diagnostic.lo
         (fun r -> match rest with
            | ["classification"] -> at "route.classification" [r]
            | ["categories"] -> at "route.category" [r]
+           | ["required_clearance"] -> at "route.required_clearance" [r]
            | _ -> at "route" [r])
     | MPattern _, ("assurance" :: z :: _) -> at "assurance" [c z]
     | MPattern v, ("zones" :: i :: rest) ->

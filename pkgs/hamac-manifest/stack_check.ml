@@ -2,7 +2,7 @@
 (* Copyright (C) 2026 OCamlPro <contact@ocamlpro.com> *)
 
 (** Validation of a set of manifests taken together: stage 3 (semantics) of
-    doc/typst/manifest-spec.typ, section « Validation ».
+    doc/typst/manifest.typ, section « Validation ».
 
     The files form one LOAF set ({!Loaf_source.load}): the language resolves
     the references between manifests (a stack names its services and loads
@@ -111,6 +111,7 @@ let check (ls : loaded list) : Lattice.t * finding list =
   let services = List.filter_map (fun l -> match l.manifest with
     | Some (MService s) -> Some (l, s) | _ -> None) ls in
   let all_services = List.map snd services in
+  let roles = List.concat_map (fun (_, (p : pattern_manifest)) -> p.pat_roles) pats in
   (* Zones and route labels *)
   List.iter (fun (l, (svc : service_manifest)) ->
     let add code path msg = report l (Diagnostic.make code path msg) in
@@ -144,7 +145,16 @@ let check (ls : loaded list) : Lattice.t * finding list =
               add "E044" (p @ ["categories"])
                 (Printf.sprintf "category '%s' of route '%s' is not a category of zone %s (%s)"
                    cat r.route z.name (Lattice.label_to_string z)))
-            r.categories) sec.route_labels) services;
+            r.categories;
+          List.iter (fun role ->
+            if not (List.mem role roles) then
+              add "E045" (p @ ["required_clearance"])
+                (Printf.sprintf "route '%s' of %s requires the role %s, which no pattern declares%s"
+                   r.route svc.name role
+                   (match List.sort_uniq compare roles with
+                    | [] -> ""
+                    | rs -> " (roles: " ^ String.concat ", " rs ^ ")")))
+            r.required_clearance) sec.route_labels) services;
   (* Flows: E040, E041 *)
   let _, ferrs = Flows.declared ~lattice all_services in
   List.iter (fun (e : Flows.error) ->

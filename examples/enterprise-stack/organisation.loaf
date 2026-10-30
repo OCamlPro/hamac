@@ -1,0 +1,14 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Le patron de l'organisation : il ne déclare que les rôles qu'elle
+% attribue ; les niveaux et les zones sont ceux du patron intégré
+% hamac-default.
+
+loaf 0.1.
+module organisation 1.0.0.
+use hamac 0.2.
+
+pattern organisation {
+  role comptable; admin.
+}

@@ -160,6 +160,21 @@ version et le fichier d'empreintes `loaf.sum` suivent la spécification de
 LOAF ; un module introuvable ou des contraintes incompatibles sont refusés
 (#code("L009")).
 
+== Outils
+
+L'outil `loaf`, qui accompagne la spécification de LOAF, s'applique aux
+manifestes de Hamac, le répertoire du vocabulaire étant donné comme
+bibliothèque (`-L`) :
+
+- `loaf fmt` réécrit des fichiers dans la forme canonique du langage ;
+- `loaf export` écrit le modèle d'un ensemble dans le format d'échange de
+  LOAF, une ligne JSON par fait, avec l'emplacement des instructions qui le
+  dénotent :
+
+```
+{"args":["hr_api","rh"],"at":[{"column":3,"file":"hr-api.loaf","line":13}],"pred":"service.zone"}
+```
+
 == Stabilité <stabilite>
 
 La version du module `hamac` suit les règles de compatibilité de LOAF : un
@@ -682,6 +697,8 @@ des modules que ses fichiers chargent, composent le treillis de la stack.
   [`levels* [name]`], [les niveaux, du moins au plus sensible (@treillis)],
   [`category* name`], [les catégories de besoin d'en connaître ; des
     catégories sans aucun niveau donnent #code("E006")],
+  [`role* name`], [les rôles que l'organisation attribue à ses utilisateurs,
+    seuls exigibles par une route (@routes)],
   [`zone* name { … }`], [une zone (@treillis) : `level name`,
     `category* name`, `boundary? boundary` (défaut `firewall`, @frontieres)],
   [`assurance* name, axis => assurance_level`], [#experimental exigence
@@ -702,6 +719,7 @@ use hamac 0.2.
 pattern exemple_rh {
   levels [public, internal, confidential].
   category rh; finance.
+  role rh; comptable; admin.
   assurance rh, boot, measured_tpm2.
   assurance rh, physical, site.
 
@@ -999,7 +1017,8 @@ avant que la requête ne l'atteigne.
   [#h(1em)`category* name`], [le sujet #doit détenir chacune de ces
     catégories (besoin d'en connaître)],
   [#h(1em)`required_clearance* name`], [rôles ; le sujet #doit en détenir au
-    moins un],
+    moins un. Un rôle qu'aucun patron de l'ensemble ne déclare (`role`) donne
+    #code("E045")],
 )
 
 *Sémantique.* Une requête vers une route est autorisée si et seulement si le
@@ -1124,7 +1143,7 @@ service forge {
 Un bundle est une brique réutilisable d'un profil de provisioning : un
 répertoire qui contient le manifeste `bundle.loaf` et un gabarit Jinja2 de
 fragment cloud-init. La spécification du provisioning
-(`doc/typst/provisioning-spec.typ`) décrit où Hamac cherche les bundles, le
+(`doc/typst/provisioning.typ`) décrit où Hamac cherche les bundles, le
 rendu des gabarits et la fusion des fragments.
 
 ```
@@ -1475,6 +1494,7 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     catégories ou des rôles],
   code("E044"), [3], [route classée au-dessus de la zone de son service, ou
     catégorie absente de cette zone],
+  code("E045"), [3], [route qui exige un rôle qu'aucun patron ne déclare],
   code("E050"), [3], [patrons aux niveaux incompatibles],
   code("E051"), [3], [zone définie deux fois avec des étiquettes ou des
     frontières différentes],

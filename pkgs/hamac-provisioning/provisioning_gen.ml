@@ -10,7 +10,7 @@
     3. Émettre le YAML final préfixé par [#cloud-config] et un script iPXE
        minimal pointant vers l'OS image.
 
-    Cf. [doc/typst/provisioning-spec.typ]. *)
+    Cf. [doc/typst/provisioning.typ]. *)
 
 open Hamac_manifest.Types
 

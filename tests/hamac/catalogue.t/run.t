@@ -41,6 +41,7 @@ LOAF, et n'ont pas de cas ici.
   web.loaf:11:3: [E042] zone 'dmz' of web is not defined by the stack's patterns (zones: public, default, internal, secure)
   manifest.loaf:13:5: [E043] route /health is public: it cannot also require a classification, categories or roles
   web.loaf:12:20: [E044] route '/vault' is classified secure, above zone internal (internal): a service holds no data more sensitive than its zone
+  manifest.loaf:12:20: [E045] route '/admin' of web requires the role admn, which no pattern declares (roles: admin)
   lib/b.loaf:7:3: [E050] levels public < internal < secret differ from public < secret declared by another pattern of the stack
   lib/b.loaf:7:3: [E051] zone 'rh' is already defined with another label or boundary
   manifest.loaf:6:19: [E052] constraint c1 of p: unsafe variables: 'X' is unsafe

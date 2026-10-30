@@ -45,7 +45,7 @@ COPY profiles /usr/share/hamac/profiles
 # de son installation, dune-site ne le trouverait pas.
 COPY vocabulary /usr/share/hamac/vocabulary
 
-# Images OS dérivées (raw.zst + .bmap, cf. doc/typst/provisioning-spec.typ §3.1 et
+# Images OS dérivées (raw.zst + .bmap, cf. doc/typst/provisioning.typ §3.1 et
 # tools/discovery-prototype/pxe-build/prepare-os-assets.sh) : générées et
 # copiées par la CI (build:hamac-discovery-image), PAS dans
 # /var/lib/hamac-discovery/images (le défaut du code, `images_dir`/

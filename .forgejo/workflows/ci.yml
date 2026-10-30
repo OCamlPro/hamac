@@ -297,7 +297,7 @@ jobs:
           mkdir -p docker/hamac-discovery/vocabulary
           cp pkgs/hamac-manifest/vocabulary/hamac.loaf docker/hamac-discovery/vocabulary/
           # Les images OS dérivées (raw.zst + .bmap) ne sont pas générées ici :
-          # cf. doc/typst/provisioning-spec.typ §3.1. Le Dockerfile les COPY, donc le
+          # cf. doc/typst/provisioning.typ §3.1. Le Dockerfile les COPY, donc le
           # répertoire doit exister même vide.
           mkdir -p docker/hamac-discovery/images
           docker build --build-arg "VCS_REF=${GITHUB_SHA}" \
