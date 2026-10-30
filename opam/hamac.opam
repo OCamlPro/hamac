@@ -2,7 +2,6 @@
 opam-version: "2.0"
 depends: [
   "dune" {>= "3.14"}
-  "bos" {build}
   "cmdliner" {build}
   "cohttp-lwt-unix" {build}
   "fmt" {build}
@@ -10,7 +9,6 @@ depends: [
   "hamac-clingo" {build}
   "hamac-manifest" {build}
   "hamac-provisioning" {build}
-  "jingoo" {build}
   "logs" {build}
   "lwt" {build}
   "opam-marmiton" {>= "0.1.0" & with-dev-setup}

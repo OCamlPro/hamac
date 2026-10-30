@@ -68,7 +68,6 @@
   (name hamac)
   (allow_empty)
   (depends
-    (bos :build)
     (cmdliner :build)
     (cohttp-lwt-unix :build)
     (fmt :build)
@@ -76,7 +75,6 @@
     (hamac-clingo :build)
     (hamac-manifest :build)
     (hamac-provisioning :build)
-    (jingoo :build)
     (logs :build)
     (lwt :build)
     (opam-marmiton (and (>= 0.1.0) :with-dev-setup))

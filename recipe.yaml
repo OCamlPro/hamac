@@ -54,12 +54,10 @@ dune:
         - name: hamac-manifest
         - name: hamac-provisioning
         - name: fpath
-        - name: bos
         - name: hamac-clingo
         - name: logs
           modules: [logs.fmt]
         - name: cmdliner
-        - name: jingoo
         - name: cohttp-lwt-unix
         - name: lwt
         - name: yojson
