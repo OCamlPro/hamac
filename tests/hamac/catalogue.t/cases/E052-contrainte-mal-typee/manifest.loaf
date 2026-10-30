@@ -1,6 +1,6 @@
 % E052-contrainte-mal-typee
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 pattern p {
   constraint c1 { expr "forall h in hosts: count(h) <= 1". }

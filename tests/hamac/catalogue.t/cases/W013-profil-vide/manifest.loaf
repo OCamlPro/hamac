@@ -1,6 +1,6 @@
 % W013-profil-vide
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 provisioning_profile vide {
   os "debian-13-amd64" {

@@ -1,6 +1,6 @@
 % E040-lecture-vers-le-haut
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service vault {
   runtime http.

@@ -1,7 +1,7 @@
 % E041-requete-a-travers-une-diode
 loaf 0.1.
 module enclave 1.0.0.
-use hamac 0.1.
+use hamac 0.2.
 
 pattern enclave {
   levels [low, high].

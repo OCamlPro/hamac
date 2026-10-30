@@ -57,7 +57,7 @@ erreur de syntaxe.
 
   $ cat > faults.loaf <<'EOF'
   > loaf 0.1.
-  > use hamac 0.1.
+  > use hamac 0.2.
   > 
   > service app {
   >   runtime http.
@@ -81,17 +81,17 @@ erreur de syntaxe.
   [1]
   $ cat > refusals.loaf <<'EOF'
   > loaf 0.1.
-  > use hamac 0.1.
+  > use hamac 0.2.
   > service app { runtime http. affinity nobody. }
   > EOF
   $ hamac validate refusals.loaf
   hamac: [ERROR] refusals.loaf:3:29: [L002] service.affinity(app, nobody): nobody does not belong to sort service
   [1]
-  $ printf 'loaf 0.1.\nuse hamac 0.1.\nservice app { replicas 2. }\n' > missing.loaf
+  $ printf 'loaf 0.1.\nuse hamac 0.2.\nservice app { replicas 2. }\n' > missing.loaf
   $ hamac validate missing.loaf
   hamac: [ERROR] missing.loaf:3:1: [L007] service(app): field runtime has no value
   [1]
-  $ printf 'loaf 0.1.\nuse hamac 0.1.\nservice app { runtime http }\n' > syntax.loaf
+  $ printf 'loaf 0.1.\nuse hamac 0.2.\nservice app { runtime http }\n' > syntax.loaf
   $ hamac validate syntax.loaf
   hamac: [ERROR] syntax.loaf:3:28: [E001] syntax error before '}'; expected, among others: '.' ending an instruction, ':-', ',' or ';'
   [1]
@@ -104,7 +104,7 @@ la déclaration de son bloc : un attribut mal orthographié, un attribut du bloc
 refusés.
 
   $ for t in '~.database.usr' '~.database.runtime' '~.runtime' '~.user'; do
-  >   printf 'loaf 0.1.\nuse hamac 0.1.\nservice app {\n  runtime http.\n  consumes db {\n    capability database.\n    inject "URL", fmt("{%s}").\n  }\n}\n' "$t" > typo.loaf
+  >   printf 'loaf 0.1.\nuse hamac 0.2.\nservice app {\n  runtime http.\n  consumes db {\n    capability database.\n    inject "URL", fmt("{%s}").\n  }\n}\n' "$t" > typo.loaf
   >   echo "{$t}"; hamac validate typo.loaf $R/providers/*.loaf 2>&1 | sed "s|$R/||"
   > done
   {~.database.usr}
@@ -121,7 +121,7 @@ par un provider de cette capacité (E024).
 
   $ cat > contract.loaf <<'EOF'
   > loaf 0.1.
-  > use hamac 0.1.
+  > use hamac 0.2.
   > service memo { runtime http. capability cache. }
   > service other { runtime http. }
   > database other { host "db". port 5432. user "u". password "p". dbname "d". }
@@ -580,11 +580,11 @@ paramètres d'un bundle que la liste ne nomme pas sont refusés (E007).
 
   $ for b in first second; do
   >   mkdir -p bundles/$b
-  >   printf 'loaf 0.1.\nuse hamac 0.1.\nbundle %s {}\n' $b > bundles/$b/bundle.loaf
+  >   printf 'loaf 0.1.\nuse hamac 0.2.\nbundle %s {}\n' $b > bundles/$b/bundle.loaf
   >   printf 'timezone: %s\n' $b > bundles/$b/cloud-init.yaml.j2
   > done
   $ profile () {
-  >   printf 'loaf 0.1.\nuse hamac 0.1.\nprovisioning_profile p {\n  os "img" { url "http://x/img.qcow2". sha256 "%s". format qcow2. }\n  %s\n}\n' \
+  >   printf 'loaf 0.1.\nuse hamac 0.2.\nprovisioning_profile p {\n  os "img" { url "http://x/img.qcow2". sha256 "%s". format qcow2. }\n  %s\n}\n' \
   >     0000000000000000000000000000000000000000000000000000000000000000 "$1" > p.loaf
   >   hamac provision-dryrun --profile=p.loaf --bundles-dir=bundles 2>&1 | grep -E '^timezone|ERROR'
   > }

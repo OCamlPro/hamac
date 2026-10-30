@@ -5,7 +5,7 @@
 % pattern, stack, infrastructure, provisioning_profile, bundle), les contrats
 % des capacités (database, cache), leurs énumérations, les termes que Hamac
 % rend au déploiement, et les règles qui complètent le format. Un manifeste
-% le charge par « use hamac 0.1. ».
+% le charge par « use hamac 0.2. ».
 %
 % Conventions :
 % - le nom d'un manifeste est le sujet de son bloc, une constante LOAF ; le
@@ -26,7 +26,7 @@
 %   Hamac applique.
 
 loaf 0.1.
-module hamac 0.1.0.
+module hamac 0.2.0.
 
 % ---------------------------------------------------------------------
 % Service

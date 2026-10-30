@@ -1,6 +1,6 @@
 % E024-contrat-absent
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service db {
   runtime http.

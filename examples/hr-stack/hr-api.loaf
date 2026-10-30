@@ -5,7 +5,7 @@
 % porte l'autorisation que la bordure vérifie avant de transmettre.
 
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service hr_api {
   runtime http.

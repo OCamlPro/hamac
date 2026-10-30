@@ -160,7 +160,7 @@ log_step "5. Create and push provisioning_profile"
 HOST_FROM_VM="10.0.2.2"
 cat > "$PROFILE_FILE" <<EOF
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 provisioning_profile e2e_test {
   os "e2e-fake-os" {

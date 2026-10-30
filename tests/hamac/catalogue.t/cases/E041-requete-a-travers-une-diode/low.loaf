@@ -1,6 +1,6 @@
 % E041-requete-a-travers-une-diode
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service sensor {
   runtime http.

@@ -1,6 +1,6 @@
 % E012-bundle-liste-deux-fois
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 provisioning_profile p {
   os "debian-13-amd64" {

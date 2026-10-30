@@ -1,6 +1,6 @@
 % E023-aucun-provider
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service web {
   runtime http.

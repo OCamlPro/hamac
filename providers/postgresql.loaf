@@ -7,7 +7,7 @@
 % nom du service consommateur.
 
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service postgresql {
   runtime http.

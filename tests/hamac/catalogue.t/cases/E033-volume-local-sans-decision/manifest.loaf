@@ -1,6 +1,6 @@
 % E033-volume-local-sans-decision
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service web {
   runtime http.

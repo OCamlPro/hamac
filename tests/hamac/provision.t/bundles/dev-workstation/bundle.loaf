@@ -7,7 +7,7 @@
 % Aucune dépendance vers d'autres bundles pour le moment.
 
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 bundle dev_workstation {
   version "0.1.0".

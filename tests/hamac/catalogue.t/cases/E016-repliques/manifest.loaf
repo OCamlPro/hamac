@@ -1,6 +1,6 @@
 % E016-repliques
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service web {
   runtime http.

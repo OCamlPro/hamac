@@ -5,7 +5,7 @@
 % postgresql.loaf pour les termes input, instance et consumer).
 
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 service redis {
   runtime http.

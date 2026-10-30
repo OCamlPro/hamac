@@ -1,7 +1,7 @@
 % E051-zone-definie-deux-fois
 loaf 0.1.
 module b 1.0.0.
-use hamac 0.1.
+use hamac 0.2.
 
 pattern b {
   zone rh { level secure. }

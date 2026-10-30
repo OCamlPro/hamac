@@ -1,7 +1,7 @@
 % E050-treillis-incompatibles
 loaf 0.1.
 module a 1.0.0.
-use hamac 0.1.
+use hamac 0.2.
 
 pattern a {
   levels [public, secret].

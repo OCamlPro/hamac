@@ -9,7 +9,7 @@
 
 loaf 0.1.
 module exemple_rh 1.0.0.
-use hamac 0.1.
+use hamac 0.2.
 
 pattern exemple_rh {
   levels [public, internal, confidential].

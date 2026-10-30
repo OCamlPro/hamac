@@ -9,7 +9,7 @@
 % jamais d'un fichier versionné.
 
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 provisioning_profile dev_workstation_demo {
   cloud_init_extra "{runcmd: [systemctl enable --now ssh]}".

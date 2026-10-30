@@ -7,7 +7,7 @@
 % création de la machine, pas ici.
 
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 
 provisioning_profile dev_workstation {
   % SSH activé au boot (l'image cloud Debian a sshd installé). La clé ou le

@@ -13,12 +13,13 @@ Champ obligatoire absent :
   hamac: [ERROR] missing-runtime.loaf:7:1: [L007] service(api): field runtime has no value
   [1]
 
-Sorte de manifeste inconnue : LOAF l'accepte aujourd'hui sans rien dire (un
-prédicat non déclaré est permis, défini par un seul fichier : un bloc mal
-orthographié passe pour un prédicat intermédiaire), et Hamac ne lit que ses
-sortes. Défaut signalé à LOAF : ce test changera avec lui.
+Sorte de manifeste inconnue : un bloc, et une instruction écrite dans un
+bloc, utilisent un bloc et un champ déclarés ; LOAF refuse le reste (L001).
 
   $ hamac validate unknown-block.loaf
+  hamac: [ERROR] unknown-block.loaf:7:1: [L001] widget(web). — widget is not declared: no block declaration of this name
+  hamac: [ERROR] unknown-block.loaf:8:3: [L001] widget.runtime(web, http). — widget.runtime is not declared: its block declares no such field
+  [1]
 
 Valeur hors de la sorte du champ :
 

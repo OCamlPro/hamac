@@ -10,7 +10,7 @@
 %     providers/*.loaf
 
 loaf 0.1.
-use hamac 0.1.
+use hamac 0.2.
 use exemple_rh 1.0.
 
 stack hr {
