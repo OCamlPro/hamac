@@ -1,0 +1,7 @@
+% E004-nom-dns
+loaf 0.1.
+use hamac 0.2.
+
+service un_nom_de_service_bien_trop_long_pour_tenir_dans_une_etiquette_dns {
+  runtime http.
+}

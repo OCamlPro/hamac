@@ -217,9 +217,10 @@ est absent.
 
 - Le nom d'un manifeste est une constante LOAF (`hr_api`). Le nom DNS d'un
   service, sous lequel les autres le joignent, s'en déduit en remplaçant `_`
-  par `-` : le service `hr_api` est joint sous le nom `hr-api`. Un nom de
-  manifeste #devrait donc ne contenir que des minuscules, des chiffres et
-  `_`, et ne pas dépasser 63 caractères.
+  par `-` : le service `hr_api` est joint sous le nom `hr-api`. Le nom d'un
+  service #doit donc ne contenir que des minuscules, des chiffres et `_`, ni
+  commencer ni finir par `_`, et ne pas dépasser 63 caractères
+  (#code("E004")).
 - Les valeurs des énumérations s'écrivent avec `_` là où le nom usuel porte
   `-` : `oci_image`, `measured_tpm2`, `docker_compose`.
 - Un champ à plusieurs valeurs porte un nom au singulier ; chaque instruction
@@ -1427,6 +1428,7 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   [Code], [Étage], [Condition],
   code("E001"), [1], [erreur lexicale ou de syntaxe ; fichier illisible ;
     vocabulaire introuvable],
+  code("E004"), [2], [nom de service qui n'est pas un nom DNS],
   code("E006"), [2], [champ qui en exige un autre : `min_replicas` sans
     `max_replicas` ou l'inverse ; `readiness_interval` ou `readiness_timeout`
     sans `readiness` ; route sans `zone` ; catégories d'un patron sans

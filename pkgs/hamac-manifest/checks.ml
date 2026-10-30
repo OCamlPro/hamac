@@ -63,7 +63,18 @@ let template_secrets s =
     | Some j -> go (j + 1) acc
   in go 0 []
 
+(** A DNS label (RFC 1123): 1 to 63 lowercase letters, digits and [-], not
+    at either end. *)
+let is_dns_label s =
+  let n = String.length s in
+  n >= 1 && n <= 63 && s.[0] <> '-' && s.[n - 1] <> '-'
+  && String.for_all (fun c -> (c >= 'a' && c <= 'z') || is_digit c || c = '-') s
+
 let check_service e (svc : service_manifest) =
+  if not (is_dns_label svc.name) then
+    e "E004" []
+      (Printf.sprintf "the name of service %s is not a DNS label: 1 to 63 lowercase letters, \
+                       digits and '_', '_' neither first nor last" svc.name);
   (match svc.artifact with
    | Some a ->
      if not (is_sha256 a.sha256) then
