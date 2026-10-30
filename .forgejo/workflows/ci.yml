@@ -128,15 +128,14 @@ jobs:
       - name: Smoke test des fichiers livrés
         run: |
           set -eux
-          opam exec -- dune exec -- hamac validate examples/enterprise-stack providers
+          # Sans avertissement (--strict) : les fichiers livrés sont des modèles.
+          opam exec -- dune exec -- hamac validate --strict examples/enterprise-stack providers
           for p in provisioning-profiles/*.loaf; do
-            opam exec -- dune exec -- hamac validate "$p" templates/bundles
+            opam exec -- dune exec -- hamac validate --strict "$p" templates/bundles
           done
-          # L'exemple complet doit passer, patron (module du dossier), zones, routes
-          # et stockage compris. Pas de --strict : les providers font partie
-          # de l'ensemble, et leurs images (postgres, redis) ne sont pas
-          # épinglées par empreinte (W010).
-          opam exec -- dune exec -- hamac validate examples/hr-stack providers
+          # L'exemple complet doit passer, patron (module du dossier), zones,
+          # routes, stockage et contraintes compris.
+          opam exec -- dune exec -- hamac validate --strict examples/hr-stack providers
           opam exec -- dune exec -- hamac plan examples/hr-stack providers
           opam exec -- dune exec -- hamac plan examples/enterprise-stack providers
           opam exec -- dune exec -- hamac resolve examples/enterprise-stack providers

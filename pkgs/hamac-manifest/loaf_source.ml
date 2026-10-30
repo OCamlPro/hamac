@@ -668,12 +668,18 @@ let loc_of_path cx kind subj (m : manifest) (path : string list) : Diagnostic.lo
     | MService _, ("environment" :: key :: _) -> at "environment" [s key]
     | MService v, ("exposure" :: i :: _) ->
       Option.bind (nth v.exposure i (fun x -> s x.hostname)) (fun h -> at "exposure" [h])
-    | MService v, ("security" :: "route_labels" :: i :: _) ->
+    | MService _, ["security"; "zone"] -> at "zone" []
+    | MService v, ("security" :: "route_labels" :: i :: rest) ->
       Option.bind (Option.bind v.security (fun sec -> nth sec.route_labels i (fun r -> s r.route)))
-        (fun r -> at "route" [r])
+        (fun r -> match rest with
+           | ["classification"] -> at "route.classification" [r]
+           | ["categories"] -> at "route.category" [r]
+           | _ -> at "route" [r])
     | MPattern _, ("assurance" :: z :: _) -> at "assurance" [c z]
-    | MPattern v, ("zones" :: i :: _) ->
-      Option.bind (nth v.zones i (fun z -> c z.zname)) (fun z -> at "zone" [z])
+    | MPattern v, ("zones" :: i :: rest) ->
+      Option.bind (nth v.zones i (fun z -> c z.zname)) (fun z ->
+        if rest = ["level"] then at "zone.level" [z] else at "zone" [z])
+    | MPattern _, ("lattice" :: _) -> at "levels" []
     | MProvisioningProfile _, ("os" :: _) -> at "os" []
     | MProvisioningProfile _, ("bundles" :: _) -> at "bundles" []
     | _ -> None in
@@ -685,10 +691,13 @@ let loc_of_path cx kind subj (m : manifest) (path : string list) : Diagnostic.lo
 (* Loading                                                       *)
 (* ============================================================ *)
 
-(** A manifest of a set of files, and the file of its block. *)
+(** A manifest of a set of files, the file of its block, and the location
+    of the LOAF fact that a path in {!Types} designates (that of the block
+    when there is no closer one), for the diagnostics of later stages. *)
 type source = {
   file: string;
   manifest: manifest;
+  locate: string list -> Diagnostic.loc option;
 }
 
 (** A diagnostic of the language: the Hamac code that starts its message,
@@ -776,7 +785,7 @@ let load ?vocabulary ?(lib = []) (paths : string list)
                List.iter (fun (d : Diagnostic.t) ->
                  cx.diags <- { d with loc = loc_of_path cx kind subj m d.path } :: cx.diags)
                  (Checks.check m);
-               Some { file; manifest = m })
+               Some { file; manifest = m; locate = loc_of_path cx kind subj m })
           | _ -> None)) kinds in
       let diags = Diagnostic.sort (errors @ List.rev cx.diags) in
       (sources, located diags)

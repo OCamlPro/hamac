@@ -17,6 +17,8 @@ type loaded = {
   manifest: manifest option;
     (** [None]: the entry only carries the diagnostics of a file *)
   diags: Diagnostic.t list;
+  locate: string list -> Diagnostic.loc option;
+    (** location of a path of the manifest ({!Loaf_source.source}) *)
 }
 
 (** A finding, attributed to a file. *)
@@ -29,7 +31,7 @@ type finding = string * Diagnostic.t
 let load_all ?vocabulary ?lib (files : string list) : loaded list =
   let sources, diags = Loaf_source.load ?vocabulary ?lib files in
   let entries = List.map (fun (s : Loaf_source.source) ->
-    { file = s.file; manifest = Some s.manifest; diags = [] }) sources in
+    { file = s.file; manifest = Some s.manifest; diags = []; locate = s.locate }) sources in
   let of_file f = List.filter_map (fun (g, d) -> if g = f then Some d else None) diags in
   let files_with_diags = List.sort_uniq compare (List.map fst diags) in
   let entries, attached = List.fold_left (fun (acc, attached) e ->
@@ -38,7 +40,8 @@ let load_all ?vocabulary ?lib (files : string list) : loaded list =
     ([], []) entries in
   entries @ List.filter_map (fun f ->
     if List.mem f attached then None
-    else Some { file = f; manifest = None; diags = of_file f }) files_with_diags
+    else Some { file = f; manifest = None; diags = of_file f; locate = (fun _ -> None) })
+    files_with_diags
 
 (** For commands that consume manifests: the manifests of the files and
     their warnings, or the errors that make them unusable. *)
@@ -55,6 +58,12 @@ let load_files ?vocabulary ?lib (files : string list)
 let services_of (ls : loaded list) =
   List.filter_map (fun l -> match l.manifest with
     | Some (MService s) -> Some (l.file, s) | _ -> None) ls
+
+(** [d] at the location of its path in the manifest of [l]. *)
+let located (l : loaded) (d : Diagnostic.t) =
+  match d.loc with
+  | Some _ -> d
+  | None -> { d with loc = l.locate d.path }
 
 (** The providers of a set of files, by name. A set includes the providers
     its services consume (the vocabulary resolves them): a service that the
@@ -90,26 +99,29 @@ let stacks_of (ls : loaded list) =
 
 let check (ls : loaded list) : Lattice.t * finding list =
   let findings = ref [] in
-  let add file code path msg = findings := (file, Diagnostic.make code path msg) :: !findings in
+  let report (l : loaded) d = findings := (l.file, located l d) :: !findings in
   (* Lattice *)
-  let pats = patterns_of ls in
+  let pats = List.filter_map (fun l -> match l.manifest with
+    | Some (MPattern p) -> Some (l, p) | _ -> None) ls in
   let lattice, ldiags = Lattice.of_patterns (List.map snd pats) in
   List.iter (fun (pname, d) ->
-    let file = match List.find_opt (fun (_, (p : pattern_manifest)) -> p.pat_name = pname) pats with
-      | Some (f, _) -> f | None -> pname in
-    findings := (file, d) :: !findings) ldiags;
-  let services = services_of ls in
+    match List.find_opt (fun (_, (p : pattern_manifest)) -> p.pat_name = pname) pats with
+    | Some (l, _) -> report l d
+    | None -> ()) ldiags;
+  let services = List.filter_map (fun l -> match l.manifest with
+    | Some (MService s) -> Some (l, s) | _ -> None) ls in
   let all_services = List.map snd services in
   (* Zones and route labels *)
-  List.iter (fun (file, (svc : service_manifest)) ->
+  List.iter (fun (l, (svc : service_manifest)) ->
+    let add code path msg = report l (Diagnostic.make code path msg) in
     match svc.security with
     | None -> ()
     | Some sec ->
       match Lattice.find lattice sec.zone with
       | None ->
-        add file "E042" ["security"; "zone"]
-          (Printf.sprintf "zone '%s' is not defined by the stack's patterns (zones: %s)"
-             sec.zone (String.concat ", " (Lattice.zone_names lattice)))
+        add "E042" ["security"; "zone"]
+          (Printf.sprintf "zone '%s' of %s is not defined by the stack's patterns (zones: %s)"
+             sec.zone svc.name (String.concat ", " (Lattice.zone_names lattice)))
       | Some z ->
         List.iteri (fun i (r : route_label) ->
           let p = ["security"; "route_labels"; string_of_int i] in
@@ -118,26 +130,26 @@ let check (ls : loaded list) : Lattice.t * finding list =
            | Some c ->
              match Lattice.rank_of lattice.levels c with
              | None ->
-               add file "E042" (p @ ["classification"])
-                 (Printf.sprintf "level '%s' is not in the lattice (%s)" c
+               add "E042" (p @ ["classification"])
+                 (Printf.sprintf "level '%s' of route '%s' is not in the lattice (%s)" c r.route
                     (String.concat " < " lattice.levels))
              | Some rank when rank > z.rank ->
-               add file "E044" (p @ ["classification"])
+               add "E044" (p @ ["classification"])
                  (Printf.sprintf "route '%s' is classified %s, above zone %s (%s): a service \
                                   holds no data more sensitive than its zone"
                     r.route c z.name (Lattice.label_to_string z))
              | Some _ -> ());
           List.iter (fun cat ->
             if not (List.mem cat z.categories) then
-              add file "E044" (p @ ["categories"])
+              add "E044" (p @ ["categories"])
                 (Printf.sprintf "category '%s' of route '%s' is not a category of zone %s (%s)"
                    cat r.route z.name (Lattice.label_to_string z)))
             r.categories) sec.route_labels) services;
-  (* Flows: E020, E040, E041 *)
+  (* Flows: E040, E041 *)
   let _, ferrs = Flows.declared ~lattice all_services in
   List.iter (fun (e : Flows.error) ->
     match List.find_opt (fun (_, (s : service_manifest)) -> s.name = e.service) services with
-    | Some (file, _) -> findings := (file, e.diag) :: !findings
+    | Some (l, _) -> report l e.diag
     | None -> ()) ferrs;
   (lattice, List.rev !findings)
 
@@ -147,7 +159,13 @@ let run (ls : loaded list) : loaded list * Lattice.t * finding list =
   let lattice, findings = check ls in
   let accept = List.exists (fun (_, (s : stack_manifest)) -> s.accept_experimental) (stacks_of ls) in
   let per_file = List.concat_map (fun l -> List.map (fun d -> (l.file, d)) l.diags) ls in
-  let all = per_file @ findings in
+  (* A fault that the vocabulary and the composition of the lattice both
+     see (a level of a zone outside the lattice of its pattern) is reported
+     once. *)
+  let seen (_, (d : Diagnostic.t)) =
+    d.loc <> None
+    && List.exists (fun (_, (e : Diagnostic.t)) -> e.code = d.code && e.loc = d.loc) per_file in
+  let all = per_file @ List.filter (fun f -> not (seen f)) findings in
   let all = if accept then List.filter (fun (_, (d : Diagnostic.t)) -> d.code <> "W001") all
     else all in
   (ls, lattice, all)

@@ -81,7 +81,7 @@ Une lecture vers le haut est refusée : `portal` (zone public) ne peut pas
 consommer `payroll` (zone secure).
 
   $ hamac plan portal-read-up.loaf payroll.loaf
-  hamac: [ERROR] portal-read-up.loaf: consumes.0: [E040] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
+  hamac: [ERROR] portal-read-up.loaf:11:3: [E040] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.
   [1]
   $ hamac simulate portal-read-up.loaf payroll.loaf
   hamac: [ERROR] [E040] portal (zone public) cannot consume payroll (zone secure): opening a connection to a more sensitive zone is a read up, forbidden by the Bell-LaPadula model. If payroll must expose data to zone public, have it push the declassified data to a service of that zone through a declared guard.

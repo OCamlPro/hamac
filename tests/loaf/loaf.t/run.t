@@ -27,8 +27,6 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   providers/redis.loaf: service (name=redis, runtime=http)
   examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple-rh, version=1.0.0, 3 zones, 2 constraints)
   examples/hr-stack/stack.loaf: stack (name=hr, 3 services)
-  hamac: [WARNING] providers/postgresql.loaf:25:3: [W010] artifact.path: OCI image 'postgres:15-alpine' is not pinned by digest (@sha256:…)
-  hamac: [WARNING] providers/redis.loaf:19:3: [W010] artifact.path: OCI image 'redis:7-alpine' is not pinned by digest (@sha256:…)
 
   $ hamac validate $R/examples/enterprise-stack $R/providers 2>&1 | sed "s|$R/||"
   examples/enterprise-stack/analytics.loaf: service (name=analytics, runtime=eventloop)
@@ -36,8 +34,6 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
   examples/enterprise-stack/web_api.loaf: service (name=web-api, runtime=http)
-  hamac: [WARNING] providers/postgresql.loaf:25:3: [W010] artifact.path: OCI image 'postgres:15-alpine' is not pinned by digest (@sha256:…)
-  hamac: [WARNING] providers/redis.loaf:19:3: [W010] artifact.path: OCI image 'redis:7-alpine' is not pinned by digest (@sha256:…)
 
 Un profil nomme ses bundles : il se charge avec eux.
 
@@ -74,12 +70,12 @@ erreur de syntaxe.
   $ hamac validate faults.loaf
   faults.loaf: service (name=app, runtime=http)
   hamac: [ERROR] faults.loaf:6:3: [E016] replicas must be at least 1
-  hamac: [ERROR] faults.loaf:11:3: [E011] artifact.sha256: expected 64 hexadecimal characters (SHA-256)
-  hamac: [ERROR] faults.loaf:8:3: [E014] resources.memory_request: request above its limit
-  hamac: [ERROR] faults.loaf:7:18: [E031] storage.0.mount: mount 'rel/path' is not an absolute path
-  hamac: [ERROR] faults.loaf:7:3: [E033] storage.0: local volume 'data' has neither 'backup' nor 'rebuild': decide what happens to its data when the node is lost
-  hamac: [WARNING] faults.loaf:7:3: [W001] storage: 'storage' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
-  hamac: [WARNING] faults.loaf:10:3: [W012] environment.DB_PASSWORD: looks like a literal secret: declare it in 'secrets'
+  hamac: [ERROR] faults.loaf:11:3: [E011] sha256 of the artifact of app: expected 64 hexadecimal characters
+  hamac: [ERROR] faults.loaf:8:3: [E014] memory_request of app above its memory_limit
+  hamac: [ERROR] faults.loaf:7:18: [E031] mount 'rel/path' of volume data is not an absolute path
+  hamac: [ERROR] faults.loaf:7:3: [E033] local volume 'data' has neither 'backup' nor 'rebuild': decide what happens to its data when the node is lost
+  hamac: [WARNING] faults.loaf:7:3: [W001] 'storage' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
+  hamac: [WARNING] faults.loaf:10:3: [W012] environment DB_PASSWORD of app looks like a literal secret: declare it as a secret
   [1]
   $ cat > refusals.loaf <<'EOF'
   > loaf 0.1.
@@ -256,8 +252,9 @@ premier port.
   (Types.MService
      { Types.name = "postgresql"; runtime = "http";
        artifact =
-       (Some { Types.path = "postgres:15-alpine";
-               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+       (Some { Types.path =
+               "postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
+               sha256 = "54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
                format = "oci-image" });
        capability = (Some "database");
        inputs =
@@ -282,8 +279,9 @@ premier port.
   (Types.MService
      { Types.name = "redis"; runtime = "http";
        artifact =
-       (Some { Types.path = "redis:7-alpine";
-               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+       (Some { Types.path =
+               "redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
+               sha256 = "8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
                format = "oci-image" });
        capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
        consumes = [];
@@ -420,8 +418,9 @@ premier port.
   (Types.MService
      { Types.name = "postgresql"; runtime = "http";
        artifact =
-       (Some { Types.path = "postgres:15-alpine";
-               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+       (Some { Types.path =
+               "postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
+               sha256 = "54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
                format = "oci-image" });
        capability = (Some "database");
        inputs =
@@ -446,8 +445,9 @@ premier port.
   (Types.MService
      { Types.name = "redis"; runtime = "http";
        artifact =
-       (Some { Types.path = "redis:7-alpine";
-               sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+       (Some { Types.path =
+               "redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
+               sha256 = "8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
                format = "oci-image" });
        capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
        consumes = [];

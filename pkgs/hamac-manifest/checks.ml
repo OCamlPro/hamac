@@ -67,29 +67,36 @@ let check_service e (svc : service_manifest) =
   (match svc.artifact with
    | Some a ->
      if not (is_sha256 a.sha256) then
-       e "E011" ["artifact"; "sha256"] "expected 64 hexadecimal characters (SHA-256)";
+       e "E011" ["artifact"; "sha256"]
+         (Printf.sprintf "sha256 of the artifact of %s: expected 64 hexadecimal characters" svc.name);
      if a.format = "oci-image" && not (String.contains a.path '@') then
        e "W010" ["artifact"; "path"]
-         (Printf.sprintf "OCI image '%s' is not pinned by digest (@sha256:…)" a.path)
+         (Printf.sprintf "OCI image '%s' of %s is not pinned by digest (@sha256:…)" a.path svc.name)
    | None -> ());
   (match svc.resources with
    | None -> ()
    | Some r ->
      let q ~cpu v = Option.bind v (quantity_value ~cpu) in
      (match q ~cpu:false r.memory_request, q ~cpu:false r.memory_limit with
-      | Some a, Some b when a > b -> e "E014" ["resources"; "memory_request"] "request above its limit"
+      | Some a, Some b when a > b ->
+        e "E014" ["resources"; "memory_request"]
+          (Printf.sprintf "memory_request of %s above its memory_limit" svc.name)
       | _ -> ());
      (match q ~cpu:true r.cpu_request, q ~cpu:true r.cpu_limit with
-      | Some a, Some b when a > b -> e "E014" ["resources"; "cpu_request"] "request above its limit"
+      | Some a, Some b when a > b ->
+        e "E014" ["resources"; "cpu_request"]
+          (Printf.sprintf "cpu_request of %s above its cpu_limit" svc.name)
       | _ -> ()));
   (match svc.health_check with
    | Some h when h.timeout >= h.interval ->
-     e "W011" ["health_check"; "timeout"] "timeout is not shorter than interval"
+     e "W011" ["health_check"; "timeout"]
+       (Printf.sprintf "health check of %s: timeout is not shorter than interval" svc.name)
    | _ -> ());
   List.iteri (fun i v ->
     let p = ["storage"; string_of_int i] in
     if String.length v.mount = 0 || v.mount.[0] <> '/' then
-      e "E031" (p @ ["mount"]) (Printf.sprintf "mount '%s' is not an absolute path" v.mount);
+      e "E031" (p @ ["mount"])
+        (Printf.sprintf "mount '%s' of volume %s is not an absolute path" v.mount v.st_name);
     if v.st_class = "local" && v.rebuild = None && svc.backup = None then
       e "E033" p
         (Printf.sprintf "local volume '%s' has neither 'backup' nor 'rebuild': decide what \
@@ -98,7 +105,7 @@ let check_service e (svc : service_manifest) =
     match s.sec_ref with
     | Some r when not (String.contains r ':') ->
       e "E007" ["secrets"; string_of_int i; "ref"]
-        (Printf.sprintf "secret reference '%s' (expected <backend>:<path>[#<key>])" r)
+        (Printf.sprintf "reference '%s' of secret %s: expected <backend>:<path>[#<key>]" r s.sec_name)
     | _ -> ()) svc.secrets;
   (* The vocabulary checks the secrets of the environment; those of an
      inject come from a template filled by the model. *)
@@ -108,23 +115,28 @@ let check_service e (svc : service_manifest) =
       List.iter (fun name ->
         if not (List.mem name declared) then
           e "E020" ["consumes"; string_of_int i; "inject"; k]
-            (Printf.sprintf "{secret.%s} refers to no declared secret" name))
+            (Printf.sprintf "inject %s of consumes %s: {secret.%s} refers to no declared secret"
+               k c.name name))
         (template_secrets v)) c.inject) svc.consumes;
   List.iter (fun (k, v) ->
     if secret_like_key (String.uppercase_ascii k) && v <> ""
        && not (String.contains v '{') then
-      e "W012" ["environment"; k] "looks like a literal secret: declare it in 'secrets'")
+      e "W012" ["environment"; k]
+        (Printf.sprintf "environment %s of %s looks like a literal secret: declare it as a secret"
+           k svc.name))
     svc.environment
 
 let check_pattern e (p : pattern_manifest) =
   List.iter (fun (z, _) ->
     if p.zones <> [] && not (List.exists (fun d -> d.zname = z) p.zones) then
-      e "E042" ["assurance"; z] (Printf.sprintf "zone '%s' is not defined by this pattern" z))
+      e "E042" ["assurance"; z]
+        (Printf.sprintf "assurance of zone '%s': the zone is not defined by %s" z p.pat_name))
     p.pat_assurance
 
 let check_profile e (pp : provisioning_profile_manifest) =
   if not (is_sha256 pp.pp_os.os_sha256) then
-    e "E011" ["os"; "sha256"] "expected 64 hexadecimal characters (SHA-256)";
+    e "E011" ["os"; "sha256"]
+      (Printf.sprintf "sha256 of the os of %s: expected 64 hexadecimal characters" pp.pp_name);
   if pp.pp_bundles = [] && pp.pp_cloud_init_extra = None then
     e "W013" ["bundles"]
       "no bundles and no cloud_init_extra: nothing will happen at provision time";

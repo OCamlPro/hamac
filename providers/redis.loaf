@@ -16,8 +16,8 @@ service redis {
   readiness_timeout 30.
   environment "REDIS_PASSWORD", input(password).
 
-  artifact "redis:7-alpine" {
-    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+  artifact "redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f" {
+    sha256 "8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f".
     format oci_image.
   }
 

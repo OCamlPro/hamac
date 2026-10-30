@@ -40,19 +40,17 @@ let path_to_string = function
   | [] -> "(root)"
   | p -> String.concat "." p
 
-(** ["security.zone: [E042] zone 'dmz' is not defined …"] *)
-let to_string d =
-  Printf.sprintf "%s: [%s] %s" (path_to_string d.path) d.code d.message
+(** ["[E042] zone 'dmz' of web is not defined …"]: the message names the
+    element at fault in the terms of the LOAF files, the path is for
+    programs. *)
+let to_string d = Printf.sprintf "[%s] %s" d.code d.message
 
-(** The finding attributed to [file]: ["file: security.zone: [E042] …"], or,
-    when it has a location, ["hr-api.loaf:12:3: [E042] …"] (then followed
-    by its path, if any: ["… [E011] artifact.sha256: expected …"]). *)
+(** The finding with its location, ["hr-api.loaf:12:3: [E042] …"], or,
+    without one, attributed to [file]: ["web.loaf: [E042] …"]. *)
 let to_string_in file d =
   match d.loc with
   | None -> Printf.sprintf "%s: %s" file (to_string d)
-  | Some l ->
-    let where = match d.path with [] -> "" | p -> path_to_string p ^ ": " in
-    Printf.sprintf "%s:%d:%d: [%s] %s%s" l.file l.line l.column d.code where d.message
+  | Some l -> Printf.sprintf "%s:%d:%d: [%s] %s" l.file l.line l.column d.code d.message
 
 let pp fmt d = Format.pp_print_string fmt (to_string d)
 

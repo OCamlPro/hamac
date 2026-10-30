@@ -22,8 +22,8 @@ service postgresql {
   environment "POSTGRES_PASSWORD", input(password).
   environment "POSTGRES_DB", input(dbname).
 
-  artifact "postgres:15-alpine" {
-    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+  artifact "postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984" {
+    sha256 "54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984".
     format oci_image.
   }
 
