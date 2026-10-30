@@ -47,9 +47,9 @@ chacune a son auteur :
     ressources, ses dépendances et sa sensibilité (@service) ; un service qui
     fournit une capacité générique (base de données, cache) à d'autres
     services est un #terme[provider] (@capacites)],
-  [`pattern`], [la personne responsable de la sécurité], [un treillis de
-    sensibilité, des zones, des exigences d'assurance et des contraintes sur
-    la topologie (@pattern)],
+  [`pattern`], [la personne responsable de la sécurité], [des zones, le
+    modèle de sécurité qui les ordonne, des exigences d'assurance et des
+    contraintes sur la topologie (@pattern)],
   [`stack`], [l'équipe d'exploitation], [les services à déployer ensemble et
     les choix qui les concernent (@stack)],
   [`infrastructure`], [le planner de Hamac, relu par l'exploitation], [une
@@ -68,7 +68,8 @@ chacune a son auteur :
 + *Secrets par référence.* Aucun champ ne contient de secret en clair : un
   secret est une référence vers un coffre, ou une valeur que Hamac engendre.
 + *Validation stricte.* Un champ inconnu, une référence à un manifeste absent
-  ou un flux contraire au treillis entraînent le refus des manifestes. Chaque
+  ou un flux que le modèle de sécurité interdit entraînent le refus des
+  manifestes. Chaque
   diagnostic donne un code et l'emplacement de l'instruction fautive
   (@validation).
 + *Vocabulaire versionné.* Le vocabulaire est un module LOAF ; sa version
@@ -90,21 +91,23 @@ lignes `loaf 0.1.` et `use hamac 0.2.` qui ouvrent chaque fichier.
 
 ```loaf
 module exemple_rh 1.0.0.
+use hamac_blp 0.2.       % le modèle de sécurité Bell-LaPadula
+use hamac_rbac 0.2.      % les rôles
 
 pattern exemple_rh {
   % Les niveaux de sensibilité, du moins au plus sensible.
-  levels [public, internal, confidential].
+  blp::levels [public, internal, confidential].
   % Les catégories de besoin d'en connaître.
-  category rh; finance.
+  blp::category rh; finance.
   % Les rôles que l'organisation attribue à ses utilisateurs.
-  role rh; comptable; admin.
+  rbac::role rh; comptable; admin.
 
   % Les zones : chacune porte un niveau et des catégories.
-  zone public { level public. }
-  zone internal { level internal. }
+  zone public { blp::level public. }
+  zone internal { blp::level internal. }
   zone rh {
-    level confidential.
-    category rh; finance.
+    blp::level confidential.
+    blp::category rh; finance.
   }
 
   % Les machines de la zone rh ont un démarrage mesuré par TPM et sont
@@ -114,13 +117,14 @@ pattern exemple_rh {
 }
 ```
 
-Le patron est écrit par la personne responsable de la sécurité. Il fixe le
-vocabulaire de sensibilité que les services emploient : trois niveaux
-ordonnés, deux catégories, trois rôles, et trois zones. Une zone est un
-ensemble de machines et de services qui partagent une même étiquette : la
-zone `rh` accueille des données confidentielles des catégories `rh` et
-`finance`. Le patron est un module : la stack le charge par
-`use exemple_rh 1.0.` Le fichier complet ajoute des contraintes sur la
+Le patron est écrit par la personne responsable de la sécurité. Il définit
+trois zones, et choisit deux modèles de sécurité livrés avec Hamac :
+`hamac_blp`, qui étiquette chaque zone d'un niveau et de catégories et en
+déduit quelle zone peut lire quelle autre, et `hamac_rbac`, qui gère des
+rôles. Les champs d'un modèle portent son préfixe : `blp::level`,
+`rbac::role`. La zone `rh` accueille ainsi des données confidentielles des
+catégories `rh` et `finance`. Le patron est un module : la stack le charge
+par `use exemple_rh 1.0.` Le fichier complet ajoute des contraintes sur la
 topologie (@contraintes).
 
 == Le provider de base de données
@@ -174,9 +178,9 @@ service hr_api {
 
   route "/health" { public. }
   route "/employees/salaries" {
-    classification confidential.
-    category rh; finance.
-    required_clearance comptable; admin.
+    blp::classification confidential.
+    blp::category rh; finance.
+    rbac::role comptable; admin.
   }
 
   port 8080 {}
@@ -213,9 +217,12 @@ Le bloc `service hr_api` décrit le service sans répéter son nom : chaque
 instruction s'applique à `hr_api`. Le bloc `consumes db` déclare un besoin,
 une base de données ; dans ce bloc, `~` désigne la consommation, et
 `~.database.user` l'attribut `user` du contrat du provider que Hamac lui
-associera. Une route fixe les conditions d'accès à un chemin HTTP : seul un
-utilisateur habilité au niveau `confidential`, détenteur des catégories `rh`
-et `finance` et du rôle `comptable` ou `admin`, lit les salaires.
+associera. Une route fixe les conditions d'accès à un chemin HTTP, dans les
+termes des modèles du patron : seul un utilisateur habilité au niveau
+`confidential`, détenteur des catégories `rh` et `finance` (`hamac_blp`) et
+du rôle `comptable` ou `admin` (`hamac_rbac`), lit les salaires. Le fichier
+d'un service qui emploie ces champs charge leurs modèles
+(`use hamac_blp 0.2.`).
 
 == La stack
 
@@ -258,7 +265,8 @@ aux dossiers `examples/hr-stack` et `providers`, établissent :
   distincts.
 - Si `portal` déclarait `consumes api { service hr_api. }`, l'ensemble serait
   refusé (#code("E040")) : `portal` (zone `public`) ouvrirait une connexion
-  vers une zone plus sensible, ce qui revient à la lire.
+  vers une zone plus sensible, ce qui revient à la lire, et `hamac_blp` ne le
+  permet pas.
 - Une route qui exigerait le rôle `admn`, mal orthographié, serait refusée
   (#code("E045")) : aucun patron ne déclare ce rôle.
 - `zone dmz.` dans un service serait refusée (#code("E042")) : le patron ne
@@ -434,7 +442,7 @@ est absent.
   `-` : `oci_image`, `measured_tpm2`, `docker_compose`.
 - Un champ à plusieurs valeurs porte un nom au singulier ; chaque instruction
   en donne une : `port 8080 { … }`, `secret session_key { … }`,
-  `category rh; finance.`
+  `need public_ipv4; ssd.`
 - Un objet unique est un sous-bloc quand il a un identifiant naturel, qui en
   est le sujet : `artifact`, `health_check`, `metrics`, `backup`, `os`. Sinon
   ses champs sont ceux du bloc qui le contient (ressources, placement, mise à
@@ -950,27 +958,23 @@ service forge {
 
 = Patrons <pattern>
 
-Un #terme[patron] fixe les choix de sécurité d'une organisation : un treillis
-de sensibilité, des zones, des exigences d'assurance, des contraintes sur la
-topologie. Hamac n'en impose aucun ; des organisations aux besoins différents
-utilisent le même outil avec des patrons différents.
+Un #terme[patron] fixe les choix de sécurité d'une organisation : ses zones,
+le modèle de sécurité qui dit quelle zone peut lire quelle autre, des
+exigences d'assurance et des contraintes sur la topologie. Hamac n'impose
+aucun modèle : des organisations aux besoins différents utilisent le même
+outil avec des patrons et des modèles différents.
 
 == Un patron est un module
 
 Un patron est le bloc `pattern` d'un module LOAF, qui en porte la version. La
 stack le charge par `use` (@modules) ; un patron qui en complète un autre
-charge le module de celui-ci. Les patrons de l'ensemble, c'est-à-dire ceux
-des modules que ses fichiers chargent, composent le treillis de la stack.
+charge le module de celui-ci. Les patrons de l'ensemble sont ceux des modules
+que ses fichiers chargent.
 
 #tableau((auto, 1fr),
   [Déclaration], [Sens, défaut et contrôles],
-  [`levels* [name]`], [les niveaux, du moins au plus sensible (@treillis)],
-  [`category* name`], [les catégories de besoin d'en connaître ; des
-    catégories sans aucun niveau donnent #code("E006")],
-  [`role* name`], [les rôles que l'organisation attribue à ses utilisateurs,
-    seuls exigibles par une route (@routes)],
-  [`zone* name { … }`], [une zone (@treillis) : `level name`,
-    `category* name`, `boundary? boundary` (défaut `firewall`, @frontieres)],
+  [`zone* name { … }`], [une zone (@modeles) ; `boundary? boundary`, sa
+    frontière (défaut `firewall`, @frontieres)],
   [`assurance* name, axis => assurance_level`], [#experimental exigence
     d'assurance d'une zone sur un axe (@assurance)],
   [`constraint* name { … }`], [#experimental contrainte sur la topologie
@@ -979,31 +983,36 @@ des modules que ses fichiers chargent, composent le treillis de la stack.
     objectifs (@objectifs)],
 )
 
+S'y ajoutent les champs des modèles de sécurité que le patron charge, écrits
+avec le préfixe de leur modèle : `blp::levels`, `rbac::role`… (@modeles).
+
 Le patron de `examples/hr-stack/patterns/exemple_rh.loaf` :
 
 ```loaf
 loaf 0.1.
 module exemple_rh 1.0.0.
 use hamac 0.2.
+use hamac_blp 0.2.     % le modèle Bell-LaPadula
+use hamac_rbac 0.2.    % les rôles
 
 pattern exemple_rh {
-  levels [public, internal, confidential].
-  category rh; finance.
-  role rh; comptable; admin.
+  blp::levels [public, internal, confidential].
+  blp::category rh; finance.
+  rbac::role rh; comptable; admin.
   assurance rh, boot, measured_tpm2.
   assurance rh, physical, site.
 
-  zone public { level public. }
-  zone internal { level internal. }
+  zone public { blp::level public. }
+  zone internal { blp::level internal. }
 
   zone rh {
-    level confidential.
-    category rh; finance.
+    blp::level confidential.
+    blp::category rh; finance.
   }
 
-  constraint one_level_per_host {
-    description "Deux niveaux ne partagent jamais un noyau".
-    violation "H : level_on(H, L1), level_on(H, L2), L1 != L2".
+  constraint one_zone_per_host {
+    description "Deux zones ne partagent jamais un noyau".
+    violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
   }
 
   constraint stateful_quorum {
@@ -1016,26 +1025,92 @@ pattern exemple_rh {
 }
 ```
 
-== Treillis et zones <treillis>
+== Zones et modèles de sécurité <modeles>
 
-- `levels` donne les niveaux dans l'ordre, du moins au plus sensible : c'est un
-  ordre total.
+Une #terme[zone] est un ensemble de machines et de services traités de la
+même façon : même réseau, même filtrage, mêmes exigences. Chaque service est
+dans une zone (`zone`, @flux), `default` s'il n'en déclare pas. Dès que les
+patrons de l'ensemble définissent des zones, la zone d'un service #doit être
+l'une d'elles (#code("E042")) ; une zone définie par deux patrons #doit avoir
+la même frontière (#code("E051")).
+
+Ouvrir une connexion vers un service revient à le lire. Ce qu'une zone peut
+lire est la relation `zone_leq(A, B)` : la zone `B` peut lire la zone `A`.
+Chaque zone se lit elle-même ; le reste de la relation vient des
+#terme[modèles de sécurité] que chargent les patrons. Sans modèle, un flux ne
+relie donc que des services d'une même zone. Hamac s'appuie sur cette seule
+relation pour accepter ou refuser les flux (@flux) et pour en déduire le
+filtrage entre zones.
+
+Un modèle de sécurité est un module LOAF qui :
+
+- ajoute ses champs aux patrons, aux zones et aux routes, dans son espace de
+  noms : `blp::level` dans une zone, `rbac::role` dans une route ;
+- définit, à partir d'eux, la relation `zone_leq` ;
+- signale les incohérences de ses champs par ses propres diagnostics.
+
+Hamac livre deux modèles et un patron, installés avec le vocabulaire :
+`hamac_blp`, `hamac_rbac` et `hamac_default`. Une organisation peut en
+écrire d'autres, ou combiner les siens avec ceux-ci. Ce modèle minimal, par
+exemple, donne l'ordre des zones par une simple liste :
+
+```loaf
+module ordre 1.0.0.
+use hamac 0.2.
+
+namespace ordre {
+  block pattern {
+    reads* name, name.     % reads b, a : la zone b lit la zone a
+  }
+  ::zone_leq(A, B) :- pattern(P), P.reads(B, A).
+}
+```
+
+Un patron qui le charge écrit `ordre::reads bureau, atelier.` : un service de
+la zone `bureau` peut consommer un service de la zone `atelier`, mais pas
+l'inverse (#code("E040")).
+
+=== Le modèle `hamac_blp` <blp>
+
+`hamac_blp` est le modèle de Bell-LaPadula avec compartiments. Il ajoute :
+
+#tableau((auto, 1fr),
+  [Déclaration], [Sens et contrôles],
+  [`blp::levels* [name]`, au patron], [les niveaux, du moins au plus
+    sensible : un ordre total],
+  [`blp::category* name`, au patron], [les catégories de besoin d'en
+    connaître ; des catégories sans aucun niveau donnent #code("E006")],
+  [`blp::level? name`, à une zone], [le niveau de la zone, l'un des niveaux
+    (#code("E042"))],
+  [`blp::category* name`, à une zone], [ses catégories, déclarées
+    (#code("E042"))],
+  [`blp::classification? name`, à une route], [niveau d'habilitation exigé
+    de l'utilisateur],
+  [`blp::category* name`, à une route], [catégories exigées de
+    l'utilisateur],
+)
+
 - Une #terme[étiquette] est un couple (niveau, ensemble de catégories), et
   (n#sub[1], C#sub[1]) ≤ (n#sub[2], C#sub[2]) si et seulement si
-  n#sub[1] ≤ n#sub[2] et C#sub[1] ⊆ C#sub[2]. Cet ordre définit un treillis,
-  celui du modèle Bell-LaPadula avec compartiments.
-- Une #terme[zone] a un nom, une étiquette (son `level` et ses `category`) et
-  une frontière. Son niveau et ses catégories #doit appartenir au treillis du
-  patron (#code("E042")).
+  n#sub[1] ≤ n#sub[2] et C#sub[1] ⊆ C#sub[2]. Cet ordre définit un treillis.
+- L'étiquette d'une zone est son niveau et ses catégories ; `zone_leq(A, B)`
+  vaut si l'étiquette de `A` est inférieure ou égale à celle de `B`.
+- Une route ne demande pas plus que l'étiquette de la zone de son service :
+  sa classification ne #doit-pas dépasser le niveau de la zone, et ses
+  catégories #doit être des catégories de la zone (#code("E044")). Un
+  service ne sert donc pas de données plus sensibles que sa zone. Une
+  classification qui n'est pas un niveau donne #code("E042"), et une route
+  `public` ne #peut pas exiger de classification ni de catégorie
+  (#code("E043")).
+- *Composition.* Les patrons qui déclarent des niveaux #doit déclarer les
+  mêmes, dans le même ordre (#code("E050")) ; un patron qui n'en déclare pas
+  adopte ceux des autres. Les catégories s'unissent. Une zone étiquetée
+  différemment par deux patrons donne #code("E051").
 
 Une étiquette dit à la fois _à quel point_ une donnée est sensible (le
-niveau) et _à qui_ elle est destinée (les catégories). L'ordre sert à deux
-contrôles : un service ne lit que des zones d'étiquette inférieure ou égale à
-la sienne (@flux), et un utilisateur ne lit une route que si son habilitation
-domine l'étiquette de la route (@routes).
-
-Avec le patron de l'exemple (@exemple), et deux zones `paie` et `dossiers`
-ajoutées pour l'illustration :
+niveau) et _à qui_ elle est destinée (les catégories). Avec le patron de
+l'exemple (@exemple), et deux zones `paie` et `dossiers` ajoutées pour
+l'illustration :
 
 #tableau((auto, auto, 1fr),
   [Zone], [Étiquette], [Comparaisons],
@@ -1054,12 +1129,31 @@ toutes les catégories de l'autre : un service de `paie` ne lit pas un service
 de `dossiers`, ni l'inverse. Un service de `rh`, qui détient les deux
 catégories, lit les deux.
 
-*Composition.* Quand l'ensemble contient plusieurs patrons, leurs niveaux
-#doit être identiques, dans le même ordre (#code("E050")) ; leurs catégories
-s'unissent. Un patron qui ne déclare pas de niveaux adopte ceux des autres.
-Une zone définie par deux patrons avec des étiquettes ou des frontières
-différentes donne #code("E051"). Le niveau d'une zone absent des niveaux
-composés donne #code("E042").
+=== Le modèle `hamac_rbac` <rbac>
+
+`hamac_rbac` est le contrôle d'accès à base de rôles. Il n'ordonne pas les
+zones ; il ajoute :
+
+#tableau((auto, 1fr),
+  [Déclaration], [Sens et contrôles],
+  [`rbac::role* name`, au patron], [les rôles que l'organisation attribue à
+    ses utilisateurs],
+  [`rbac::role* name`, à une route], [rôles dont l'utilisateur #doit
+    détenir au moins un ; un rôle qu'aucun patron de l'ensemble ne déclare
+    donne #code("E045"), une route `public` qui en exige un
+    #code("E043")],
+)
+
+=== Le patron `hamac_default` <default>
+
+`hamac_default` est un patron prêt à l'emploi, pour une organisation qui n'a
+pas encore le sien : le modèle `hamac_blp` avec les niveaux `public` <
+`default` < `internal` < `secure`, sans catégorie, et une zone par niveau, de
+même nom. Une stack le charge par `use hamac_default 0.2.` ; un patron qui
+ne déclare que des rôles peut le charger pour en garder les zones
+(`examples/enterprise-stack/organisation.loaf`).
+
+=== Patrons composés
 
 Un patron qui en complète un autre :
 
@@ -1067,13 +1161,14 @@ Un patron qui en complète un autre :
 loaf 0.1.
 module anssi_hygiene 1.0.0.
 use hamac 0.2.
+use hamac_blp 0.2.
 
 pattern anssi_hygiene {
-  levels [public, default, internal, secure].
+  blp::levels [public, default, internal, secure].
 
-  constraint one_level_per_host {
-    description "Deux niveaux ne partagent jamais un noyau".
-    violation "H : level_on(H, L1), level_on(H, L2), L1 != L2".
+  constraint one_zone_per_host {
+    description "Deux zones ne partagent jamais un noyau".
+    violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
   }
 }
 ```
@@ -1082,21 +1177,22 @@ pattern anssi_hygiene {
 loaf 0.1.
 module anssi_renforce 1.0.0.
 use hamac 0.2.
+use hamac_blp 0.2.
 use anssi_hygiene 1.0.
 
 pattern anssi_renforce {
-  levels [public, default, internal, secure].
-  category finance; rh.
+  blp::levels [public, default, internal, secure].
+  blp::category finance; rh.
 
-  zone public { level public. }
-  zone default { level default. }
-  zone internal { level internal. }
+  zone public { blp::level public. }
+  zone default { blp::level default. }
+  zone internal { blp::level internal. }
   zone rh {
-    level internal.
-    category rh.
+    blp::level internal.
+    blp::category rh.
   }
   zone secure {
-    level secure.
+    blp::level secure.
     boundary diode.
   }
 
@@ -1106,11 +1202,6 @@ pattern anssi_renforce {
   assurance secure, physical, site.
 }
 ```
-
-*Zones par défaut.* Si aucun patron ne définit de zone, chaque niveau est une
-zone de même nom. Sans patron, Hamac applique le patron intégré
-`hamac-default` : les niveaux, et donc les zones, `public` < `default` <
-`internal` < `secure`, sans catégorie ni contrainte.
 
 == Frontières de zone <frontieres>
 
@@ -1204,7 +1295,7 @@ portant les premiers numéros.
   [`place(S, I, H)`], [la réplique `I` de `S` est sur le nœud `H`],
   [`on(S, H)`], [au moins une réplique de `S` est sur `H`],
   [`used(H)`], [le nœud `H` porte au moins une réplique],
-  [`level_on(H, L)`], [une zone de niveau `L` a une réplique sur `H`],
+  [`zone_on(H, Z)`], [un service de la zone `Z` a une réplique sur `H`],
 )
 
 *Contrainte.* Un sous-bloc `constraint` d'un patron, dont le sujet est un
@@ -1229,9 +1320,9 @@ satisfaite quand elle n'a aucune violation. La violation est elle-même une
 chaîne LOAF : ses guillemets internes s'écrivent `\"`.
 
 ```loaf
-constraint one_level_per_host {
-  description "Deux niveaux ne partagent jamais un noyau".
-  violation "H : level_on(H, L1), level_on(H, L2), L1 != L2".
+constraint one_zone_per_host {
+  description "Deux zones ne partagent jamais un noyau".
+  violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
 }
 
 constraint stateful_quorum {
@@ -1286,11 +1377,11 @@ Chaque consommation de service (`consumes … { service t. }`) déclare un flux
 réseau, du consommateur vers le service consommé.
 
 #regle[
-  *Treillis.* Ouvrir une connexion vers un service revient à le lire.
-  L'étiquette de la zone du consommé #doit donc être inférieure ou égale à
-  celle de la zone du consommateur (@treillis). Dans le cas contraire, le flux
-  est une lecture vers le haut, refusée (#code("E040")). Aucun champ ne permet
-  de déroger à cette règle.
+  *Lecture.* Ouvrir une connexion vers un service revient à le lire. Le
+  modèle de sécurité des patrons #doit donc permettre à la zone du
+  consommateur de lire celle du consommé (`zone_leq`, @modeles). Dans le cas
+  contraire, le flux est refusé (#code("E040")). Aucun champ ne permet de
+  déroger à cette règle.
 ]
 
 - Seuls les flux déclarés sont ouverts, vers les seuls ports déclarés du
@@ -1300,7 +1391,7 @@ réseau, du consommateur vers le service consommé.
   (@frontieres), le flux #doit être de mode `push` (#code("E041")).
 
 Dans l'exemple (@exemple), si `hr_api` (zone `rh`) consommait le portail
-(zone `public`), il lirait vers le bas, ce que le treillis permet :
+(zone `public`), il lirait vers le bas, ce que le modèle `hamac_blp` permet :
 
 ```loaf
 service hr_api {
@@ -1320,9 +1411,8 @@ Le flux inverse, `portal` qui consommerait `hr_api`, est refusé dès la
 validation :
 
 ```
-portal.loaf:19:3: [E040] portal (zone public) cannot consume hr_api (zone rh):
-opening a connection to a more sensitive zone is a read up, forbidden by the
-Bell-LaPadula model. […]
+portal.loaf:20:5: [E040] portal (zone public) cannot consume hr_api (zone rh):
+the security model of the patterns does not let zone public read zone rh; […]
 ```
 
 Écrire vers le bas, c'est-à-dire qu'un service sensible envoie des données à
@@ -1340,42 +1430,35 @@ avant que la requête ne l'atteigne.
   [`route* string { … }`], [le sujet est le chemin ; `*` en fin de segment
     couvre tout suffixe (`/salary/*`). Pas d'autre joker],
   [#h(1em)`method* string`], [méthodes HTTP ; aucune : toutes],
-  [#h(1em)`public`], [aucun jeton exigé. Exclusif avec les trois champs
-    suivants (#code("E043"))],
-  [#h(1em)`classification? name`], [niveau du treillis ; le niveau
-    d'habilitation du sujet #doit lui être supérieur ou égal],
-  [#h(1em)`category* name`], [le sujet #doit détenir chacune de ces
-    catégories (besoin d'en connaître)],
-  [#h(1em)`required_clearance* name`], [rôles ; le sujet #doit en détenir au
-    moins un. Un rôle qu'aucun patron de l'ensemble ne déclare (`role`) donne
-    #code("E045")],
+  [#h(1em)`public`], [aucun jeton exigé],
 )
 
+Les conditions d'accès sont les champs que les modèles de sécurité ajoutent
+aux routes (@modeles) : `blp::classification` et `blp::category` pour
+`hamac_blp`, `rbac::role` pour `hamac_rbac`. Une route `public` n'en porte
+aucun (#code("E043")).
+
 *Sémantique.* Une requête vers une route est autorisée si et seulement si le
-jeton présenté établit, pour le sujet :
+jeton présenté satisfait les conditions de chacun des modèles. Avec
+`hamac_blp` et `hamac_rbac`, il établit pour l'utilisateur :
 
 #align(center)[
-  niveau ≥ `classification` #h(4pt) *et* #h(4pt) `category` ⊆ catégories du
-  sujet #h(4pt) *et* #h(4pt) (`required_clearance` vide *ou* un rôle du
-  sujet ∈ `required_clearance`).
+  niveau ≥ `blp::classification` #h(4pt) *et* #h(4pt) `blp::category` ⊆
+  catégories de l'utilisateur #h(4pt) *et* #h(4pt) (`rbac::role` vide *ou*
+  un rôle de l'utilisateur ∈ `rbac::role`).
 ]
 
 Dès qu'un service déclare une route, les chemins qu'aucune route ne couvre
 sont refusés. Si plusieurs routes couvrent un chemin, la plus spécifique
-s'applique : préfixe le plus long, puis méthodes explicites.
+s'applique : préfixe le plus long, puis méthodes explicites. Un service qui
+déclare des routes #doit avoir une zone (#code("E006")).
 
-*Cohérence avec la zone.* Un service qui déclare des routes #doit avoir une
-zone (#code("E006")). La classification d'une route #doit être un niveau du
-treillis (#code("E042")) et ne #doit-pas dépasser le niveau de la zone du
-service ; ses catégories #doit être incluses dans celles de la zone
-(#code("E044")). Un service ne sert donc pas de données plus sensibles que sa
-zone.
-
-*Mise en œuvre.* Le provider d'autorisation traduit les routes en règles
-Biscuit : une comparaison d'entiers pour le niveau, une vérification par
-catégorie et une jointure pour les rôles. La vérification a lieu en bordure,
-dans Sozu. Il revient au provider d'établir que cette traduction accepte
-exactement les accès permis par le treillis.
+*Mise en œuvre.* Le provider d'autorisation traduit les conditions des routes
+en règles Biscuit : pour `hamac_blp`, une comparaison d'entiers pour le niveau
+et une vérification par catégorie ; pour `hamac_rbac`, une jointure sur les
+rôles. La vérification a lieu en bordure, dans Sozu. Il revient au provider
+d'établir que cette traduction accepte exactement les accès que les modèles
+permettent.
 
 Les routes de `examples/hr-stack/hr-api.loaf`, dans la zone `rh` du patron
 `exemple_rh` :
@@ -1388,15 +1471,15 @@ service hr_api {
 
   route "/employees/*" {
     method "GET".
-    classification internal.
-    category rh.
-    required_clearance rh; admin.
+    blp::classification internal.
+    blp::category rh.
+    rbac::role rh; admin.
   }
 
   route "/employees/salaries" {
-    classification confidential.
-    category rh; finance.
-    required_clearance comptable; admin.
+    blp::classification confidential.
+    blp::category rh; finance.
+    rbac::role comptable; admin.
   }
 }
 ```
@@ -1690,8 +1773,10 @@ infrastructure si_exemple {
 #stable
 
 Une stack réunit les services à déployer ensemble. Ses patrons sont ceux des
-modules qu'elle charge par `use` (@pattern) ; sans patron, `hamac-default`
-s'applique.
+modules qu'elle charge par `use` (@pattern) ; sans patron, elle ne définit
+aucune zone, et ses services ne s'ouvrent de flux qu'à l'intérieur de leur
+zone. Le patron `hamac_default` en donne quatre, prêtes à l'emploi
+(@default).
 
 #tableau((auto, 1fr),
   [Déclaration], [Sens, défaut et contrôles],
@@ -1712,7 +1797,7 @@ s'applique.
 Une stack sans service donne #code("W002").
 
 L'ensemble de l'exemple réunit cette stack, le service `forge` des sections
-précédentes, les patrons `anssi_hygiene` et `anssi_renforce` (@treillis),
+précédentes, les patrons `anssi_hygiene` et `anssi_renforce` (@modeles),
 l'infrastructure `si_exemple` (@infrastructure) et trois providers :
 `postgresql`, un second provider de `database` nommé `postgresql_ha`, et un
 provider de `cache`.
@@ -1752,8 +1837,8 @@ stack, la consommation `db` de `forge` donnerait #code("E023").
   secrets, volumes, empreintes, quantités. Commande :
   `hamac validate <fichiers ou répertoires…>`.
 + *Stack.* Quand l'ensemble contient une stack, Hamac vérifie aussi le choix
-  des providers, compose le treillis des patrons et vérifie zones, routes et
-  flux. `hamac validate` applique cet étage dès qu'une stack figure dans
+  des providers, les rôles qu'exigent les routes et l'infrastructure qu'elle
+  impose. `hamac validate` applique cet étage dès qu'une stack figure dans
   l'ensemble ; `hamac plan` l'applique toujours, avant de calculer la
   topologie.
 
@@ -1808,7 +1893,7 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   code("E004"), [2], [nom de service qui n'est pas un nom DNS],
   code("E006"), [2], [champ qui en exige un autre : `min_replicas` sans
     `max_replicas` ou l'inverse ; `readiness_interval` ou `readiness_timeout`
-    sans `readiness` ; route sans `zone` ; catégories d'un patron sans
+    sans `readiness` ; route sans `zone` ; catégories `hamac_blp` sans
     niveaux],
   code("E007"), [2], [valeur incorrecte : niveau d'assurance hors de son axe ;
     paramètre de bundle sans, ou avec à la fois, `value` et `items`, que le
@@ -1844,22 +1929,23 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     `backup`],
   code("E034"), [2], [secret sans, ou avec à la fois, `ref` et `generate`],
   code("E035"), [2], [port d'une exposition absent des `port` du service],
-  code("E040"), [3], [flux qui lit vers le haut],
-  code("E041"), [3], [flux de mode `request` à travers une diode],
-  code("E042"), [2–3], [zone ou niveau inconnu : niveau ou catégorie d'une
-    zone hors du treillis de son patron, exigence d'assurance pour une zone
-    que le patron ne définit pas (2) ; zone d'un service, classification
-    d'une route ou niveau d'une zone absents du treillis composé (3)],
-  code("E043"), [2], [route `public` qui exige aussi une classification, des
-    catégories ou des rôles],
-  code("E044"), [3], [route classée au-dessus de la zone de son service, ou
-    catégorie absente de cette zone],
+  code("E040"), [2], [flux vers une zone que le modèle de sécurité ne permet
+    pas à la zone du consommateur de lire],
+  code("E041"), [2], [flux de mode `request` à travers une diode],
+  code("E042"), [2], [zone ou niveau inconnu : zone d'un service que les
+    patrons ne définissent pas, exigence d'assurance pour une zone que le
+    patron ne définit pas ; pour `hamac_blp`, niveau ou catégorie d'une
+    zone, ou classification d'une route, que les patrons ne déclarent pas],
+  code("E043"), [2], [route `public` qui exige aussi des conditions d'un
+    modèle (classification, catégories, rôles)],
+  code("E044"), [2], [`hamac_blp` : route classée au-dessus de la zone de son
+    service, ou catégorie absente de cette zone],
   code("E045"), [3], [route qui exige un rôle qu'aucun patron ne déclare],
   code("E046"), [3], [infrastructure imposée sans nœud de la zone d'un
     service et d'une de ses architectures],
-  code("E050"), [3], [patrons aux niveaux incompatibles],
-  code("E051"), [3], [zone définie deux fois avec des étiquettes ou des
-    frontières différentes],
+  code("E050"), [2], [`hamac_blp` : patrons aux niveaux différents],
+  code("E051"), [2], [zone définie deux fois avec des frontières ou, pour
+    `hamac_blp`, des étiquettes différentes],
   code("E052"), [2], [contrainte ou objectif mal formé : sans ses
     deux-points, erreur de syntaxe, variable non sûre, prédicat qu'aucune
     règle ne définit],

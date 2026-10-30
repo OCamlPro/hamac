@@ -25,7 +25,7 @@ Developed by [OCamlPro](https://www.ocamlpro.com) and released under the
 | Package | Path | Role |
 |---|---|---|
 | `hamac` | `pkgs/hamac` | CLI: `validate` / `plan` / `resolve` / `simulate` / `deploy`, and `provision-*` (render + push cloud-init/iPXE to the discovery server). |
-| `hamac-manifest` | `pkgs/hamac-manifest` | Library: the pivot manifest format — types, LOAF loader and vocabulary of Hamac, coded diagnostics, security lattice, pattern constraint language, flow and stack validation. Usable on its own by any tool that reads or writes manifests. |
+| `hamac-manifest` | `pkgs/hamac-manifest` | Library: the pivot manifest format — types, LOAF loader and vocabulary of Hamac with its security models (Bell-LaPadula, RBAC), coded diagnostics, flows and filtering. Usable on its own by any tool that reads or writes manifests. |
 | `hamac-clingo` | `pkgs/hamac-clingo` | Library: OCaml binding of libclingo (C API of the clingo ASP solver), independent of Hamac. The planner places replicas with it. |
 | `hamac-provisioning` | `pkgs/hamac-provisioning` | Library: provisioning-profile rendering (cloud-init + iPXE). |
 | `hamac-discovery` | `pkgs/hamac-discovery` | Discovery server: stores a provisioning record per MAC and serves the aggregated cloud-init to PXE-booting machines. |
@@ -100,17 +100,20 @@ Run `hamac --help` for the full command list.
 | `templates/bundles/<name>/` | Provisioning bundles: `bundle.loaf` + cloud-init Jinja2 templates. | `./templates/bundles`, `/usr/share/hamac/bundles`, or `--bundles-dir` |
 | `provisioning-profiles/` | `provisioning_profile` manifests. `dev-workstation.loaf` takes its parameters from the machine record; `dev-workstation-demo.loaf` carries them inline so a dry run needs nothing else. | passed with `--profile` |
 | `examples/enterprise-stack/` | Three services across three security zones, consuming a database and a cache; `analytics` (internal) reads `web_api` (public). | passed on the command line |
-| `examples/hr-stack/` | A stack with its pattern (`patterns/exemple_rh.loaf`, a module found among the files given): lattice, zones, routes, storage. | passed on the command line |
+| `examples/hr-stack/` | A stack with its pattern (`patterns/exemple_rh.loaf`, a module found among the files given): security models, zones, routes, storage, constraints. | passed on the command line |
 
 ## Security zones and flows
 
-Each service declares a security zone. Zones are ordered by sensitivity —
-`public` < `default` < `internal` < `secure` — as a Bell-LaPadula lattice, and
-Hamac derives the network filtering from it:
+Each service declares a security zone. The patterns define the zones and
+choose the security model that orders them: Hamac ships a Bell-LaPadula model
+(`hamac_blp`), a role model (`hamac_rbac`) and a ready-made pattern
+(`hamac_default`: `public` < `default` < `internal` < `secure`); an
+organisation can write its own. Hamac derives the network filtering from the
+order:
 
 - **No read up.** Opening a connection to a service means reading from it, so
-  a zone can never open a connection to a more sensitive zone. `hamac plan`
-  rejects any service that declares such a dependency.
+  a zone can only open connections to the zones the model lets it read.
+  Validation rejects any service that declares another dependency.
 - **Read down, only when declared.** A service may consume a service of a less
   sensitive zone (`consumes api { service web_api. }`); Hamac then opens exactly that
   flow, to that service's port, and nothing else between the two zones.

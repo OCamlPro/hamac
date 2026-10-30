@@ -13,12 +13,16 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
   `raw.zst` + `.bmap`, écriture via `bmaptool`, fallback `qemu-img` statique), resize au premier
   boot. À lire en premier pour comprendre le comportement de provisioning.
 - **`doc/typst/manifest.typ`** — spécification du format de manifeste (0.2, brouillon) :
-  `kind`, champs, stabilité, treillis et patrons, catalogue des erreurs du validateur.
+  `kind`, champs, stabilité, patrons et modèles de sécurité, catalogue des erreurs du
+  validateur.
 - **`doc/typst/control-plane.typ`** — modèle du plan de contrôle à tours (proposition).
 - **`doc/HAMAC_ROADMAP.md`** — jalons et état d'avancement.
 - **`pkgs/hamac-manifest/vocabulary/hamac.loaf`** — le vocabulaire LOAF de Hamac : blocs
   des manifestes (`service`, `pattern`, `stack`, `infrastructure`, `provisioning_profile`,
-  `bundle`), contrats des capacités (`database`, `cache`), défauts et validations.
+  `bundle`), contrats des capacités (`database`, `cache`), défauts et validations. À
+  côté, les modèles de sécurité livrés : `hamac_blp.loaf` (Bell-LaPadula), `hamac_rbac.loaf`
+  (rôles) et le patron `hamac_default.loaf` ; un modèle ajoute ses champs aux patrons et aux
+  routes (`blp::level`, `rbac::role`) et définit `zone_leq`, l'ordre des zones.
 - Les manifestes consommés sont des `*.loaf`, chargés en un ensemble (une stack avec ses
   services et les providers qu'ils consomment ; un dossier vaut ses `.loaf`, à toute
   profondeur : `hamac plan examples/hr-stack providers`) ; un patron est un module LOAF,
@@ -42,7 +46,7 @@ notes de travail restent en Markdown. Typst installé par snap ne peut pas écri
 - **`pkgs/hamac-manifest`** — bibliothèque du format pivot, utilisable seule : `Types`,
   `Loaf_source` (chargeur LOAF → `Types`, vocabulaire trouvé par dune-site ou
   `HAMAC_VOCABULARY`), `Checks` (contrôles d'un manifeste que le vocabulaire n'exprime pas),
-  `Diagnostic`, `Lattice` (treillis composé depuis les patrons), `Flows` (flux déclarés,
+  `Diagnostic`, `Flows` (flux déclarés,
   règles de filtrage), `Stack_check` (chargement d'un ensemble, validation de l'étage 3). Tout code qui lit ou valide un
   manifeste passe par elle.
 - **`pkgs/hamac-clingo`** — bibliothèque : liaison OCaml de libclingo (API C du solveur ASP
