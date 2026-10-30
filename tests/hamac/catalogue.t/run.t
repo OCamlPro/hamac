@@ -19,7 +19,7 @@ LOAF, et n'ont pas de cas ici.
   >   if [ "$rc" -ne 0 ] && [ -n "$line" ]; then echo "$line"; else echo "$c: NOT REFUSED"; printf '%s\n' "$out"; fi
   > done
   manifest.loaf:7:1: [E001] syntax error before '}'; expected, among others: '.' ending an instruction, ':-', ',' or ';'
-  manifest.loaf:5:1: [E004] the name of service un-nom-de-service-bien-trop-long-pour-tenir-dans-une-etiquette-dns is not a DNS label: 1 to 63 lowercase letters, digits and '_', '_' neither first nor last
+  manifest.loaf:5:1: [E004] service un_nom_de_service_bien_trop_long_pour_tenir_dans_une_etiquette_dns: its host name un-nom-de-service-bien-trop-long-pour-tenir-dans-une-etiquette-dns is not a DNS label (1 to 63 lowercase letters, digits and '_' in the name, '_' neither first nor last)
   manifest.loaf:5:1: [E006] min_replicas and max_replicas go together
   manifest.loaf:12:3: [E007] reference 'sans-backend' of secret key: expected <backend>:<path>[#<key>]
   manifest.loaf:7:3: [E011] sha256 of the artifact of web: expected 64 hexadecimal characters

@@ -10,6 +10,12 @@
 (* Common types                                                  *)
 (* ============================================================ *)
 
+(** The host name of a service, an instance or a node, derived from its
+    name: a host name admits [-], not [_] (RFC 1123), and a LOAF name
+    admits [_], not [-]. It is the only place where a name changes form:
+    everything else shows names as the files write them. *)
+let hostname name = String.map (fun ch -> if ch = '_' then '-' else ch) name
+
 type artifact = {
   path: string;
   sha256: string;

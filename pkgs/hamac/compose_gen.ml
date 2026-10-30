@@ -46,7 +46,7 @@ let provider_vars (rp : resolved_provider) : (string * string) list =
 (** Generate docker-compose service block for a provider instance *)
 let emit_provider buf (rp : resolved_provider) =
   let image = match rp.provider.artifact with
-    | Some a when a.format = "oci-image" -> a.path
+    | Some a when a.format = "oci_image" -> a.path
     | _ -> rp.provider.name  (* fallback to provider name *)
   in
   emit_line buf 1 "%s:" rp.instance_name;
@@ -89,10 +89,10 @@ let consumer_env (resolution : resolution) (consumer_name : string) : (string * 
 
 (** Generate docker-compose service block for a consumer service *)
 let emit_service buf (resolution : resolution) (svc : service_manifest) =
-  emit_line buf 1 "%s:" svc.name;
+  emit_line buf 1 "%s:" (hostname svc.name);
   (* Image or build context *)
   (match svc.artifact with
-   | Some a when a.format = "oci-image" ->
+   | Some a when a.format = "oci_image" ->
      emit_line buf 2 "image: %s" a.path
    | Some a ->
      (* Native binary — use a generic image + volume mount *)
@@ -102,7 +102,7 @@ let emit_service buf (resolution : resolution) (svc : service_manifest) =
      emit_line buf 2 "command: [\"/app/service\"]"
    | None ->
      emit_line buf 2 "image: debian:bookworm-slim");
-  emit_line buf 2 "container_name: %s" svc.name;
+  emit_line buf 2 "container_name: %s" (hostname svc.name);
   (* Environment: service's own env + injected from wiring *)
   let injected = consumer_env resolution svc.name in
   let all_env = svc.environment @ injected in

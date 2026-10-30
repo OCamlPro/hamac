@@ -87,7 +87,7 @@ exception Error of string list
 (* ============================================================ *)
 
 (** What the optimal model of [hamac.lp] says, by service (its Hamac name,
-    cf. {!Hamac_manifest.Loaf_source.dns}). *)
+    as the files write it). *)
 type demand = {
   d_zone: string;
   d_replicas: int;
@@ -97,7 +97,7 @@ type demand = {
 
 let const = function Clingo.Fun (c, []) -> Some c | _ -> None
 let service_name = function
-  | Clingo.Fun (c, []) -> Some (Hamac_manifest.Loaf_source.dns c)
+  | Clingo.Fun (c, []) -> Some c
   | _ -> None
 
 (* ============================================================ *)
@@ -285,15 +285,10 @@ let solve ?(relax = false) ~time_limit (asp : string list) (patterns : pattern_m
 (** A violation of a constraint, read from a model: the pattern, the
     constraint and its witness. *)
 let violations (m : Clingo.model) =
-  (* Names as Hamac writes them: [payroll-report], not [payroll_report]. *)
-  let rec hamac : Clingo.symbol -> Clingo.symbol = function
-    | Fun (c, []) -> Fun (Hamac_manifest.Loaf_source.dns c, [])
-    | Fun (f, args) -> Fun (f, List.map hamac args)
-    | s -> s in
   List.filter_map (function
     | Clingo.Fun ("violation", [p; c; w]) ->
       Some (Fmt.str "constraint %a of pattern %a (%a)"
-              Clingo.pp_symbol c Clingo.pp_symbol (hamac p) Clingo.pp_symbol (hamac w))
+              Clingo.pp_symbol c Clingo.pp_symbol p Clingo.pp_symbol w)
     | _ -> None) m.symbols
 
 (** The optimal placement, or the hard constraints that make it
@@ -437,7 +432,7 @@ let plan ?lattice ?(time_limit = default_time_limit) ~(name : string)
 
   let infrastructure = {
     name = name ^ "-infra";
-    backend = "docker-compose";
+    backend = "docker_compose";
     minimum_requirements = Some {
       min_nodes = Some (List.fold_left (fun acc n -> acc + n.count) 0 nodes);
       total_ram = Some (Printf.sprintf "%dMi"

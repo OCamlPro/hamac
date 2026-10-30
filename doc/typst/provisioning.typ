@@ -316,7 +316,7 @@ Format de `POST /provisioning/<mac>` :
 
 ```json
 {
-  "profile_name": "dev-workstation",
+  "profile_name": "dev_workstation",
   "cloud_init": "#cloud-config\n...",
   "ipxe_script": "#!ipxe\n...",
   "os_image_url": "https://...",

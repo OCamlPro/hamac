@@ -4,7 +4,7 @@ produits sans contacter de machine ni de serveur de découverte.
   $ hamac provision-dryrun --profile=profile.loaf --bundles-dir=bundles
   === cloud-init ===
   #cloud-config
-  # Généré par hamac pour le profile 'dev-workstation-demo'
+  # Généré par hamac pour le profile 'dev_workstation_demo'
   users:
   - name: devuser
     gecos: Example Developer
@@ -36,7 +36,7 @@ produits sans contacter de machine ni de serveur de découverte.
     permissions: "0644"
     content: '============================================================
   
-      Provisioned by hamac (bundle: dev-workstation)
+      Provisioned by hamac (bundle: dev_workstation)
   
       User: Example Developer (devuser)
   
@@ -46,13 +46,13 @@ produits sans contacter de machine ni de serveur de découverte.
   runcmd:
   - install -d -o devuser -g devuser /home/devuser/.config /home/devuser/.local/bin
     /home/devuser/projects
-  - bash -c 'printf "\n# hamac/dev-workstation\nexport PATH=\"$HOME/.local/bin:$PATH\"\nalias
+  - bash -c 'printf "\n# hamac/dev_workstation\nexport PATH=\"$HOME/.local/bin:$PATH\"\nalias
     ll=\"ls -lah\"\n" >> /home/devuser/.bashrc'
   - chown devuser:devuser /home/devuser/.bashrc
   - systemctl enable --now ssh || systemctl enable --now sshd
   - systemctl enable --now docker
   - usermod -aG docker devuser || true
-  - echo "hamac dev-workstation provisioning done"
+  - echo "hamac dev_workstation provisioning done"
   - systemctl enable --now ssh
   
   === iPXE ===
@@ -80,14 +80,14 @@ partiel. On retire du profil le sous-bloc des paramètres du bundle :
   
   }
   $ hamac provision-dryrun --profile=no-params.loaf --bundles-dir=bundles
-  hamac: [ERROR] bundle 'dev-workstation' : paramètre requis 'username' manquant
+  hamac: [ERROR] bundle 'dev_workstation' : paramètre requis 'username' manquant
   [1]
 
 Deux fragments qui écrivent le même fichier avec des contenus différents font
 échouer le rendu.
 
   $ hamac provision-dryrun --profile=collision.loaf --bundles-dir=bundles 2>&1 | grep write_files
-  hamac: [ERROR] write_files : le bundle dev-workstation et cloud_init_extra écrivent tous deux '/etc/motd' avec des contenus différents
+  hamac: [ERROR] write_files : le bundle dev_workstation et cloud_init_extra écrivent tous deux '/etc/motd' avec des contenus différents
 
 Un profil donne à un bundle les paramètres que celui-ci déclare, sous la
 forme de leur type : items pour une liste, value pour un scalaire, true ou

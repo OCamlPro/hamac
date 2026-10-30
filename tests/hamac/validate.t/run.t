@@ -40,5 +40,5 @@ justifie, les services nommés doivent exister.
 
   $ hamac validate infra.loaf
   infra.loaf: service (name=analytics, runtime=eventloop)
-  infra.loaf: service (name=web-api, runtime=http)
-  infra.loaf: infrastructure (name=lab, backend=docker-compose)
+  infra.loaf: service (name=web_api, runtime=http)
+  infra.loaf: infrastructure (name=lab, backend=docker_compose)

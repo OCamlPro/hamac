@@ -7,7 +7,7 @@ de connexion vers une zone plus sensible.
 
   $ hamac plan analytics.loaf payroll.loaf web_api.loaf | sed -n '/Firewall rules/,$p'
   Firewall rules:
-    ALLOW internal -> public (analytics -> web-api)
+    ALLOW internal -> public (analytics -> web_api)
     DENY internal -> secure (no read up)
     DENY public -> internal (no read up)
     DENY public -> secure (no read up)
@@ -20,7 +20,7 @@ de connexion vers une zone plus sensible.
 
   $ hamac resolve analytics.loaf payroll.loaf web_api.loaf | sed -n '/Wiring/,$p'
   Wiring:
-    analytics.api -> web-api (service)
+    analytics.api -> web_api (service)
       inject: API_URL=http://web-api:8080
 
 En simulation, un nœud n'est branché que sur les réseaux des zones vers

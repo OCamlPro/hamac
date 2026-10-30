@@ -175,16 +175,16 @@ let provider_instance (w : resolved_wire) : string option =
   | Provider { instance_name; _ } -> Some instance_name
   | Service _ -> None
 
-(** Default endpoint of a consumed service: its container name and the
-    container port of its first published port. *)
+(** Default endpoint of a consumed service: its host name, which is that
+    of its container, and the container port of its first published port. *)
 let default_service_endpoint (svc : service_manifest) : string * string =
   match svc.ports with
-  | p :: _ -> (svc.name, string_of_int p.container)
-  | [] -> (svc.name, "")
+  | p :: _ -> (hostname svc.name, string_of_int p.container)
+  | [] -> (hostname svc.name, "")
 
 type resolved_provider = {
   provider: service_manifest;    (** the provider manifest *)
-  instance_name: string;         (** instance name (e.g., "postgresql-hr_api-db") *)
+  instance_name: string;         (** instance name, a host name (e.g., "postgresql-hr-api-db") *)
   resolved_env: (string * string) list;  (** provider env with substituted values *)
 }
 
@@ -242,7 +242,8 @@ let resolve_consumption
     (* Build the variable table for substitution:
        input.* = generated inputs
        service_name = instance name *)
-    let instance_name = Printf.sprintf "%s-%s-%s" provider.name consumer.name cons.name in
+    let instance_name =
+      hostname (Printf.sprintf "%s-%s-%s" provider.name consumer.name cons.name) in
     let input_vars = List.map (fun (k, v) -> ("input." ^ k, v)) generated_inputs in
     let all_vars = ("service_name", instance_name) :: input_vars in
 

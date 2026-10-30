@@ -20,12 +20,12 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   hamac: [ERROR] examples/hr-stack/stack.loaf:15:1: [L009] use exemple_rh: no available version satisfies 1.0 (available: none)
 
   $ (cd $R && hamac validate examples/hr-stack providers)
-  examples/hr-stack/hr-api.loaf: service (name=hr-api, runtime=http)
-  examples/hr-stack/payroll-report.loaf: service (name=payroll-report, runtime=batch)
+  examples/hr-stack/hr-api.loaf: service (name=hr_api, runtime=http)
+  examples/hr-stack/payroll-report.loaf: service (name=payroll_report, runtime=batch)
   examples/hr-stack/portal.loaf: service (name=portal, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
-  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple-rh, version=1.0.0, 3 zones, 2 constraints)
+  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple_rh, version=1.0.0, 3 zones, 2 constraints)
   examples/hr-stack/stack.loaf: stack (name=hr, 3 services)
 
   $ hamac validate $R/examples/enterprise-stack $R/providers 2>&1 | sed "s|$R/||"
@@ -33,18 +33,18 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   examples/enterprise-stack/payroll.loaf: service (name=payroll, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
-  examples/enterprise-stack/web_api.loaf: service (name=web-api, runtime=http)
+  examples/enterprise-stack/web_api.loaf: service (name=web_api, runtime=http)
   examples/enterprise-stack/organisation.loaf: pattern (name=organisation, 0 zones, 0 constraints)
 
 Un profil nomme ses bundles : il se charge avec eux.
 
   $ for p in $R/provisioning-profiles/*.loaf; do
-  >   hamac validate $p $R/templates/bundles/dev-workstation/bundle.loaf 2>&1 | sed "s|$R/||"
+  >   hamac validate $p $R/templates/bundles/dev_workstation/bundle.loaf 2>&1 | sed "s|$R/||"
   > done
-  provisioning-profiles/dev-workstation-demo.loaf: provisioning_profile (name=dev-workstation-demo, os=debian-12-amd64-genericcloud, 1 bundles)
-  templates/bundles/dev-workstation/bundle.loaf: bundle (name=dev-workstation, version=0.1.0, 6 params)
-  provisioning-profiles/dev-workstation.loaf: provisioning_profile (name=dev-workstation, os=debian-12-amd64-genericcloud, 1 bundles)
-  templates/bundles/dev-workstation/bundle.loaf: bundle (name=dev-workstation, version=0.1.0, 6 params)
+  provisioning-profiles/dev-workstation-demo.loaf: provisioning_profile (name=dev_workstation_demo, os=debian-12-amd64-genericcloud, 1 bundles)
+  templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  provisioning-profiles/dev-workstation.loaf: provisioning_profile (name=dev_workstation, os=debian-12-amd64-genericcloud, 1 bundles)
+  templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
 
 Les diagnostics portent le fichier, la ligne et la colonne de l'élément en
 faute. Leur code est celui de Hamac quand la validation vient du vocabulaire
@@ -145,12 +145,12 @@ premier port.
   $ ../show.exe -L $R/patterns $R/examples/hr-stack $R/providers | sed "s|$R/||"
   == examples/hr-stack/hr-api.loaf
   (Types.MService
-     { Types.name = "hr-api"; runtime = "http";
+     { Types.name = "hr_api"; runtime = "http";
        artifact =
        (Some { Types.path =
                "registry.example.org/rh/hr-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-               format = "oci-image" });
+               format = "oci_image" });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "db"; capability = (Some "database"); service = None;
@@ -199,16 +199,16 @@ premier port.
        })
   == examples/hr-stack/payroll-report.loaf
   (Types.MService
-     { Types.name = "payroll-report"; runtime = "batch";
+     { Types.name = "payroll_report"; runtime = "batch";
        artifact =
        (Some { Types.path =
                "registry.example.org/rh/payroll-report@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-               format = "oci-image" });
+               format = "oci_image" });
        capability = None; inputs = [];
        consumes =
-       [{ Types.name = "api"; capability = None; service = (Some "hr-api");
-          provider = (Some "hr-api"); inject = [("HR_API_URL", "http://{host}:8080")];
+       [{ Types.name = "api"; capability = None; service = (Some "hr_api");
+          provider = (Some "hr_api"); inject = [("HR_API_URL", "http://{host}:8080")];
           mode = "request" }
          ];
        provides = []; readiness = None; security = (Some { Types.zone = "rh"; route_labels = [] });
@@ -232,7 +232,7 @@ premier port.
        (Some { Types.path =
                "registry.example.org/rh/portal@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-               format = "oci-image" });
+               format = "oci_image" });
        capability = None; inputs = []; consumes = []; provides = []; readiness = None;
        security = (Some { Types.zone = "public"; route_labels = [] });
        ports = [{ Types.container = 8080; protocol = "tcp" }]; environment = [];
@@ -256,7 +256,7 @@ premier port.
        (Some { Types.path =
                "postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
                sha256 = "54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
-               format = "oci-image" });
+               format = "oci_image" });
        capability = (Some "database");
        inputs =
        [("dbname", "{consumer.name}_db"); ("password", "{generate.alnum(32)}");
@@ -283,7 +283,7 @@ premier port.
        (Some { Types.path =
                "redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
                sha256 = "8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
-               format = "oci-image" });
+               format = "oci_image" });
        capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
        consumes = [];
        provides = [("host", "{service_name}"); ("password", "{input.password}"); ("port", "6379")];
@@ -297,7 +297,7 @@ premier port.
        storage = []; backup = None; secrets = []; placement = None; exposure = [] })
   == examples/hr-stack/patterns/exemple_rh.loaf
   (Types.MPattern
-     { Types.pat_name = "exemple-rh"; pat_version = (Some "1.0.0");
+     { Types.pat_name = "exemple_rh"; pat_version = (Some "1.0.0");
        lattice =
        (Some { Types.levels = ["public"; "internal"; "confidential"];
                lat_categories = ["finance"; "rh"] });
@@ -308,7 +308,7 @@ premier port.
            boundary = "firewall" }
          ];
        pat_assurance =
-       [("rh", { Types.boot = (Some "measured-tpm2"); operator = None; physical = (Some "site") })];
+       [("rh", { Types.boot = (Some "measured_tpm2"); operator = None; physical = (Some "site") })];
        pat_roles = ["admin"; "comptable"; "rh"];
        constraints =
        [{ Types.cid = "one_level_per_host";
@@ -340,8 +340,8 @@ premier port.
   (Types.MStack
      { Types.name = "hr"; accept_experimental = true;
        services =
-       [{ Types.ref_service = "hr-api"; replicas_override = None; consumes_override = [] };
-         { Types.ref_service = "payroll-report"; replicas_override = None; consumes_override = [] };
+       [{ Types.ref_service = "hr_api"; replicas_override = None; consumes_override = [] };
+         { Types.ref_service = "payroll_report"; replicas_override = None; consumes_override = [] };
          { Types.ref_service = "portal"; replicas_override = None; consumes_override = [] }];
        infrastructure = None })
 
@@ -352,11 +352,11 @@ premier port.
        artifact =
        (Some { Types.path = "./bin/analytics";
                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-               format = "native-linux-amd64" });
+               format = "native_linux_amd64" });
        capability = None; inputs = [];
        consumes =
-       [{ Types.name = "api"; capability = None; service = (Some "web-api");
-          provider = (Some "web-api"); inject = [("API_URL", "http://{host}:8080")]; 
+       [{ Types.name = "api"; capability = None; service = (Some "web_api");
+          provider = (Some "web_api"); inject = [("API_URL", "http://{host}:8080")]; 
           mode = "request" };
          { Types.name = "cache"; capability = (Some "cache"); service = None;
            provider = (Some "redis");
@@ -388,7 +388,7 @@ premier port.
        artifact =
        (Some { Types.path = "./bin/payroll";
                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-               format = "native-linux-amd64" });
+               format = "native_linux_amd64" });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "db"; capability = (Some "database"); service = None;
@@ -423,7 +423,7 @@ premier port.
        (Some { Types.path =
                "postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
                sha256 = "54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984";
-               format = "oci-image" });
+               format = "oci_image" });
        capability = (Some "database");
        inputs =
        [("dbname", "{consumer.name}_db"); ("password", "{generate.alnum(32)}");
@@ -450,7 +450,7 @@ premier port.
        (Some { Types.path =
                "redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
                sha256 = "8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
-               format = "oci-image" });
+               format = "oci_image" });
        capability = (Some "cache"); inputs = [("password", "{generate.alnum(32)}")]; 
        consumes = [];
        provides = [("host", "{service_name}"); ("password", "{input.password}"); ("port", "6379")];
@@ -464,11 +464,11 @@ premier port.
        storage = []; backup = None; secrets = []; placement = None; exposure = [] })
   == examples/enterprise-stack/web_api.loaf
   (Types.MService
-     { Types.name = "web-api"; runtime = "http";
+     { Types.name = "web_api"; runtime = "http";
        artifact =
        (Some { Types.path = "./bin/web_api";
                sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-               format = "native-linux-amd64" });
+               format = "native_linux_amd64" });
        capability = None; inputs = [];
        consumes =
        [{ Types.name = "db"; capability = (Some "database"); service = None;
@@ -497,10 +497,10 @@ premier port.
        zones = []; pat_assurance = []; pat_roles = ["admin"; "comptable"]; 
        constraints = []; objectives = [] })
 
-  $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev-workstation/bundle.loaf | sed "s|$R/||"
+  $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev_workstation/bundle.loaf | sed "s|$R/||"
   == provisioning-profiles/dev-workstation.loaf
   (Types.MProvisioningProfile
-     { Types.pp_name = "dev-workstation";
+     { Types.pp_name = "dev_workstation";
        pp_os =
        { Types.os_image_name = "debian-12-amd64-genericcloud";
          os_url =
@@ -508,12 +508,12 @@ premier port.
          os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
          os_format = "qcow2"; os_family = "debian"; os_raw_zst_url = ""; 
          os_raw_zst_sha256 = ""; os_bmap_url = "" };
-       pp_bundles = [{ Types.bundle_name = "dev-workstation"; bundle_params = [] }];
+       pp_bundles = [{ Types.bundle_name = "dev_workstation"; bundle_params = [] }];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
        pp_assurance = None })
   == provisioning-profiles/dev-workstation-demo.loaf
   (Types.MProvisioningProfile
-     { Types.pp_name = "dev-workstation-demo";
+     { Types.pp_name = "dev_workstation_demo";
        pp_os =
        { Types.os_image_name = "debian-12-amd64-genericcloud";
          os_url =
@@ -522,7 +522,7 @@ premier port.
          os_format = "qcow2"; os_family = "debian"; os_raw_zst_url = ""; 
          os_raw_zst_sha256 = ""; os_bmap_url = "" };
        pp_bundles =
-       [{ Types.bundle_name = "dev-workstation";
+       [{ Types.bundle_name = "dev_workstation";
           bundle_params =
           [("full_name", (Types.PString "Example Developer"));
             ("ssh_public_keys",
@@ -535,9 +535,9 @@ premier port.
          ];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
        pp_assurance = None })
-  == templates/bundles/dev-workstation/bundle.loaf
+  == templates/bundles/dev_workstation/bundle.loaf
   (Types.MBundle
-     { Types.bdl_name = "dev-workstation"; bdl_version = "0.1.0";
+     { Types.bdl_name = "dev_workstation"; bdl_version = "0.1.0";
        bdl_description = "Poste de dev minimal : utilisateur sudo, SSH, docker, dotfiles optionnels";
        bdl_params =
        [{ Types.param_name = "dotfiles_repo"; param_type = "string"; param_required = false };
@@ -634,9 +634,9 @@ déjà rempli.
 
   $ hamac resolve --seed 42 -L $R/patterns $R/examples/hr-stack $R/providers 2>/dev/null | sed -n '/^Wiring/,$p'
   Wiring:
-    hr-api.db -> postgresql
-      inject: DATABASE_URL=postgresql://pottxvuimhan:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@postgresql-hr-api-db:5432/hr-api_db
-    payroll-report.api -> hr-api (service)
+    hr_api.db -> postgresql
+      inject: DATABASE_URL=postgresql://pottxvuimhan:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@postgresql-hr-api-db:5432/hr_api_db
+    payroll_report.api -> hr_api (service)
       inject: HR_API_URL=http://hr-api:8080
 
 Le plan d'une stack ne compte pas les providers comme des services ; il suit
@@ -656,8 +656,8 @@ zone tiendrait en volume sur un seul.
     public: 1 service(s), 2 replica(s), 512 MB RAM, 1000 mCPU
       - portal
     rh: 2 service(s), 3 replica(s), 2048 MB RAM, 4000 mCPU
-      - hr-api
-      - payroll-report
+      - hr_api
+      - payroll_report
   
   Proposed topology:
     1x node [public] — 4096Mi RAM, 4 CPU
@@ -671,14 +671,14 @@ zone tiendrait en volume sur un seul.
     DENY public -> rh (no read up)
     DENY rh -> public (no declared flow)
   
-  hamac: [WARNING] soft constraint stateful_quorum of pattern exemple-rh (payroll-report) is violated
+  hamac: [WARNING] soft constraint stateful_quorum of pattern exemple_rh (payroll_report) is violated
 
 Le rendu d'un profil.
 
   $ hamac provision-dryrun --profile=$R/provisioning-profiles/dev-workstation-demo.loaf --bundles-dir=$R/templates/bundles
   === cloud-init ===
   #cloud-config
-  # Généré par hamac pour le profile 'dev-workstation-demo'
+  # Généré par hamac pour le profile 'dev_workstation_demo'
   users:
   - name: devuser
     gecos: Example Developer
@@ -710,7 +710,7 @@ Le rendu d'un profil.
     permissions: "0644"
     content: '============================================================
   
-      Provisioned by hamac (bundle: dev-workstation)
+      Provisioned by hamac (bundle: dev_workstation)
   
       User: Example Developer (devuser)
   
@@ -720,13 +720,13 @@ Le rendu d'un profil.
   runcmd:
   - install -d -o devuser -g devuser /home/devuser/.config /home/devuser/.local/bin
     /home/devuser/projects
-  - bash -c 'printf "\n# hamac/dev-workstation\nexport PATH=\"$HOME/.local/bin:$PATH\"\nalias
+  - bash -c 'printf "\n# hamac/dev_workstation\nexport PATH=\"$HOME/.local/bin:$PATH\"\nalias
     ll=\"ls -lah\"\n" >> /home/devuser/.bashrc'
   - chown devuser:devuser /home/devuser/.bashrc
   - systemctl enable --now ssh || systemctl enable --now sshd
   - systemctl enable --now docker
   - usermod -aG docker devuser || true
-  - echo "hamac dev-workstation provisioning done"
+  - echo "hamac dev_workstation provisioning done"
   - systemctl enable --now ssh
   
   === iPXE ===

@@ -13,10 +13,12 @@
 
     Each subject of a block of the vocabulary becomes a {!Types.manifest}:
 
-    - the name of a manifest, and every reference to one, is its subject
-      with [_] replaced by [-] (convention of the vocabulary);
-    - enumerated values are spelt with [-] ([oci_image] → [oci-image],
-      [list_string] → [list[string]]), as the rest of Hamac expects;
+    - the name of a manifest, and every reference to one, is its subject,
+      as the files write it; {!Types.hostname} gives the host name derived from
+      it, where a host name is required;
+    - enumerated values are spelt as the files write them ([oci_image]),
+      but for the types of bundle parameters ([list_string] →
+      [list[string]]);
     - a quantity [(512, mi)] becomes ["512Mi"], [(500, m)] ["500m"],
       [(90, d)] ["90d"];
     - terms rendered by Hamac and templates become the [{…}] strings that
@@ -124,12 +126,10 @@ exception Missing of string
 let const = function Loaf.Fun (c, []) -> c | v -> Fmt.str "%a" Loaf.pp_value v
 
 (** The name of a manifest, or of a reference to one. *)
-let dns c = String.map (fun ch -> if ch = '_' then '-' else ch) c
+let name v = const v
 
-let name v = dns (const v)
-
-(** An enumerated value, spelt with [-] as the rest of Hamac expects. *)
-let enum v = dns (const v)
+(** An enumerated value. *)
+let enum v = const v
 
 let str = function Loaf.Str s -> s | v -> const v
 
@@ -310,7 +310,7 @@ let service cx s : service_manifest =
         | None -> F.loc cx k [s; n] "consumes" in
       { name = const n;
         capability = F.opt1 cx k q "consumes.capability" const;
-        service = Option.map dns service;
+        service;
         provider = F.opt1 cx k q "consumes.provider" name;
         inject = F.table cx k q "consumes.inject" str
             (fun v -> render cx ?loc ?host_of:service v);
@@ -408,7 +408,7 @@ let service cx s : service_manifest =
       exp_port = F.req1 cx k q "exposure.port" int;
       exp_protocol = Option.value (F.opt1 cx k q "exposure.protocol" const) ~default:"http";
       tls = Option.value (F.opt1 cx k q "exposure.tls" const) ~default:"acme" }) in
-  { name = dns sname;
+  { name = sname;
     runtime = F.req1 cx k p "runtime" const;
     artifact;
     capability = F.opt1 cx k p "capability" const;

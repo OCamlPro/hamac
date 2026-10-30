@@ -245,9 +245,10 @@ aux dossiers `examples/hr-stack` et `providers`, établissent :
 - La consommation `db` de `hr_api` est résolue vers `postgresql`, seul
   provider de `database` de l'ensemble. Hamac crée l'instance
   `postgresql-hr-api-db` ; au déploiement, `DATABASE_URL` vaut
-  `postgresql://<12 lettres>:<32 caractères>@postgresql-hr-api-db:5432/hr-api_db`.
+  `postgresql://<12 lettres>:<32 caractères>@postgresql-hr-api-db:5432/hr_api_db`.
 - `payroll_report` reçoit `HR_API_URL=http://hr-api:8080` : le nom d'hôte de
-  `hr_api` et son premier port.
+  `hr_api` et son premier port. Hamac le calcule ; les manifestes ne
+  l'écrivent jamais.
 - `payroll_report` et `hr_api` sont dans la même zone : le flux entre eux ne
   demande aucune règle de filtrage. Entre les zones `public` et `rh`, tout est
   refusé : aucun flux n'est déclaré, et `public` ne peut de toute façon pas
@@ -417,12 +418,17 @@ est absent.
 
 == Noms
 
-- Le nom d'un manifeste est une constante LOAF (`hr_api`). Le nom DNS d'un
-  service, sous lequel les autres le joignent, s'en déduit en remplaçant `_`
-  par `-` : le service `hr_api` est joint sous le nom `hr-api`. Le nom d'un
-  service #doit donc ne contenir que des minuscules, des chiffres et `_`, ni
-  commencer ni finir par `_`, et ne pas dépasser 63 caractères
-  (#code("E004")).
+- Le nom d'un manifeste est une constante LOAF (`hr_api`). Hamac l'emploie
+  tel quel partout : dans les références entre manifestes, ses diagnostics,
+  ses sorties et les valeurs qu'il engendre (la base attribuée à `hr_api`
+  s'appelle `hr_api_db`).
+- Seul un *nom d'hôte* change de forme, parce qu'il n'admet pas `_` : celui
+  d'un service, d'une instance de provider ou d'un nœud remplace `_` par
+  `-` (`hr-api`, `postgresql-hr-api-db`). Aucun manifeste n'a à l'écrire : un
+  consommateur reçoit le nom d'hôte du service qu'il consomme par son
+  gabarit (`{~.host}`, @consumes). Le nom d'un service #doit donc ne
+  contenir que des minuscules, des chiffres et `_`, ni commencer ni finir
+  par `_`, et ne pas dépasser 63 caractères (#code("E004")).
 - Les valeurs des énumérations s'écrivent avec `_` là où le nom usuel porte
   `-` : `oci_image`, `measured_tpm2`, `docker_compose`.
 - Un champ à plusieurs valeurs porte un nom au singulier ; chaque instruction
@@ -766,19 +772,19 @@ valeurs tirées au hasard sont reproductibles :
 ```
 Providers to instantiate:
   postgresql-hr-api-db (postgres:15-alpine@sha256:54e0dd8e…)
-    env: POSTGRES_DB=hr-api_db
+    env: POSTGRES_DB=hr_api_db
     env: POSTGRES_PASSWORD=z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs
     env: POSTGRES_USER=pottxvuimhan
 
 Wiring:
-  hr-api.db -> postgresql
-    inject: DATABASE_URL=postgresql://pottxvuimhan:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@postgresql-hr-api-db:5432/hr-api_db
-  payroll-report.api -> hr-api (service)
+  hr_api.db -> postgresql
+    inject: DATABASE_URL=postgresql://pottxvuimhan:z72SYu7MDwnY8NCONRJsMfb5QNVfDvXs@postgresql-hr-api-db:5432/hr_api_db
+  payroll_report.api -> hr_api (service)
     inject: HR_API_URL=http://hr-api:8080
 ```
 
-L'instance `postgresql-hr-api-db` porte le nom du provider, du consommateur
-et de la consommation ; un second consommateur de `database` recevrait sa
+Le nom d'hôte de l'instance, `postgresql-hr-api-db`, réunit le provider, le consommateur
+et la consommation ; un second consommateur de `database` recevrait sa
 propre instance, avec d'autres identifiants.
 
 = Données : stockage, sauvegarde, secrets <donnees>
@@ -1269,7 +1275,7 @@ Le planificateur ouvre alors ce seul flux, et refuse le reste :
 
 ```
 DENY public -> rh (no read up)
-ALLOW rh -> public (hr-api -> portal)
+ALLOW rh -> public (hr_api -> portal)
 Stateful: replies to an allowed connection pass.
 ```
 
@@ -1277,7 +1283,7 @@ Le flux inverse, `portal` qui consommerait `hr_api`, est refusé dès la
 validation :
 
 ```
-portal.loaf:19:3: [E040] portal (zone public) cannot consume hr-api (zone rh):
+portal.loaf:19:3: [E040] portal (zone public) cannot consume hr_api (zone rh):
 opening a connection to a more sensitive zone is a read up, forbidden by the
 Bell-LaPadula model. […]
 ```
@@ -1452,7 +1458,7 @@ fragment cloud-init. La spécification du provisioning
 rendu des gabarits et la fusion des fragments.
 
 ```
-templates/bundles/dev-workstation/
+templates/bundles/dev_workstation/
 ├── bundle.loaf
 ├── cloud-init.yaml.j2           # gabarit par défaut
 └── cloud-init.<family>.yaml.j2  # variante pour une famille d'OS (optionnel)
@@ -1471,7 +1477,7 @@ templates/bundles/dev-workstation/
   [`lifecycle? lifecycle`], [#experimental `install` (défaut) · `converge`],
 )
 
-Extrait de `templates/bundles/dev-workstation/bundle.loaf` :
+Extrait de `templates/bundles/dev_workstation/bundle.loaf` :
 
 ```loaf
 bundle dev_workstation {

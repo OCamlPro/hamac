@@ -28,7 +28,7 @@ let emit_line buf depth fmt =
 
 (** Generate node container name *)
 let node_name (zone : string) (index : int) : string =
-  Printf.sprintf "node-%s-%d" zone (index + 1)
+  hostname (Printf.sprintf "node-%s-%d" zone (index + 1))
 
 (* ============================================================ *)
 (* Init script generation                                        *)
@@ -125,7 +125,7 @@ let generate_node_init_script
     let idx = match Hashtbl.find_opt replica_counters svc.name with
       | Some i -> i | None -> 0 in
     Hashtbl.replace replica_counters svc.name (idx + 1);
-    let container_name = Printf.sprintf "%s-%d" svc.name idx in
+    let container_name = hostname (Printf.sprintf "%s-%d" svc.name idx) in
     Buffer.add_string buf (Printf.sprintf "# Deploy %s (replica %d)\n" svc.name idx);
 
     (* Idempotent: skip if container already exists and is running *)
@@ -148,7 +148,7 @@ let generate_node_init_script
     ) svc.ports |> String.concat " " in
 
     (match svc.artifact with
-     | Some a when a.format = "oci-image" ->
+     | Some a when a.format = "oci_image" ->
        Buffer.add_string buf (Printf.sprintf "  docker pull %s\n" a.path);
        Buffer.add_string buf (Printf.sprintf "  docker run -d --name %s %s %s %s\n"
          container_name env_flags port_flags a.path)
@@ -252,7 +252,7 @@ let generate
   (* Provider instances — run in the zone of their consumer *)
   List.iter (fun (rp : resolved_provider) ->
     let image = match rp.provider.artifact with
-      | Some a when a.format = "oci-image" -> a.path
+      | Some a when a.format = "oci_image" -> a.path
       | _ -> rp.provider.name
     in
     emit_line buf 1 "%s:" rp.instance_name;

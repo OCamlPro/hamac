@@ -71,16 +71,17 @@ let is_dns_label s =
   && String.for_all (fun c -> (c >= 'a' && c <= 'z') || is_digit c || c = '-') s
 
 let check_service e (svc : service_manifest) =
-  if not (is_dns_label svc.name) then
+  if not (is_dns_label (hostname svc.name)) then
     e "E004" []
-      (Printf.sprintf "the name of service %s is not a DNS label: 1 to 63 lowercase letters, \
-                       digits and '_', '_' neither first nor last" svc.name);
+      (Printf.sprintf "service %s: its host name %s is not a DNS label (1 to 63 \
+                       lowercase letters, digits and '_' in the name, '_' neither first nor \
+                       last)" svc.name (hostname svc.name));
   (match svc.artifact with
    | Some a ->
      if not (is_sha256 a.sha256) then
        e "E011" ["artifact"; "sha256"]
          (Printf.sprintf "sha256 of the artifact of %s: expected 64 hexadecimal characters" svc.name);
-     if a.format = "oci-image" && not (String.contains a.path '@') then
+     if a.format = "oci_image" && not (String.contains a.path '@') then
        e "W010" ["artifact"; "path"]
          (Printf.sprintf "OCI image '%s' of %s is not pinned by digest (@sha256:…)" a.path svc.name)
    | None -> ());

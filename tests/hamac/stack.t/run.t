@@ -17,7 +17,7 @@ manifestes de service).
     internal: 1 service(s), 8 replica(s), 8192 MB RAM, 16000 mCPU
       - analytics
     public: 1 service(s), 10 replica(s), 5120 MB RAM, 10000 mCPU
-      - web-api
+      - web_api
     secure: 1 service(s), 2 replica(s), 512 MB RAM, 1000 mCPU
       - payroll
   
@@ -59,7 +59,7 @@ elles viennent de /dev/urandom et changent à chaque exécution.
       env: POSTGRES_PASSWORD=pycXdfCZ9AemsKjLFMOjVgBs4xo20BSa
       env: POSTGRES_USER=xqtscxjpysjh
     postgresql-web-api-db (postgres:15-alpine)
-      env: POSTGRES_DB=web-api_db
+      env: POSTGRES_DB=web_api_db
       env: POSTGRES_PASSWORD=oM2UtD0DZcfI9z5o8M5OwswpHEBuSHxX
       env: POSTGRES_USER=zhyvkxnbjymw
   
@@ -70,8 +70,8 @@ elles viennent de /dev/urandom et changent à chaque exécution.
       inject: DATABASE_URL=postgresql://ateytyknqyqr:1etrbNguG1sdz0MnC3n6uH1Pbi0QyUaA@postgresql-analytics-db:5432/analytics_db
     payroll.db -> postgresql
       inject: DATABASE_URL=postgresql://xqtscxjpysjh:pycXdfCZ9AemsKjLFMOjVgBs4xo20BSa@postgresql-payroll-db:5432/payroll_db
-    web-api.db -> postgresql
-      inject: DATABASE_URL=postgresql://zhyvkxnbjymw:oM2UtD0DZcfI9z5o8M5OwswpHEBuSHxX@postgresql-web-api-db:5432/web-api_db
+    web_api.db -> postgresql
+      inject: DATABASE_URL=postgresql://zhyvkxnbjymw:oM2UtD0DZcfI9z5o8M5OwswpHEBuSHxX@postgresql-web-api-db:5432/web_api_db
 
 `deploy` produit un docker-compose câblé : réseaux, variables injectées,
 dépendances et healthchecks portant les credentials résolus.
