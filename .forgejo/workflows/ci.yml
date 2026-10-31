@@ -226,7 +226,8 @@ jobs:
 
   # Construit l'image du serveur de découverte et vérifie qu'elle démarre.
   # Tourne sur le label `dind`, seul environnement où le daemon Docker est
-  # disponible (cf. CLAUDE.md : pas de `container:` au niveau job).
+  # disponible : un `container:` au niveau job créerait un conteneur
+  # imbriqué, dont le démarrage reste bloqué sur ces runners.
   #
   # Sur master, l'image est publiée sur le registre de conteneurs de Forgejo
   # (`forge.ocamlpro.com/oss/hamac-discovery`), public comme le dépôt.
