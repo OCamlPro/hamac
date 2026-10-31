@@ -15,6 +15,9 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
 - **`doc/typst/manifest.typ`** — spécification du format de manifeste (0.2, brouillon) :
   `kind`, champs, stabilité, patrons et modèles de sécurité, catalogue des erreurs du
   validateur.
+- **`doc/typst/modules.typ`** — référence des modules livrés avec le vocabulaire (`hamac_blp`,
+  `hamac_rbac`, `hamac_ha`, `hamac_default`), la « bibliothèque standard » ; la spec du format
+  n'en décrit que l'interface (rôles, `zone_leq`, primitives).
 - **`doc/typst/control-plane.typ`** — modèle du plan de contrôle à tours (proposition).
 - **`doc/HAMAC_ROADMAP.md`** — jalons et état d'avancement.
 - **`pkgs/hamac-manifest/vocabulary/hamac.loaf`** — le vocabulaire LOAF de Hamac : blocs
