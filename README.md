@@ -150,14 +150,16 @@ discovery server (keyed by MAC), and the OS image is written to disk. See
 
 The reference documents are written in [Typst](https://typst.app) and built as
 PDF (`make -C doc`, typst ≥ 0.15). CI builds them on every push and, on
-`master`, publishes them to the forge's package registry:
-<https://forge.ocamlpro.com/OSS/-/packages/generic/hamac-docs/latest>.
+`master`, publishes them to the forge's package registry
+(<https://forge.ocamlpro.com/OSS/-/packages/generic/hamac-docs/latest>); the
+links below always give the latest version, and each tagged milestone carries
+the PDF of its version in its release.
 
-- [`doc/typst/manifest.typ`](doc/typst/manifest.typ) — manifest format specification (0.2, draft).
-- [`doc/typst/modules.typ`](doc/typst/modules.typ) — the modules shipped with Hamac: security models (`hamac_blp`, `hamac_rbac`), placement (`hamac_ha`), default pattern (`hamac_default`).
-- [`pkgs/hamac-manifest/vocabulary/hamac.loaf`](pkgs/hamac-manifest/vocabulary/hamac.loaf) — the vocabulary of Hamac: the blocks of the manifests, their defaults and validations, in LOAF.
-- [`doc/typst/provisioning.typ`](doc/typst/provisioning.typ) — provisioning profile & disk-write spec.
-- [`doc/typst/control-plane.typ`](doc/typst/control-plane.typ) — round-based control plane (design proposal).
+- Manifest format specification (0.2, draft): [PDF](https://forge.ocamlpro.com/api/packages/OSS/generic/hamac-docs/latest/manifest.pdf), source [`doc/typst/manifest.typ`](doc/typst/manifest.typ).
+- The modules shipped with Hamac — security models (`hamac_blp`, `hamac_rbac`), placement (`hamac_ha`), default pattern (`hamac_default`): [PDF](https://forge.ocamlpro.com/api/packages/OSS/generic/hamac-docs/latest/modules.pdf), source [`doc/typst/modules.typ`](doc/typst/modules.typ).
+- Provisioning profiles and disk write: [PDF](https://forge.ocamlpro.com/api/packages/OSS/generic/hamac-docs/latest/provisioning.pdf), source [`doc/typst/provisioning.typ`](doc/typst/provisioning.typ).
+- Round-based control plane (design proposal): [PDF](https://forge.ocamlpro.com/api/packages/OSS/generic/hamac-docs/latest/control-plane.pdf), source [`doc/typst/control-plane.typ`](doc/typst/control-plane.typ).
+- [`pkgs/hamac-manifest/vocabulary/hamac.loaf`](pkgs/hamac-manifest/vocabulary/hamac.loaf) — the vocabulary of Hamac: the blocks of the manifests, their defaults and validations, in LOAF. The language itself is specified in [LOAF](https://forge.ocamlpro.com/OSS/loaf) ([PDF](https://forge.ocamlpro.com/api/packages/OSS/generic/loaf-spec/latest/loaf.pdf)).
 - [`doc/HAMAC_ROADMAP.md`](doc/HAMAC_ROADMAP.md) — milestones.
 
 ## Funding
