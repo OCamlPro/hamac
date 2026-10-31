@@ -100,7 +100,7 @@ Run `hamac --help` for the full command list.
 | `templates/bundles/<name>/` | Provisioning bundles: `bundle.loaf` + cloud-init Jinja2 templates. | `./templates/bundles`, `/usr/share/hamac/bundles`, or `--bundles-dir` |
 | `provisioning-profiles/` | `provisioning_profile` manifests. `dev-workstation.loaf` takes its parameters from the machine record; `dev-workstation-demo.loaf` carries them inline so a dry run needs nothing else. | passed with `--profile` |
 | `examples/enterprise-stack/` | Three services across three security zones, consuming a database and a cache; `analytics` (internal) reads `web_api` (public). | passed on the command line |
-| `examples/hr-stack/` | A stack with its pattern (`patterns/exemple_rh.loaf`, a module found among the files given): security models, zones, routes, storage, constraints. | passed on the command line |
+| `examples/hr-stack/` | A stack with its pattern (`patterns/exemple_rh.loaf`, a module found among the files given): security models, zones, routes, storage, placement requirements (`hamac_ha`). | passed on the command line |
 
 ## Security zones and flows
 
