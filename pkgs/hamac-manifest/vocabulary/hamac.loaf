@@ -129,7 +129,6 @@ block service {
 
   % Placement.
   need* name.                          % capacités que le nœud doit offrir
-  assurance* axis => assurance_level.  % minimum par axe
   spread? spread.                      % défaut none
   affinity* service.
   anti_affinity* service.
@@ -226,7 +225,11 @@ block pattern {
   zone* name {
     boundary? boundary.                      % défaut firewall
   }
-  assurance* name, axis => assurance_level.  % zone, axe : minimum
+  % Plancher d'assurance d'une zone, pour un patron qui doit répondre à une
+  % exigence (hébergement certifié, hygiène renforcée…) : zone, axe =>
+  % niveau minimal. Sans plancher, Hamac place chaque zone sur les machines
+  % les plus sûres disponibles, les plus sensibles d'abord.
+  assurance* name, axis => assurance_level.
 
   % Contraintes et objectifs : des éléments d'agrégat de clingo, écrits sur
   % les prédicats que publie le planificateur.
@@ -479,9 +482,6 @@ namespace hamac {
   zoned(S) :- service(S), S.zone(_).
 
   % Un niveau d'assurance appartient à son axe.
-  ::error(fmt("[E007] {L} is not a level of the axis {A}"),
-          S.assurance(A, L)) :-
-      service(S), S.assurance(A, L), not assurance_level(A, L).
   ::error(fmt("[E007] {L} is not a level of the axis {A}"),
           P.assurance(Z, A, L)) :-
       pattern(P), P.assurance(Z, A, L), not assurance_level(A, L).

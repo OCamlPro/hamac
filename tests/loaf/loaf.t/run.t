@@ -193,8 +193,7 @@ premier port.
           rotate = (Some "90d"); sec_as = "env" }
          ];
        placement =
-       (Some { Types.needs = []; pl_assurance = None; spread = "failure_domain"; 
-               affinity = []; anti_affinity = [] });
+       (Some { Types.needs = []; spread = "failure_domain"; affinity = []; anti_affinity = [] });
        exposure =
        [{ Types.hostname = "api.rh.example.org"; path_prefix = "/"; exp_port = 8080;
           exp_protocol = "http"; tls = "acme" }
@@ -305,15 +304,14 @@ premier port.
        [{ Types.zname = "internal"; boundary = "firewall" };
          { Types.zname = "public"; boundary = "firewall" };
          { Types.zname = "rh"; boundary = "firewall" }];
-       pat_assurance =
-       [("rh", { Types.boot = (Some "measured_tpm2"); operator = None; physical = (Some "site") })];
+       pat_assurance = [];
        constraints =
        [{ Types.cid = "one_zone_per_host"; cdescription = "Deux zones ne partagent jamais un noyau";
           severity = "hard"; weight = 1; cpriority = 1;
           violation = "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2";
           cloc =
           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 33; column = 5 })
+                  line = 31; column = 5 })
           };
          { Types.cid = "stateful_quorum";
            cdescription =
@@ -322,14 +320,14 @@ premier port.
            violation = "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3";
            cloc =
            (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf";
-                   line = 39; column = 5 })
+                   line = 37; column = 5 })
            }
          ];
        objectives =
        [{ Types.direction = "minimize"; element = "1, H : used(H)"; priority = 1;
           oloc =
           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 42; column = 3 })
+                  line = 40; column = 3 })
           }
          ]
        })

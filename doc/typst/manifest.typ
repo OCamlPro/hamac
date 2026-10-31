@@ -109,11 +109,6 @@ pattern exemple_rh {
     blp::level confidential.
     blp::category rh; finance.
   }
-
-  % Les machines de la zone rh ont un démarrage mesuré par TPM et sont
-  % sur le site de l'organisation.
-  assurance rh, boot, measured_tpm2.
-  assurance rh, physical, site.
 }
 ```
 
@@ -388,7 +383,7 @@ manifeste et par groupe de champs, sauf si l'ensemble contient une stack qui
 #tableau((auto, 1fr),
   [Bloc], [Champs expérimentaux],
   [`service`], [`storage`, `backup`, `secret`, le placement (`need`,
-    `assurance`, `spread`, `affinity`, `anti_affinity`), `exposure`, et le
+    `spread`, `affinity`, `anti_affinity`), `exposure`, et le
     champ `mode` d'une consommation],
   [`pattern`], [`assurance`, `constraint`, `minimize`, `maximize`],
   [`infrastructure`], [`certificate`],
@@ -975,8 +970,9 @@ que ses fichiers chargent.
   [Déclaration], [Sens, défaut et contrôles],
   [`zone* name { … }`], [une zone (@modeles) ; `boundary? boundary`, sa
     frontière (défaut `firewall`, @frontieres)],
-  [`assurance* name, axis => assurance_level`], [#experimental exigence
-    d'assurance d'une zone sur un axe (@assurance)],
+  [`assurance* name, axis => assurance_level`], [#experimental plancher
+    d'assurance d'une zone sur un axe, pour un patron qui doit répondre à une
+    exigence (@assurance)],
   [`constraint* name { … }`], [#experimental contrainte sur la topologie
     (@contraintes)],
   [`minimize* string { … }`, `maximize* string { … }`], [#experimental
@@ -999,8 +995,6 @@ pattern exemple_rh {
   blp::levels [public, internal, confidential].
   blp::category rh; finance.
   rbac::role rh; comptable; admin.
-  assurance rh, boot, measured_tpm2.
-  assurance rh, physical, site.
 
   zone public { blp::level public. }
   zone internal { blp::level internal. }
@@ -1237,15 +1231,36 @@ et `assurance_level`) :
   [`physical`], [`third_party` < `dedicated_rack` < `site`],
 )
 
-Un nœud offre un niveau par axe, déclaré par l'inventaire ou par le profil qui
-l'a installé (@profil). Une zone ou un service exige un minimum. Un placement
-est admissible si et seulement si, sur chaque axe, le niveau offert est au
-moins égal au niveau exigé ; un axe sans exigence n'impose rien.
+L'assurance d'une machine dit ce qu'on peut affirmer de son intégrité, de
+qui l'exploite et d'où elle se trouve. Une machine offre un niveau par axe,
+déclaré par l'inventaire, par le nœud d'infrastructure (`boot`) ou par le
+profil qui l'a installée (@profil). Les manifestes de service n'en parlent
+pas.
 
-Dans un patron, `assurance rh, boot, measured_tpm2.` exige ce niveau de la
-zone `rh`. Un niveau qui n'appartient pas à son axe donne #code("E007") ; une
-zone que le patron ne définit pas, alors qu'il en définit, donne
-#code("E042").
+#regle[
+  *Le plus sûr par défaut.* Hamac place chaque zone sur les machines les plus
+  sûres disponibles, en servant d'abord les zones les plus sensibles selon le
+  modèle de sécurité (`zone_leq`). Une zone placée sur des machines moins
+  sûres que d'autres du parc donne un avertissement.
+]
+
+*Plancher.* Un patron qui doit répondre à une exigence (hébergement certifié,
+hygiène renforcée, diffusion restreinte) fixe un niveau minimal par zone et
+par axe : `assurance secure, boot, measured_tpm2.` exige ce niveau de toute
+machine de la zone `secure`. Un placement qui ne peut le respecter échoue. Un
+axe sans plancher n'impose rien. Un niveau qui n'appartient pas à son axe
+donne #code("E007") ; une zone que le patron ne définit pas, alors qu'il en
+définit, donne #code("E042").
+
+Pour une topologie qu'il propose, Hamac donne aux nœuds de chaque zone le
+plancher de la zone, s'il y en a un.
+
+#note[
+  Le planificateur de cette version ne lit pas encore l'assurance des
+  machines : il propose des nœuds sans niveau, et ni la règle du plus sûr ni
+  les planchers n'agissent sur le placement. Les planchers sont vérifiés
+  dans les manifestes (#code("E007"), #code("E042")).
+]
 
 #note[
   `provider_vtpm` et `confidential_vm` se distinguent sur un point : dans une
@@ -1510,9 +1525,6 @@ Un chemin qu'aucune route ne couvre, `/admin` par exemple, est refusé à tous.
   [Déclaration], [Sens, défaut et contrôles],
   [`need* name`], [capacités que le nœud #doit offrir, telles que
     l'inventaire les déclare (`public_ipv4`, `ssd`)],
-  [`assurance* axis => assurance_level`], [minimum par axe (@assurance), qui
-    s'ajoute à l'exigence de la zone ; un niveau hors de son axe donne
-    #code("E007")],
   [`spread? spread`], [répartition des répliques : `none` (défaut) · `host` ·
     `failure_domain`],
   [`affinity* service`, `anti_affinity* service`], [services à rapprocher ou
@@ -1524,8 +1536,6 @@ Le vocabulaire ne prévoit pas de placement par nom d'hôte.
 ```loaf
 service forge {
   need public_ipv4; ssd.
-  assurance boot, measured_tpm2.
-  assurance physical, site.
   spread failure_domain.
   anti_affinity postgresql.
 }

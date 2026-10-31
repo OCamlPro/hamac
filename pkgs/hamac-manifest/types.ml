@@ -95,7 +95,6 @@ type assurance = {
 
 type placement = {
   needs: string list;
-  pl_assurance: assurance option;
   spread: string;            (** none | host | failure_domain *)
   affinity: string list;
   anti_affinity: string list;

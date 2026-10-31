@@ -414,13 +414,12 @@ let service cx s : service_manifest =
       sec_as = Option.value (F.opt1 cx k q "secret.as" const) ~default:"env" }) in
   let placement =
     let needs = F.list1 cx k p "need" const in
-    let assurance = axis_rows (F.table cx k p "assurance" Fun.id Fun.id) in
     let spread = F.opt1 cx k p "spread" const in
     let affinity = F.list1 cx k p "affinity" name in
     let anti_affinity = F.list1 cx k p "anti_affinity" name in
-    if needs = [] && assurance = [] && spread = None && affinity = [] && anti_affinity = []
+    if needs = [] && spread = None && affinity = [] && anti_affinity = []
     then None
-    else Some { needs; pl_assurance = assurance_of assurance;
+    else Some { needs;
                 spread = Option.value spread ~default:"none"; affinity; anti_affinity } in
   let exposure = F.list1 cx k p "exposure" Fun.id |> List.map (fun h ->
     let q = [s; h] in
@@ -625,7 +624,7 @@ let bundle cx b : bundle_manifest =
     the stack writes accept_experimental ({!Stack_check.run}). *)
 let experimental = [
   "service", [ "storage", "storage"; "backup", "backup"; "secret", "secrets";
-               "need", "placement"; "assurance", "placement"; "spread", "placement";
+               "need", "placement"; "spread", "placement";
                "affinity", "placement"; "anti_affinity", "placement";
                "exposure", "exposure"; "consumes.mode", "mode" ];
   "pattern", [ "assurance", "assurance"; "constraint", "constraints";

@@ -17,8 +17,6 @@ pattern exemple_rh {
   blp::levels [public, internal, confidential].
   blp::category rh; finance.
   rbac::role rh; comptable; admin.
-  assurance rh, boot, measured_tpm2.
-  assurance rh, physical, site.
 
   zone public { blp::level public. }
   zone internal { blp::level internal. }
