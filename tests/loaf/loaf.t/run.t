@@ -318,7 +318,7 @@ premier port.
          { Types.ref_service = "portal"; replicas_override = None; consumes_override = [] }];
        infrastructure = None })
 
-  $ ../show.exe $R/examples/enterprise-stack $R/providers | sed "s|$R/||"
+  $ ../show.exe $R/examples/enterprise-stack $R/providers | sed "s|$R/||; s|[^ ]*/vocabulary/|<vocabulaire>/|"
   == examples/enterprise-stack/analytics.loaf
   (Types.MService
      { Types.name = "analytics"; runtime = "eventloop";
@@ -463,7 +463,7 @@ premier port.
        health_check = None; metrics = None; logging = None;
        metadata = { Types.description = None; labels = []; annotations = [] }; 
        storage = []; backup = None; secrets = []; placement = None; exposure = [] })
-  == /home/julius/ocp/hamac-loaf/_build/install/default/share/hamac-manifest/vocabulary/hamac_default.loaf
+  == <vocabulaire>/hamac_default.loaf
   (Types.MPattern
      { Types.pat_name = "hamac_default"; pat_version = (Some "0.2.0");
        zones =
