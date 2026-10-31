@@ -1,0 +1,49 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+%
+% Disponibilité et isolation, pour les patrons et les services de Hamac.
+% Un patron le charge par « use hamac_ha 0.2. » et déclare ses exigences,
+% qu'il ramène aux primitives de placement du vocabulaire (separate,
+% min_domains et leurs préférences) :
+%
+%   pattern org {
+%     ha::isolate_zones.            % deux zones ne partagent jamais une machine
+%     ha::stateful_domains 3.       % un service à état : au moins 3 domaines
+%   }
+%   service hr_api { ha::critical. }  % deux services critiques sont séparés
+
+loaf 0.1.
+module hamac_ha 0.2.0.
+use hamac 0.2.
+
+namespace ha {
+  block pattern {
+    isolate_zones.                  % deux zones ne partagent jamais une machine
+    stateful_domains? int.          % un service à état : au moins N domaines
+                                    % de panne
+    prefer_stateful_domains? int.   % de préférence
+  }
+  block service {
+    critical.                       % deux services critiques ne partagent
+                                    % pas une machine
+  }
+
+  % Isoler les zones : deux services de zones différentes sont séparés.
+  ::separate(S, T) :- pattern(P), P.isolate_zones(),
+      hamac::zone_of(S, Z), hamac::zone_of(T, U), Z != U.
+
+  % Un service à état (un volume local ou répliqué) survit à la perte d'un
+  % domaine de panne.
+  stateful(S) :- service(S), S.storage(V).class(C), C != ephemeral.
+  ::min_domains(S, N) :- pattern(P), P.stateful_domains(N), stateful(S).
+  ::prefer_min_domains(S, N) :- pattern(P), P.prefer_stateful_domains(N), stateful(S).
+  ::error("[E016] a service survives the loss of a failure domain only on at least 1 domain",
+          P.stateful_domains(N)) :-
+      pattern(P), P.stateful_domains(N), N < 1.
+  ::error("[E016] a service survives the loss of a failure domain only on at least 1 domain",
+          P.prefer_stateful_domains(N)) :-
+      pattern(P), P.prefer_stateful_domains(N), N < 1.
+
+  % Deux services critiques ne partagent pas une machine.
+  ::separate(S, T) :- service(S), S.critical(), service(T), T.critical(), S != T.
+}

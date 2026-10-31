@@ -196,14 +196,6 @@ type zone_decl = {
   boundary: string;          (** firewall | diode *)
 } [@@deriving show]
 
-(** A constraint of a pattern, from the catalogue that Hamac implements
-    (enum [constraint_kind] of the vocabulary). *)
-type constraint_decl = {
-  kind: string;              (** zone_isolation | stateful_quorum *)
-  severity: string;          (** hard | soft *)
-  domains: int option;       (** of a stateful_quorum *)
-} [@@deriving show]
-
 (** A pattern is the block of a LOAF module (module exemple_rh 1.0.0.),
     which a stack loads by use; a pattern that builds on another one uses
     its module. *)
@@ -212,7 +204,6 @@ type pattern_manifest = {
   pat_version: string option;  (** version of its module, if it is one *)
   zones: zone_decl list;
   pat_assurance: (string * assurance) list;   (** zone name → minimum *)
-  constraints: constraint_decl list;
 } [@@deriving show]
 
 (* ============================================================ *)

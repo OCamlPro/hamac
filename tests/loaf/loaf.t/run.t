@@ -25,7 +25,7 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   examples/hr-stack/portal.loaf: service (name=portal, runtime=http)
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
-  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple_rh, version=1.0.0, 3 zones, 2 constraints)
+  examples/hr-stack/patterns/exemple_rh.loaf: pattern (name=exemple_rh, version=1.0.0, 3 zones)
   examples/hr-stack/stack.loaf: stack (name=hr, 3 services)
 
   $ hamac validate $R/examples/enterprise-stack $R/providers 2>&1 | sed "s|$R/||; s|[^ ]*/vocabulary/|<vocabulaire>/|"
@@ -34,8 +34,8 @@ module introuvable : ici, les fichiers de la stack sans son patron.
   providers/postgresql.loaf: service (name=postgresql, runtime=http)
   providers/redis.loaf: service (name=redis, runtime=http)
   examples/enterprise-stack/web_api.loaf: service (name=web_api, runtime=http)
-  <vocabulaire>/hamac_default.loaf: pattern (name=hamac_default, version=0.2.0, 4 zones, 0 constraints)
-  examples/enterprise-stack/organisation.loaf: pattern (name=organisation, 0 zones, 0 constraints)
+  <vocabulaire>/hamac_default.loaf: pattern (name=hamac_default, version=0.2.0, 4 zones)
+  examples/enterprise-stack/organisation.loaf: pattern (name=organisation, 0 zones)
 
 Un profil nomme ses bundles : il se charge avec eux.
 
@@ -304,11 +304,7 @@ premier port.
        [{ Types.zname = "internal"; boundary = "firewall" };
          { Types.zname = "public"; boundary = "firewall" };
          { Types.zname = "rh"; boundary = "firewall" }];
-       pat_assurance = [];
-       constraints =
-       [{ Types.kind = "stateful_quorum"; severity = "soft"; domains = None };
-         { Types.kind = "zone_isolation"; severity = "hard"; domains = None }]
-       })
+       pat_assurance = [] })
   == examples/hr-stack/stack.loaf
   (Types.MStack
      { Types.name = "hr"; accept_experimental = true;
@@ -471,11 +467,10 @@ premier port.
          { Types.zname = "internal"; boundary = "firewall" };
          { Types.zname = "public"; boundary = "firewall" };
          { Types.zname = "secure"; boundary = "firewall" }];
-       pat_assurance = []; constraints = [] })
+       pat_assurance = [] })
   == examples/enterprise-stack/organisation.loaf
   (Types.MPattern
-     { Types.pat_name = "organisation"; pat_version = None; zones = []; 
-       pat_assurance = []; constraints = [] })
+     { Types.pat_name = "organisation"; pat_version = None; zones = []; pat_assurance = [] })
 
   $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev_workstation/bundle.loaf | sed "s|$R/||"
   == provisioning-profiles/dev-workstation.loaf
@@ -651,7 +646,7 @@ zone tiendrait en volume sur un seul.
     DENY public -> rh (no read up)
     DENY rh -> public (no declared flow)
   
-  hamac: [WARNING] soft constraint stateful_quorum of pattern exemple_rh (payroll_report) is violated
+  hamac: [WARNING] preference not met: prefer_min_domains(payroll_report,3) (payroll_report)
 
 Le rendu d'un profil.
 

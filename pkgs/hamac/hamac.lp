@@ -6,8 +6,8 @@
 % Il s'ajoute à la forme ASP des manifestes (Loaf.asp : service/1,
 % service_zone/2, service_memory_limit/3…) et place chaque réplique de
 % chaque service à déployer sur un nœud de sa zone, en respectant la
-% capacité des nœuds, la répartition demandée et les contraintes des
-% patrons, avec le moins de nœuds possible.
+% capacité des nœuds, la répartition demandée et les primitives de placement
+% (separate, min_domains…), avec le moins de nœuds possible.
 %
 % Le planificateur (planner.ml) fixe la taille d'un nœud par -c node_memory=…
 % -c node_cpu=… ; les valeurs ci-dessous ne servent qu'à lancer clingo à la
@@ -25,16 +25,16 @@
 % d'une énumération du vocabulaire (spread/1, par exemple, est l'énumération
 % des répartitions ; d'où spread_out/1).
 %
-% Les contraintes des patrons sont prises dans le catalogue du vocabulaire
-% (enum constraint_kind) ; leur sens est implémenté ici, section
-% « contraintes ». violation(P, K, T) : la contrainte K du patron P est
-% violée, de témoin T.
+% Les primitives de placement sont des prédicats du vocabulaire, que ses
+% champs et les modules (hamac_ha…) définissent ; ce programme les respecte,
+% section « primitives ». violation(K, T) : la primitive K est violée, de
+% témoin T ; unmet(K, T) : la préférence K n'est pas satisfaite.
 
 #const node_memory = 4096.
 #const node_cpu = 4000.
-% relax = 1 : les contraintes hard des patrons deviennent des pénalités, au
-% plus haut niveau de priorité ; le planificateur s'en sert pour nommer
-% celles qu'aucun placement ne satisfait.
+% relax = 1 : les primitives deviennent des pénalités, au plus haut niveau de
+% priorité ; le planificateur s'en sert pour nommer celles qu'aucun
+% placement ne satisfait.
 #const relax = 0.
 
 % ------------------------------------------------------------ services
@@ -138,8 +138,6 @@ spread_out(S) :- deployed(S), service_spread(S, host).
 spread_out(S) :- deployed(S), service_spread(S, failure_domain).
 :- spread_out(S), host(H), 2 { place(S, I, H) : replica(S, I) }.
 
-% Anti-affinité : deux services à séparer ne partagent pas de nœud.
-:- deployed(S), service_anti_affinity(S, T), on(S, H), on(T, H).
 
 % ------------------------------------------------------------ symétries
 % Les nœuds utilisés d'une zone et d'une architecture sont les premiers.
@@ -167,29 +165,27 @@ lower_bound(Z, N) :- zone_of(_, Z),
 single_arch(Z, A) :- zone_arch(Z, A), #count { B : zone_arch(Z, B) } = 1.
 :- lower_bound(Z, L), single_arch(Z, A), host((Z, A, K)), K <= L, not used((Z, A, K)).
 
-% ------------------------------------------------------------ contraintes
-% zone_isolation : deux zones ne partagent jamais une machine.
-violation(P, zone_isolation, H) :- pattern_constraint(P, zone_isolation),
-    host(H), 2 { zone_on(H, Z) : zone_of(_, Z) }.
+% ------------------------------------------------------------ primitives
+% separate(S, T) : S et T ne partagent jamais une machine (anti_affinity,
+% ha::isolate_zones, ha::critical…).
+violation(separate(S, T), H) :- separate(S, T), S != T, on(S, H), on(T, H).
+unmet(prefer_separate(S, T), H) :- prefer_separate(S, T), S != T, on(S, H), on(T, H).
 
-% stateful_quorum : un service à état a des répliques sur au moins N
-% domaines de panne (défaut 3), pour survivre à la perte de l'un d'eux.
-quorum(P, N) :- pattern_constraint_domains(P, stateful_quorum, N).
-quorum(P, 3) :- pattern_constraint(P, stateful_quorum),
-    not pattern_constraint_domains(P, stateful_quorum, _).
-violation(P, stateful_quorum, S) :- quorum(P, N), stateful(S),
-    #count { D : on(S, H), failure_domain(H, D) } < N.
+% min_domains(S, N) : les répliques de S sont sur au moins N domaines de
+% panne (ha::stateful_domains…).
+domains(S, M) :- deployed(S), M = #count { D : on(S, H), failure_domain(H, D) }.
+violation(min_domains(S, N), S) :- min_domains(S, N), domains(S, M), M < N.
+unmet(prefer_min_domains(S, N), S) :- prefer_min_domains(S, N), domains(S, M), M < N.
 
-% Une contrainte hard est satisfaite ; une contrainte soft coûte 1 par
-% violation, avant le nombre de nœuds.
-soft_constraint(P, K) :- pattern_constraint_severity(P, K, soft).
-:- violation(P, K, _), not soft_constraint(P, K), relax = 0.
-:~ violation(P, K, T), not soft_constraint(P, K), relax = 1. [1@2, P, K, T]
-:~ violation(P, K, T), soft_constraint(P, K). [1@1, P, K, T]
+% Une primitive est respectée ; une préférence coûte 1 par manquement, avant
+% le nombre de nœuds.
+:- violation(_, _), relax = 0.
+:~ violation(K, T), relax = 1. [1@2, K, T]
+:~ unmet(K, T). [1@1, K, T]
 
 % ------------------------------------------------------------ objectif
-% Le moins de nœuds possible, à la priorité 0 : les contraintes soft des
-% patrons, à la priorité 1, passent avant.
+% Le moins de nœuds possible, à la priorité 0 : les préférences, à la
+% priorité 1, passent avant.
 #minimize { 1@0, H : used(H) }.
 
 % ------------------------------------------------------------ sortie
@@ -199,7 +195,8 @@ soft_constraint(P, K) :- pattern_constraint_severity(P, K, soft).
 #show memory/2.
 #show cpu/2.
 #show oversized/3.
-#show violation/3.
+#show violation/2.
+#show unmet/2.
 #show zone_leq/2.
 #show error/2.
 
@@ -213,6 +210,6 @@ soft_constraint(P, K) :- pattern_constraint_severity(P, K, soft).
 #defined service_storage_class/3.
 #defined hamac__service_arch/2.
 #defined zone_leq/2.
-#defined pattern_constraint/2.     #defined pattern_constraint_severity/3.
-#defined pattern_constraint_domains/3.
+#defined separate/2.     #defined prefer_separate/2.
+#defined min_domains/2.  #defined prefer_min_domains/2.
 #defined error/2.

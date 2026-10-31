@@ -67,26 +67,40 @@ ramenée à une forme.
          [OPTION]… [FILES]…
   hamac: option --time-limit: "-1" is not a non-negative number of seconds
 
-Les contraintes des patrons sont prises dans un catalogue, que hamac.lp
-implémente. Une contrainte hard qu'aucun placement ne satisfait est nommée,
-avec ses témoins.
+Les exigences de placement se ramènent à des primitives que hamac.lp
+respecte (separate, min_domains et leurs préférences) ; le module hamac_ha
+en fournit les déclarations. Une primitive qu'aucun placement ne satisfait
+est nommée, avec son témoin.
 
   $ hamac plan quorum.loaf 2>&1 | grep -v W001
-  hamac: [ERROR] plan: no placement of the services satisfies the constraint stateful_quorum of pattern p (db)
+  hamac: [ERROR] plan: no placement of the services satisfies min_domains(db,3) (db)
 
-Une contrainte soft passe avant la minimisation des nœuds : violée, elle
+Une préférence passe avant la minimisation des nœuds : non satisfaite, elle
 donne un avertissement par témoin.
 
   $ hamac plan soft.loaf 2>&1 | grep -v W001 | sed -n '/WARNING/p'
-  hamac: [WARNING] soft constraint stateful_quorum of pattern p (db) is violated
+  hamac: [WARNING] preference not met: prefer_min_domains(db,2) (db)
 
-Une sorte hors du catalogue, ou un paramètre d'une autre sorte, est refusé.
+Deux services critiques ne partagent pas une machine.
+
+  $ hamac plan critical.loaf 2>/dev/null | sed -n '/^Proposed/,/^$/p'
+  Proposed topology:
+    2x node [default] amd64 — 4096Mi RAM, 4 CPU
+  
+  $ hamac simulate critical.loaf 2>/dev/null | sed -n '/^Service placement/,/^$/p'
+  Service placement:
+    node-default-1 [zone: default]:
+      - auth
+    node-default-2 [zone: default]:
+      - billing
+      - docs
+  
+
+Un nombre de domaines inférieur à 1 est refusé.
 
   $ hamac validate misuse.loaf 2>&1 | grep ERROR
-  hamac: [ERROR] misuse.loaf:9:31: [E007] domains is a parameter of stateful_quorum, not of zone_isolation
-  hamac: [ERROR] misuse.loaf:10:32: [E016] stateful_quorum needs at least 1 domain
-  $ hamac validate unknown.loaf 2>&1 | grep ERROR
-  hamac: [ERROR] unknown.loaf:9:3: [L002] pattern.constraint(p, smallest_cluster): smallest_cluster does not belong to sort constraint_kind
+  hamac: [ERROR] misuse.loaf:10:3: [E016] a service survives the loss of a failure domain only on at least 1 domain
+
 Un nœud a une architecture, et une réplique ne va que sur un nœud d'une
 architecture de son artefact. Le binaire arm64 demande un nœud arm64 ; les
 deux répliques de 3 Gio de l'API remplissent deux nœuds amd64 ; l'image

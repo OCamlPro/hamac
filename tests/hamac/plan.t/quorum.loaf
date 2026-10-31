@@ -3,12 +3,13 @@
 
 loaf 0.1.
 use hamac 0.2.
+use hamac_ha 0.2.
 
 % Un service à état sur trois domaines de panne au moins : db n'a que deux
 % répliques.
 pattern p {
   zone a {}
-  constraint stateful_quorum {}
+  ha::stateful_domains 3.
 }
 
 service db {

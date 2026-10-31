@@ -11,6 +11,7 @@ module exemple_rh 1.0.0.
 use hamac 0.2.
 use hamac_blp 0.2.
 use hamac_rbac 0.2.
+use hamac_ha 0.2.
 
 pattern exemple_rh {
   blp::levels [public, internal, confidential].
@@ -26,10 +27,9 @@ pattern exemple_rh {
   }
 
   % Deux zones ne partagent jamais une machine.
-  constraint zone_isolation.
+  ha::isolate_zones.
 
   % Un service à état survit à la perte d'un domaine de panne : ses
-  % répliques sont sur au moins trois domaines. Une préférence, pas une
-  % obligation.
-  constraint stateful_quorum { severity soft. }
+  % répliques sont de préférence sur au moins trois domaines.
+  ha::prefer_stateful_domains 3.
 }

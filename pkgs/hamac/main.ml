@@ -21,10 +21,10 @@ let kind_label = function
   | MStack s ->
     Printf.sprintf "stack (name=%s, %d services)" s.name (List.length s.services)
   | MPattern p ->
-    Printf.sprintf "pattern (name=%s%s, %d zones, %d constraints)"
+    Printf.sprintf "pattern (name=%s%s, %d zones)"
       p.pat_name
       (match p.pat_version with Some v -> ", version=" ^ v | None -> "")
-      (List.length p.zones) (List.length p.constraints)
+      (List.length p.zones)
   | MInfrastructure i ->
     Printf.sprintf "infrastructure (name=%s, backend=%s)" i.name i.backend
   | MProvisioningProfile p ->

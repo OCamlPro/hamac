@@ -1,0 +1,12 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+use hamac_ha 0.2.
+
+% Deux petits services critiques, qui tiendraient sur un seul nœud : ils
+% sont séparés. Le troisième, ordinaire, rejoint l'un d'eux.
+service auth { runtime http. ha::critical. }
+service billing { runtime http. ha::critical. }
+service docs { runtime http. }

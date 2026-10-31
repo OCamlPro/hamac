@@ -462,14 +462,9 @@ let pattern cx pt : pattern_manifest =
       (z, Option.get (assurance_of (List.filter_map (function
          | [z'; a; l] when const z' = z -> Some (const a, l) | _ -> None) rows))))
       zone_names in
-  let constraints = F.list1 cx k p "constraint" Fun.id |> List.map (fun c ->
-    let q = [pt; c] in
-    { kind = const c;
-      severity = Option.value (F.opt1 cx k q "constraint.severity" const) ~default:"hard";
-      domains = F.opt1 cx k q "constraint.domains" int }) in
   { pat_name = name pt;
     pat_version = None;  (* that of its module: set by load *)
-    zones; pat_assurance; constraints }
+    zones; pat_assurance }
 
 (* ============================================================ *)
 (* kind: stack                                                   *)
@@ -615,7 +610,7 @@ let experimental = [
                "need", "placement"; "spread", "placement";
                "affinity", "placement"; "anti_affinity", "placement";
                "exposure", "exposure"; "consumes.mode", "mode" ];
-  "pattern", [ "assurance", "assurance"; "constraint", "constraints" ];
+  "pattern", [ "assurance", "assurance" ];
   "infrastructure", [ "certificate", "certificate" ];
   "provisioning_profile", [ "assurance", "assurance" ];
   "bundle", [ "lifecycle", "lifecycle" ];

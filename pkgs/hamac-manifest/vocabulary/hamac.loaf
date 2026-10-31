@@ -231,12 +231,6 @@ block pattern {
   % les plus sûres disponibles, les plus sensibles d'abord.
   assurance* name, axis => assurance_level.
 
-  % Contraintes sur la topologie, prises dans le catalogue que Hamac
-  % implémente : le sujet est la sorte de contrainte.
-  constraint* constraint_kind {
-    severity? severity.  % défaut hard
-    domains? int.        % stateful_quorum : domaines de panne, défaut 3
-  }
 }
 
 enum boundary { firewall; diode }.
@@ -245,11 +239,17 @@ enum boundary { firewall; diode }.
 % (ouvrir une connexion vers) la zone A. Chaque zone se lit elle-même ; le
 % reste vient des modèles de sécurité que chargent les patrons.
 predicate zone_leq(name, name).
-enum severity { hard; soft }.
-enum constraint_kind {
-  zone_isolation;        % deux zones ne partagent jamais une machine
-  stateful_quorum        % un service à état est sur assez de domaines de panne
-}.
+
+% Les primitives de placement : ce que le planificateur sait respecter. Les
+% champs du vocabulaire et les modules (hamac_ha…) s'y ramènent ; les
+% manifestes ne les écrivent pas d'ordinaire. Une primitive « prefer_ » est
+% une préférence : le planificateur la respecte s'il le peut, avant de
+% réduire le nombre de nœuds.
+predicate separate(service, service).         % jamais sur une même machine
+predicate prefer_separate(service, service).
+predicate min_domains(service, int).          % sur au moins N domaines de panne
+predicate prefer_min_domains(service, int).
+predicate floor(name, axis, assurance_level). % plancher d'assurance d'une zone
 
 % ---------------------------------------------------------------------
 % Stack
@@ -486,13 +486,9 @@ namespace hamac {
           I.node(R).boot(L)) :-
       I.node(R).boot(L), not assurance_level(boot, L).
 
-  % Les paramètres d'une contrainte sont ceux de sa sorte.
-  ::error(fmt("[E007] domains is a parameter of stateful_quorum, not of {K}"),
-          P.constraint(K).domains(N)) :-
-      pattern(P), P.constraint(K).domains(N), K != stateful_quorum.
-  ::error(fmt("[E016] stateful_quorum needs at least 1 domain"),
-          P.constraint(K).domains(N)) :-
-      pattern(P), P.constraint(K).domains(N), N < 1.
+  % Les champs de placement du vocabulaire, ramenés aux primitives.
+  ::separate(S, T) :- service(S), S.anti_affinity(T).
+  ::floor(Z, A, L) :- pattern(P), P.assurance(Z, A, L).
 
   % Zones et flux. La zone d'un service, default s'il n'en déclare pas.
   derived predicate zone_of(service, name).

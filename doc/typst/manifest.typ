@@ -119,8 +119,8 @@ déduit quelle zone peut lire quelle autre, et `hamac_rbac`, qui gère des
 rôles. Les champs d'un modèle portent son préfixe : `blp::level`,
 `rbac::role`. La zone `rh` accueille ainsi des données confidentielles des
 catégories `rh` et `finance`. Le patron est un module : la stack le charge
-par `use exemple_rh 1.0.` Le fichier complet ajoute des contraintes sur la
-topologie (@contraintes).
+par `use exemple_rh 1.0.` Le fichier complet ajoute des exigences de
+placement, avec le module `hamac_ha` (@contraintes).
 
 == Le provider de base de données
 
@@ -352,6 +352,31 @@ version et le fichier d'empreintes `loaf.sum` suivent la spécification de
 LOAF ; un module introuvable ou des contraintes incompatibles sont refusés
 (#code("L009")).
 
+== Décrire, traduire, agir <roles>
+
+Trois rôles se partagent les fichiers d'un ensemble :
+
+#tableau((auto, 1fr),
+  [Rôle], [Ce qu'il écrit],
+  [*Décrire*], [Les manifestes (services, patrons, stacks…) posent des
+    faits : une zone, un niveau, « isoler les zones », « ce service est
+    critique ». Leurs auteurs choisissent parmi les champs du vocabulaire et
+    des modules qu'ils chargent.],
+  [*Traduire*], [Les modules (`hamac_blp`, `hamac_ha`, ou ceux d'une
+    organisation) contiennent les règles : ils ramènent leurs notions aux
+    _primitives_ que Hamac sait appliquer, comme l'ordre des zones
+    (`zone_leq`, @modeles) ou les primitives de placement (@contraintes).],
+  [*Agir*], [Hamac n'interprète que les primitives : il en déduit le
+    filtrage entre zones, le placement des répliques et la configuration de
+    la bordure.],
+)
+
+Une notion nouvelle qui se ramène aux primitives existantes s'ajoute par un
+module, sans changer Hamac ; une primitive nouvelle demande une version de
+Hamac. Le langage permet d'écrire une règle dans n'importe quel fichier ;
+une règle a néanmoins sa place dans un module, où elle est versionnée,
+relue et partagée, et les manifestes s'en tiennent à décrire.
+
 == Outils
 
 L'outil `loaf`, qui accompagne la spécification de LOAF, s'applique aux
@@ -385,7 +410,7 @@ manifeste et par groupe de champs, sauf si l'ensemble contient une stack qui
   [`service`], [`storage`, `backup`, `secret`, le placement (`need`,
     `spread`, `affinity`, `anti_affinity`), `exposure`, et le
     champ `mode` d'une consommation],
-  [`pattern`], [`assurance`, `constraint`],
+  [`pattern`], [`assurance`],
   [`infrastructure`], [`certificate`],
   [`provisioning_profile`], [`assurance`],
   [`bundle`], [`lifecycle`],
@@ -973,12 +998,11 @@ que ses fichiers chargent.
   [`assurance* name, axis => assurance_level`], [#experimental plancher
     d'assurance d'une zone sur un axe, pour un patron qui doit répondre à une
     exigence (@assurance)],
-  [`constraint* name { … }`], [#experimental contrainte sur la topologie
-    (@contraintes)],
 )
 
-S'y ajoutent les champs des modèles de sécurité que le patron charge, écrits
-avec le préfixe de leur modèle : `blp::levels`, `rbac::role`… (@modeles).
+S'y ajoutent les champs des modules que le patron charge, écrits avec le
+préfixe de leur module : `blp::levels`, `rbac::role` pour les modèles de
+sécurité (@modeles), `ha::isolate_zones` pour le placement (@contraintes).
 
 Le patron de `examples/hr-stack/patterns/exemple_rh.loaf` :
 
@@ -988,6 +1012,7 @@ module exemple_rh 1.0.0.
 use hamac 0.2.
 use hamac_blp 0.2.     % le modèle Bell-LaPadula
 use hamac_rbac 0.2.    % les rôles
+use hamac_ha 0.2.      % disponibilité et isolation
 
 pattern exemple_rh {
   blp::levels [public, internal, confidential].
@@ -1003,9 +1028,9 @@ pattern exemple_rh {
   }
 
   % Deux zones ne partagent jamais une machine.
-  constraint zone_isolation.
+  ha::isolate_zones.
   % Un service à état, de préférence sur trois domaines de panne.
-  constraint stateful_quorum { severity soft. }
+  ha::prefer_stateful_domains 3.
 }
 ```
 
@@ -1146,11 +1171,11 @@ loaf 0.1.
 module anssi_hygiene 1.0.0.
 use hamac 0.2.
 use hamac_blp 0.2.
+use hamac_ha 0.2.
 
 pattern anssi_hygiene {
   blp::levels [public, default, internal, secure].
-
-  constraint zone_isolation.
+  ha::isolate_zones.
 }
 ```
 
@@ -1234,7 +1259,8 @@ pas.
 *Plancher.* Un patron qui doit répondre à une exigence (hébergement certifié,
 hygiène renforcée, diffusion restreinte) fixe un niveau minimal par zone et
 par axe : `assurance secure, boot, measured_tpm2.` exige ce niveau de toute
-machine de la zone `secure`. Un placement qui ne peut le respecter échoue. Un
+machine de la zone `secure` (primitive `floor`, @contraintes). Un placement
+qui ne peut le respecter échoue. Un
 axe sans plancher n'impose rien. Un niveau qui n'appartient pas à son axe
 donne #code("E007") ; une zone que le patron ne définit pas, alors qu'il en
 définit, donne #code("E042").
@@ -1257,50 +1283,65 @@ plancher de la zone, s'il y en a un.
   l'hyperviseur.
 ]
 
-== Contraintes <contraintes>
+== Exigences de placement <contraintes>
 
 #experimental
 
 Le #terme[planificateur] (`hamac plan`) choisit la topologie d'une stack :
 il place chaque réplique de chaque service à déployer sur un nœud de sa zone,
-dans la capacité des nœuds et selon le placement que les services demandent
-(@placement), avec le moins de nœuds possible. Un patron ajoute des
-contraintes, prises dans un catalogue dont Hamac implémente le sens. Une
-contrainte est un sous-bloc `constraint`, dont le sujet est sa sorte.
+dans la capacité des nœuds, avec le moins de nœuds possible. Il respecte en
+outre les _primitives de placement_ que définit l'ensemble de fichiers
+(@roles) :
 
 #tableau((auto, 1fr),
-  [Sorte], [Exigence sur la topologie],
-  [`zone_isolation`], [deux zones ne partagent jamais une machine],
-  [`stateful_quorum`], [un service à état (un volume `local` ou
-    `replicated`, @donnees) a des répliques sur au moins `domains` domaines
-    de panne (défaut 3) : il survit à la perte de l'un d'eux],
+  [Primitive], [Exigence],
+  [`separate(S, T)`], [les services `S` et `T` ne partagent jamais une
+    machine],
+  [`min_domains(S, N)`], [les répliques de `S` sont sur au moins `N`
+    domaines de panne],
+  [`floor(Z, axe, niveau)`], [plancher d'assurance de la zone `Z`
+    (@assurance)],
 )
+
+`prefer_separate` et `prefer_min_domains` en sont les préférences : le
+planificateur les respecte s'il le peut, avant de réduire le nombre de nœuds,
+et signale chacune de celles qu'il ne respecte pas. Les champs du vocabulaire
+s'y ramènent (`anti_affinity`, @placement ; `assurance` d'un patron), et un
+module en fournit d'autres déclarations.
+
+*Le module `hamac_ha`.* Livré avec le vocabulaire, il déclare des exigences
+de disponibilité et d'isolation :
 
 #tableau((auto, 1fr),
-  [Déclaration], [Sens, défaut et contrôles],
-  [`severity? severity`], [`hard` (défaut) : toute topologie retenue la
-    satisfait ; `soft` : une préférence, qui passe avant le nombre de
-    nœuds],
-  [`domains? int`], [nombre de domaines de panne d'un `stateful_quorum`, au
-    moins 1 (#code("E016")) ; pour une autre sorte, #code("E007")],
+  [Déclaration], [Sens et primitives],
+  [`ha::isolate_zones`, au patron], [deux zones ne partagent jamais une
+    machine : `separate` entre les services de zones différentes],
+  [`ha::stateful_domains? int`, au patron], [un service à état (un volume
+    `local` ou `replicated`, @donnees) a des répliques sur au moins ce nombre
+    de domaines de panne, au moins 1 (#code("E016")) : `min_domains`],
+  [`ha::prefer_stateful_domains? int`, au patron], [la même exigence, en
+    préférence : `prefer_min_domains`],
+  [`ha::critical`, à un service], [deux services critiques ne partagent pas
+    une machine : `separate`],
 )
-
-Une sorte hors du catalogue est refusée par le langage (#code("L002")).
 
 ```loaf
+use hamac_ha 0.2.
+
 pattern exemple_rh {
-  constraint zone_isolation.
-  constraint stateful_quorum { severity soft. }
+  ha::isolate_zones.
+  ha::prefer_stateful_domains 3.
 }
+
+service hr_api { ha::critical. }
 ```
 
-Le planificateur rapporte chaque violation d'une contrainte `soft` par un
-avertissement, avec son témoin : le service ou la machine en cause. Quand
-aucune topologie ne satisfait les contraintes `hard`, il échoue en donnant les
-violations de la topologie qui en compte le moins :
+Quand aucune topologie ne respecte les primitives, le planificateur échoue en
+donnant celles que viole la topologie qui en viole le moins, avec leur
+témoin :
 
 ```
-plan: no placement of the services satisfies the constraint stateful_quorum of pattern p (db)
+plan: no placement of the services satisfies min_domains(db,3) (db)
 ```
 
 = Sécurité, placement et exposition d'un service <securite>
@@ -1453,7 +1494,8 @@ Un chemin qu'aucune route ne couvre, `/admin` par exemple, est refusé à tous.
   [`spread? spread`], [répartition des répliques : `none` (défaut) · `host` ·
     `failure_domain`],
   [`affinity* service`, `anti_affinity* service`], [services à rapprocher ou
-    à séparer],
+    à séparer ; `anti_affinity` se ramène à la primitive `separate`
+    (@contraintes)],
 )
 
 Le vocabulaire ne prévoit pas de placement par nom d'hôte.
@@ -1835,7 +1877,7 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     bundle ne déclare pas, ou donné sous une autre forme que celle de son
     type ;
     paramètres d'un bundle que `bundles` ne liste pas ; référence de secret
-    sans backend ; paramètre d'une contrainte qui n'est pas de sa sorte],
+    sans backend],
   code("E008"), [2], [artefact autre qu'une image OCI déclaré pour
     plusieurs architectures],
   code("E009"), [2], [nœud d'une autre architecture que l'image d'OS de son
@@ -1848,7 +1890,7 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     `service`],
   code("E014"), [2], [réservation de ressource supérieure à sa limite],
   code("E016"), [2], [`replicas` inférieur à 1, `min_replicas` et
-    `max_replicas` incohérents, `domains` d'une contrainte inférieur à 1],
+    `max_replicas` incohérents, `ha::stateful_domains` inférieur à 1],
   code("E020"), [2], [référence non liée : `secret(x)` sans secret déclaré ;
     `host(t)` hors d'une consommation de `t` ; terme que Hamac ne sait pas
     rendre],

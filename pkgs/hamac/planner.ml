@@ -14,7 +14,7 @@
     {!Hamac_lp.text}), which places every replica of every service to
     deploy on a node of its zone, within the capacity of a node and the
     spread the service asks for, with as few nodes as possible, and the
-    constraints of the patterns. Everything
+    primitives of placement. Everything
     the plan says about resources (demand of a replica, number of replicas,
     nodes) is read from the optimal model: [hamac.lp] is its only source. *)
 
@@ -85,8 +85,8 @@ type plan = {
   warnings: string list;
 }
 
-(** The services cannot be placed: a replica larger than a node, hard
-    constraints of the patterns that no placement satisfies, or an error of
+(** The services cannot be placed: a replica larger than a node,
+    primitives of placement that no placement satisfies, or an error of
     clingo. *)
 exception Error of string list
 
@@ -113,9 +113,8 @@ let default_time_limit = 30.
 
 (** The best model of the manifests [asp] and [hamac.lp] that clingo finds
     within [time_limit] seconds, and whether it is proven optimal. With
-    [relax], the hard constraints of the patterns become penalties above
-    every other cost: the model then says which ones no placement
-    satisfies. *)
+    [relax], the primitives of placement become penalties above every
+    other cost: the model then says which ones no placement satisfies. *)
 let solve ?(relax = false) ~time_limit (asp : string list)
   : Clingo.model option * Clingo.outcome =
   let args = [ Printf.sprintf "--const=node_memory=%d" node_ram_mb;
@@ -132,13 +131,13 @@ let solve ?(relax = false) ~time_limit (asp : string list)
   | r -> r
   | exception Clingo.Error e -> raise (Error [ Fmt.str "%a" Clingo.pp_error e ])
 
-(** A violation of a constraint, read from a model: the pattern, the
-    constraint and its witness. *)
-let violations (m : Clingo.model) =
+(** The primitives of placement that a model violates ([violation]) or the
+    preferences it does not meet ([unmet]): the primitive and its witness,
+    the service or the node at fault. *)
+let violations ?(pred = "violation") (m : Clingo.model) =
   List.filter_map (function
-    | Clingo.Fun ("violation", [p; c; w]) ->
-      Some (Fmt.str "constraint %a of pattern %a (%a)"
-              Clingo.pp_symbol c Clingo.pp_symbol p Clingo.pp_symbol w)
+    | Clingo.Fun (p, [k; w]) when p = pred ->
+      Some (Fmt.str "%a (%a)" Clingo.pp_symbol k Clingo.pp_symbol w)
     | _ -> None) m.symbols
 
 (** The optimal placement, or the hard constraints that make it
@@ -151,8 +150,8 @@ let solve_plan ~time_limit asp : Clingo.model * bool =
       | Some m, _ -> violations m
       | None, _ -> [] in
     raise (Error (match culprits with
-      | [] -> [ "no placement of the services satisfies the constraints" ]
-      | vs -> List.map (fun v -> "no placement of the services satisfies the " ^ v) vs))
+      | [] -> [ "no placement of the services satisfies the placement requirements" ]
+      | vs -> List.map (fun v -> "no placement of the services satisfies " ^ v) vs))
   | None, _ ->
     raise (Error [ Printf.sprintf "no placement found within the time limit (%gs)" time_limit ])
 
@@ -224,8 +223,9 @@ let read_model (m : Clingo.model) =
     [asp] is the ASP form of the set of files the services come from
     ({!Hamac_manifest.Loaf_source.asp}); [services] are the services to
     deploy, the same as those that [hamac.lp] derives from it. The
-    constraints of the patterns are in [asp], and [hamac.lp] implements
-    them: a violated soft constraint gives a warning. The search
+    primitives of placement are in [asp] (defined by the fields of the
+    vocabulary and by the modules), and [hamac.lp] respects them: an unmet
+    preference gives a warning. The search
     stops after [time_limit] seconds ({!default_time_limit}): the plan then
     has the best placement found, and a warning.
     @raise Error if the services cannot be placed. *)
@@ -261,7 +261,8 @@ let plan ?(time_limit = default_time_limit) ~(name : string)
              | _ -> (arch, 1) :: acc) []
         |> List.rev })
     zone_names in
-  let warnings = ref (List.rev_map (fun v -> "soft " ^ v ^ " is violated") (violations model)) in
+  let warnings = ref (List.rev_map (fun v -> "preference not met: " ^ v)
+                        (violations ~pred:"unmet" model)) in
   if not proven then
     warnings := Printf.sprintf
         "The placement is not proven optimal: the search for fewer nodes stopped at the \

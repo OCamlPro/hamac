@@ -3,5 +3,5 @@
 ;; le module [Sites] généré.
 (install
  (section (site (hamac-manifest vocabulary)))
- (files hamac.loaf hamac_blp.loaf hamac_rbac.loaf hamac_default.loaf)
+ (files hamac.loaf hamac_blp.loaf hamac_rbac.loaf hamac_default.loaf hamac_ha.loaf)
  (package hamac-manifest))

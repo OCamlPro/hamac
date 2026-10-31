@@ -3,14 +3,12 @@
 
 loaf 0.1.
 use hamac 0.2.
+use hamac_ha 0.2.
 
 % La même exigence, en préférence : le plan se fait, avec un avertissement.
 pattern p {
   zone a {}
-  constraint stateful_quorum {
-    severity soft.
-    domains 2.
-  }
+  ha::prefer_stateful_domains 2.
 }
 
 service db {

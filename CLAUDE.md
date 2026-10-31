@@ -20,8 +20,8 @@ et provisionne/déploie — y compris le **provisioning bare-metal via PXE**. OC
 - **`pkgs/hamac-manifest/vocabulary/hamac.loaf`** — le vocabulaire LOAF de Hamac : blocs
   des manifestes (`service`, `pattern`, `stack`, `infrastructure`, `provisioning_profile`,
   `bundle`), contrats des capacités (`database`, `cache`), défauts et validations. À
-  côté, les modèles de sécurité livrés : `hamac_blp.loaf` (Bell-LaPadula), `hamac_rbac.loaf`
-  (rôles) et le patron `hamac_default.loaf` ; un modèle ajoute ses champs aux patrons et aux
+  côté, les modules livrés : `hamac_blp.loaf` (Bell-LaPadula), `hamac_rbac.loaf` (rôles),
+  `hamac_ha.loaf` (disponibilité et isolation) et le patron `hamac_default.loaf` ; un modèle ajoute ses champs aux patrons et aux
   routes (`blp::level`, `rbac::role`) et définit `zone_leq`, l'ordre des zones.
 - Les manifestes consommés sont des `*.loaf`, chargés en un ensemble (une stack avec ses
   services et les providers qu'ils consomment ; un dossier vaut ses `.loaf`, à toute
@@ -53,9 +53,10 @@ notes de travail restent en Markdown. Typst installé par snap ne peut pas écri
   clingo, stubs C `clingo_stubs.c`), sans dépendance à Hamac. Le planificateur
   (`pkgs/hamac/planner.ml`) résout avec elle la forme ASP des manifestes (`Loaf_source.asp`)
   augmentée de `pkgs/hamac/hamac.lp` (placement des répliques, embarqué dans l'exécutable),
-  qui implémente aussi le catalogue des contraintes des patrons (`enum constraint_kind` du
-  vocabulaire : `zone_isolation`, `stateful_quorum`). Les patrons nomment une contrainte,
-  ils n'écrivent jamais de règle : l'implémentation reste interne à Hamac.
+  qui respecte les primitives de placement du vocabulaire (`separate`, `min_domains`, leurs
+  préférences `prefer_*`, `floor`). Trois rôles : les manifestes décrivent, les modules
+  (`hamac_blp`, `hamac_rbac`, `hamac_ha`…) traduisent leurs notions en primitives par des
+  règles, Hamac n'interprète que les primitives (`zone_leq` et celles du placement).
 - **`pkgs/hamac-provisioning`** — bibliothèque : rendu du provisioning (cloud-init + iPXE,
   `provisioning_gen.ml`).
 - **`pkgs/hamac-discovery`** — serveur de découverte : stocke un enregistrement de provisioning
