@@ -872,8 +872,7 @@ propre instance, avec d'autres identifiants.
     (#code("E032"))],
   [#h(1em)`rebuild? rebuild`], [pour `local` : `from_backup` · `from_object` ·
     `from_replica` · `none`, la façon de reconstruire le volume sur un autre
-    nœud. Avec `none`, le service n'est pas relocalisable : le planificateur ne le
-    déplace pas et le signale],
+    nœud ; avec `none`, ses données sont perdues avec le nœud],
   [`backup? string { … }`], [politique de sauvegarde ; le sujet est la
     planification, une expression cron],
   [#h(1em)`retention* retention_period => int`], [nombre d'instantanés
