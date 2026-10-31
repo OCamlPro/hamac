@@ -217,7 +217,10 @@ jobs:
           BASE="https://forge.ocamlpro.com/api/packages/${OWNER}/generic/hamac-docs"
           for f in doc/typst/*.pdf; do
             n=$(basename "$f")
-            curl -fsS -u "$USER:$REGISTRY_TOKEN" --upload-file "$f" "$BASE/${GITHUB_SHA}/$n"
+            # La version d'un commit est immuable : une relance la trouve (409).
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -u "$USER:$REGISTRY_TOKEN" \
+              --upload-file "$f" "$BASE/${GITHUB_SHA}/$n")
+            case "$code" in 201|409) ;; *) echo "échec de la publication : HTTP $code"; exit 1 ;; esac
             # Une version de paquet est immuable : « latest » est remplacé.
             curl -sS -o /dev/null -u "$USER:$REGISTRY_TOKEN" -X DELETE "$BASE/latest/$n" || true
             curl -fsS -u "$USER:$REGISTRY_TOKEN" --upload-file "$f" "$BASE/latest/$n"
