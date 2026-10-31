@@ -52,7 +52,7 @@ chacune a son auteur :
     contraintes sur la topologie (@pattern)],
   [`stack`], [l'équipe d'exploitation], [les services à déployer ensemble et
     les choix qui les concernent (@stack)],
-  [`infrastructure`], [le planner de Hamac, relu par l'exploitation], [une
+  [`infrastructure`], [le planificateur de Hamac, relu par l'exploitation], [une
     topologie : nœuds, segments réseau, filtrage (@infrastructure)],
   [`provisioning_profile`], [l'administration du parc], [le système installé
     sur une machine (@profil)],
@@ -117,7 +117,7 @@ trois zones, et choisit deux modèles de sécurité livrés avec Hamac :
 `hamac_blp`, qui étiquette chaque zone d'un niveau et de catégories et en
 déduit quelle zone peut lire quelle autre, et `hamac_rbac`, qui gère des
 rôles. Les champs d'un modèle portent son préfixe : `blp::level`,
-`rbac::role`. La zone `rh` accueille ainsi des données confidentielles des
+`rbac::role`. La zone `rh` accueille des données confidentielles des
 catégories `rh` et `finance`. Le patron est un module : la stack le charge
 par `use exemple_rh 1.0.` Le fichier complet ajoute des exigences de
 placement, avec le module `hamac_ha` (@contraintes).
@@ -248,20 +248,18 @@ aux dossiers `examples/hr-stack` et `providers`, établissent :
   provider de `database` de l'ensemble. Hamac crée l'instance
   `postgresql-hr-api-db` ; au déploiement, `DATABASE_URL` vaut
   `postgresql://<12 lettres>:<32 caractères>@postgresql-hr-api-db:5432/hr_api_db`.
-- `payroll_report` reçoit `HR_API_URL=http://hr-api:8080` : le nom d'hôte de
-  `hr_api` et son premier port. Hamac le calcule ; les manifestes ne
-  l'écrivent jamais.
+- `payroll_report` reçoit `HR_API_URL=http://hr-api:8080`, que Hamac
+  construit à partir du nom d'hôte de `hr_api` et de son premier port.
 - `payroll_report` et `hr_api` sont dans la même zone : le flux entre eux ne
   demande aucune règle de filtrage. Entre les zones `public` et `rh`, tout est
-  refusé : aucun flux n'est déclaré, et `public` ne peut de toute façon pas
-  lire `rh`.
+  refusé : aucun flux n'est déclaré, et `hamac_blp` ne permet pas à `public`
+  de lire `rh`.
 - Le planificateur propose trois nœuds : un pour `public`, deux pour `rh`,
   car les deux répliques de `hr_api` doivent être sur des domaines de panne
   distincts.
 - Si `portal` déclarait `consumes api { service hr_api. }`, l'ensemble serait
   refusé (#code("E040")) : `portal` (zone `public`) ouvrirait une connexion
-  vers une zone plus sensible, ce qui revient à la lire, et `hamac_blp` ne le
-  permet pas.
+  vers la zone `rh`, plus sensible, ce que `hamac_blp` ne permet pas.
 - Une route qui exigerait le rôle `admn`, mal orthographié, serait refusée
   (#code("E045")) : aucun patron ne déclare ce rôle.
 - `zone dmz.` dans un service serait refusée (#code("E042")) : le patron ne
@@ -288,8 +286,8 @@ service portal {
 Un manifeste est un bloc du vocabulaire. Le sujet du bloc est le nom du
 manifeste : ici, le service `portal`. Un fichier #peut contenir plusieurs
 manifestes, de sortes différentes ou non. Un bloc ou un champ que le
-vocabulaire ne déclare pas est refusé par le langage (#code("L001")) ; une
-faute de frappe (`replica 3.`) est donc détectée.
+vocabulaire ne déclare pas est refusé par le langage (#code("L001")), comme
+la faute de frappe `replica 3.`
 
 == Ensemble de fichiers <ensemble>
 
@@ -374,9 +372,9 @@ Trois rôles se partagent les fichiers d'un ensemble :
 
 Une notion nouvelle qui se ramène aux primitives existantes s'ajoute par un
 module, sans changer Hamac ; une primitive nouvelle demande une version de
-Hamac. Le langage permet d'écrire une règle dans n'importe quel fichier ;
-une règle a néanmoins sa place dans un module, où elle est versionnée,
-relue et partagée, et les manifestes s'en tiennent à décrire.
+Hamac. Le langage permet d'écrire une règle dans n'importe quel fichier ; sa
+place est néanmoins dans un module, où elle est versionnée, relue et
+partagée.
 
 == Outils
 
@@ -454,9 +452,9 @@ est absent.
   s'appelle `hr_api_db`).
 - Seul un *nom d'hôte* change de forme, parce qu'il n'admet pas `_` : celui
   d'un service, d'une instance de provider ou d'un nœud remplace `_` par
-  `-` (`hr-api`, `postgresql-hr-api-db`). Aucun manifeste n'a à l'écrire : un
-  consommateur reçoit le nom d'hôte du service qu'il consomme par son
-  gabarit (`{~.host}`, @consumes). Le nom d'un service #doit donc ne
+  `-` (`hr-api`, `postgresql-hr-api-db`). Un consommateur reçoit le nom
+  d'hôte du service qu'il consomme par son gabarit (`{~.host}`, @consumes).
+  Le nom d'un service #doit donc ne
   contenir que des minuscules, des chiffres et `_`, ni commencer ni finir
   par `_`, et ne pas dépasser 63 caractères (#code("E004")).
 - Les valeurs des énumérations s'écrivent avec `_` là où le nom usuel porte
@@ -499,9 +497,7 @@ préfixes binaires de la norme CEI 60027-2 :
 Ces unités ne sont pas le kilooctet, le mégaoctet ou le gigaoctet du système
 international (ko, Mo, Go), qui valent 1000, 1000#super[2] et
 1000#super[3] octets : 1 Gio vaut environ 1,074 Go, et l'écart croît avec
-l'unité. Ce sont celles de la mémoire et des outils vers lesquels Hamac
-traduit les manifestes (Kubernetes, groupes de contrôle Linux, volumes des
-clouds). Une taille connue en unités décimales se convertit en arrondissant
+l'unité. Une taille connue en unités décimales se convertit en arrondissant
 au-dessus : un volume de 500 Go (500 × 1000#super[3] octets, soit environ
 465,7 Gio) s'écrit `size 466, gi.`
 Les délais des sondes (`health_check`, `readiness_interval`,
@@ -530,8 +526,7 @@ champ attend une valeur de sorte `text`, seuls ou dans un gabarit `fmt`.
 
 Hamac crée une *instance* d'un provider pour chaque consommation qui le
 retient : chaque consommateur reçoit sa propre base, ses propres
-identifiants. Les
-termes suivants désignent des valeurs de cette instance.
+identifiants. Les termes suivants désignent des valeurs de cette instance.
 
 #tableau((auto, 1fr, 1fr),
   [Terme], [Valeur rendue], [Usage],
@@ -599,16 +594,16 @@ Le sous-bloc `artifact` porte :
 
 Le format détermine l'exécutant : un `oci_image` s'exécute dans un conteneur,
 un binaire `native` (Linux) directement, un `incus_vm_image` dans une
-machine virtuelle, un `incus_system_image` dans un conteneur système. Aucun
-autre champ ne le précise.
+machine virtuelle, un `incus_system_image` dans un conteneur système. Une
+image OCI #devrait être épinglée par son empreinte, écrite dans le sujet
+(`registry.example.org/rh/portal@sha256:…`), sinon #code("W010").
 
 *Architecture.* Une réplique ne s'exécute que sur un nœud d'une des
 architectures de son artefact. Les répliques d'un service ont toutes la
 même architecture ; pour une image multi-architecture, le planificateur la
 choisit. Il propose des nœuds de chaque architecture nécessaire, et une
 infrastructure imposée par la stack #doit en offrir à chaque service dans sa
-zone (@infrastructure). Une image OCI #devrait être épinglée par son empreinte, écrite dans
-le sujet (`registry.example.org/rh/portal@sha256:…`), sinon #code("W010").
+zone (@infrastructure).
 
 == Ressources et mise à l'échelle
 
@@ -684,8 +679,7 @@ service web_api {
 Une #terme[capacité] est un service générique qu'une application consomme
 sans en choisir l'implémentation : une base de données, un cache. Un
 #terme[provider] est un service qui fournit une capacité ; il se décrit par un
-manifeste `service` ordinaire, et en ajouter un ne demande pas de recompiler
-Hamac.
+manifeste `service` ordinaire.
 
 == Provider
 
@@ -802,8 +796,9 @@ consommation. Elle offre aux gabarits de ses injections :
 Le langage vérifie chaque attribut contre la déclaration du contrat
 (#code("L001") pour un attribut que le contrat ne déclare pas). Une injection
 dont un attribut n'a pas de valeur, par exemple parce que l'ensemble ne
-contient aucun provider de la capacité, est refusée (#code("L014")) : un
-service qui consomme une capacité se valide avec ses providers.
+contient aucun provider de la capacité, est refusée (#code("L014")). Un
+service qui consomme une capacité se valide avec ses providers, dans le même
+ensemble.
 
 Deux consommations, extraites de `examples/hr-stack/` :
 
@@ -877,7 +872,7 @@ propre instance, avec d'autres identifiants.
     (#code("E032"))],
   [#h(1em)`rebuild? rebuild`], [pour `local` : `from_backup` · `from_object` ·
     `from_replica` · `none`, la façon de reconstruire le volume sur un autre
-    nœud. Avec `none`, le service n'est pas relocalisable : le planner ne le
+    nœud. Avec `none`, le service n'est pas relocalisable : le planificateur ne le
     déplace pas et le signale],
   [`backup? string { … }`], [politique de sauvegarde ; le sujet est la
     planification, une expression cron],
@@ -981,9 +976,8 @@ service forge {
 
 Un #terme[patron] fixe les choix de sécurité d'une organisation : ses zones,
 le modèle de sécurité qui dit quelle zone peut lire quelle autre, des
-exigences d'assurance et des contraintes sur la topologie. Hamac n'impose
-aucun modèle : des organisations aux besoins différents utilisent le même
-outil avec des patrons et des modèles différents.
+planchers d'assurance et des exigences de placement. Hamac n'impose aucun
+modèle.
 
 == Un patron est un module
 
@@ -1167,9 +1161,8 @@ et `assurance_level`) :
 
 L'assurance d'une machine dit ce qu'on peut affirmer de son intégrité, de
 qui l'exploite et d'où elle se trouve. Une machine offre un niveau par axe,
-déclaré par l'inventaire, par le nœud d'infrastructure (`boot`) ou par le
-profil qui l'a installée (@profil). Les manifestes de service n'en parlent
-pas.
+déclaré par l'inventaire, par le nœud d'infrastructure (@infrastructure) ou
+par le profil qui l'a installée (@profil).
 
 #regle[
   *Le plus sûr par défaut.* Hamac place chaque zone sur les machines les plus
@@ -1182,8 +1175,7 @@ pas.
 hygiène renforcée, diffusion restreinte) fixe un niveau minimal par zone et
 par axe : `assurance secure, boot, measured_tpm2.` exige ce niveau de toute
 machine de la zone `secure` (primitive `floor`, @contraintes). Un placement
-qui ne peut le respecter échoue. Un
-axe sans plancher n'impose rien. Un niveau qui n'appartient pas à son axe
+qui ne peut le respecter échoue. Un axe sans plancher n'impose rien. Un niveau qui n'appartient pas à son axe
 donne #code("E007") ; une zone que le patron ne définit pas, alors qu'il en
 définit, donne #code("E042").
 
@@ -1237,8 +1229,8 @@ et signale chacune de celles qu'il ne respecte pas. Les champs du vocabulaire
 s'y ramènent (`anti_affinity`, @placement ; `assurance` d'un patron), et un
 module en fournit d'autres déclarations.
 
-Le module `hamac_ha`, livré avec le vocabulaire, déclare ainsi des exigences
-de disponibilité et d'isolation : `ha::isolate_zones` au patron (deux zones
+Le module `hamac_ha`, livré avec le vocabulaire, en fournit pour la
+disponibilité et l'isolation : `ha::isolate_zones` au patron (deux zones
 ne partagent jamais une machine, par des `separate`), `ha::critical` à un
 service, `ha::stateful_domains` pour les services à état (par
 `min_domains`).
@@ -1268,8 +1260,7 @@ réseau, du consommateur vers le service consommé.
   *Lecture.* Ouvrir une connexion vers un service revient à le lire. Le
   modèle de sécurité des patrons #doit donc permettre à la zone du
   consommateur de lire celle du consommé (`zone_leq`, @modeles). Dans le cas
-  contraire, le flux est refusé (#code("E040")). Aucun champ ne permet de
-  déroger à cette règle.
+  contraire, le flux est refusé (#code("E040")).
 ]
 
 - Seuls les flux déclarés sont ouverts, vers les seuls ports déclarés du
@@ -1562,7 +1553,7 @@ provisioning_profile dev_workstation_demo {
 #stable
 
 Une infrastructure décrit une topologie : des nœuds, des segments réseau et le
-filtrage entre zones. Le planner de Hamac la produit à partir d'une stack ; un
+filtrage entre zones. Le planificateur de Hamac la produit à partir d'une stack ; un
 opérateur peut la relire, la figer ou la modifier. Une infrastructure modifiée
 est revérifiée contre les patrons de la stack avant tout déploiement.
 
@@ -1594,7 +1585,7 @@ est revérifiée contre les patrons de la stack avant tout déploiement.
   [`deny* name, name`], [refus explicite d'une zone source vers une zone
     destination],
   [`deny_reason* name, name => string`], [motif d'un refus],
-  [`warning* string`], [avertissements du planner],
+  [`warning* string`], [avertissements du planificateur],
   [`certificate? string`], [#experimental référence au certificat de
     résolution],
 )
@@ -1651,7 +1642,7 @@ l'emploi (`use hamac_default 0.2.`).
   [`infrastructure? infrastructure`], [infrastructure imposée : elle
     #doit offrir à chaque service un nœud de sa zone et d'une de ses
     architectures (#code("E046")) ; absente :
-    calculée par le planner],
+    calculée par le planificateur],
 )
 
 Une stack sans service donne #code("W002").
