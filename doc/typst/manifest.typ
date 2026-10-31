@@ -385,7 +385,7 @@ manifeste et par groupe de champs, sauf si l'ensemble contient une stack qui
   [`service`], [`storage`, `backup`, `secret`, le placement (`need`,
     `spread`, `affinity`, `anti_affinity`), `exposure`, et le
     champ `mode` d'une consommation],
-  [`pattern`], [`assurance`, `constraint`, `minimize`, `maximize`],
+  [`pattern`], [`assurance`, `constraint`],
   [`infrastructure`], [`certificate`],
   [`provisioning_profile`], [`assurance`],
   [`bundle`], [`lifecycle`],
@@ -975,8 +975,6 @@ que ses fichiers chargent.
     exigence (@assurance)],
   [`constraint* name { … }`], [#experimental contrainte sur la topologie
     (@contraintes)],
-  [`minimize* string { … }`, `maximize* string { … }`], [#experimental
-    objectifs (@objectifs)],
 )
 
 S'y ajoutent les champs des modèles de sécurité que le patron charge, écrits
@@ -1004,18 +1002,10 @@ pattern exemple_rh {
     blp::category rh; finance.
   }
 
-  constraint one_zone_per_host {
-    description "Deux zones ne partagent jamais un noyau".
-    violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
-  }
-
-  constraint stateful_quorum {
-    description "Un service à état survit à la perte d'un domaine de panne".
-    severity soft.
-    violation "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3".
-  }
-
-  minimize "1, H : used(H)" { priority 1. }
+  % Deux zones ne partagent jamais une machine.
+  constraint zone_isolation.
+  % Un service à état, de préférence sur trois domaines de panne.
+  constraint stateful_quorum { severity soft. }
 }
 ```
 
@@ -1160,10 +1150,7 @@ use hamac_blp 0.2.
 pattern anssi_hygiene {
   blp::levels [public, default, internal, secure].
 
-  constraint one_zone_per_host {
-    description "Deux zones ne partagent jamais un noyau".
-    violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
-  }
+  constraint zone_isolation.
 }
 ```
 
@@ -1277,106 +1264,44 @@ plancher de la zone, s'il y en a un.
 Le #terme[planificateur] (`hamac plan`) choisit la topologie d'une stack :
 il place chaque réplique de chaque service à déployer sur un nœud de sa zone,
 dans la capacité des nœuds et selon le placement que les services demandent
-(@placement), puis optimise. Il résout pour cela un programme en
-#terme[ASP] (_Answer Set Programming_), dans le langage de clingo 5, qui
-s'ajoute à la forme ASP de l'ensemble de fichiers (définie par la
-spécification de LOAF) : chaque fait de l'ensemble y est un atome, par
-exemple `service_zone(hr_api, rh)`. Les contraintes et les objectifs des
-patrons s'écrivent dans ce langage, sur les atomes de l'ensemble et sur les
-prédicats que publie le planificateur.
-
-*Prédicats publiés.* Un service, une zone ou un niveau y est désigné par son
-nom tel que l'écrivent les fichiers LOAF ; un nœud candidat par le triplet
-`(Z, A, K)`, sa zone, son architecture et son numéro parmi les nœuds de
-cette zone et de cette architecture, à partir de 1, les nœuds utilisés
-portant les premiers numéros.
+(@placement), avec le moins de nœuds possible. Un patron ajoute des
+contraintes, prises dans un catalogue dont Hamac implémente le sens. Une
+contrainte est un sous-bloc `constraint`, dont le sujet est sa sorte.
 
 #tableau((auto, 1fr),
-  [Prédicat], [Sens],
-  [`deployed(S)`], [`S` est un service à déployer : un service que nomme la
-    stack, ou, sans stack, un service qui ne fournit pas de capacité],
-  [`zone_of(S, Z)`], [sa zone (`default` s'il n'en déclare pas)],
-  [`replicas(S, N)`], [son nombre de répliques (`max_replicas` s'il est
-    dimensionné automatiquement)],
-  [`memory(S, M)`, `cpu(S, C)`], [la demande d'une réplique : sa limite de
-    mémoire en Mi (défaut 256), de processeur en millicœurs (défaut 500)],
-  [`stateful(S)`], [`S` a un volume `local` ou `replicated`],
-  [`replica(S, I)`], [la réplique `I` de `S`, `I` de 1 à `N`],
-  [`arch_of(S, A)`], [l'artefact de `S` s'exécute sur l'architecture `A`],
-  [`host(H)`, `host_zone(H, Z)`, `host_arch(H, A)`], [un nœud candidat, sa
-    zone et son architecture],
-  [`failure_domain(H, D)`], [le domaine de panne d'un nœud ; un nœud
-    candidat est son propre domaine],
-  [`place(S, I, H)`], [la réplique `I` de `S` est sur le nœud `H`],
-  [`on(S, H)`], [au moins une réplique de `S` est sur `H`],
-  [`used(H)`], [le nœud `H` porte au moins une réplique],
-  [`zone_on(H, Z)`], [un service de la zone `Z` a une réplique sur `H`],
+  [Sorte], [Exigence sur la topologie],
+  [`zone_isolation`], [deux zones ne partagent jamais une machine],
+  [`stateful_quorum`], [un service à état (un volume `local` ou
+    `replicated`, @donnees) a des répliques sur au moins `domains` domaines
+    de panne (défaut 3) : il survit à la perte de l'un d'eux],
 )
 
-*Contrainte.* Un sous-bloc `constraint` d'un patron, dont le sujet est un
-nom unique dans le patron.
-
 #tableau((auto, 1fr),
-  [Déclaration], [Sens et défaut],
-  [`description? string`], [texte libre],
+  [Déclaration], [Sens, défaut et contrôles],
   [`severity? severity`], [`hard` (défaut) : toute topologie retenue la
-    satisfait ; `soft` : chaque violation est une pénalité],
-  [`weight? int`, `priority? int`], [poids et priorité de la pénalité d'une
-    contrainte `soft`, défaut 1 (@objectifs)],
-  [`violation string`], [les violations de la contrainte, sous la forme
-    `termes : corps`],
+    satisfait ; `soft` : une préférence, qui passe avant le nombre de
+    nœuds],
+  [`domains? int`], [nombre de domaines de panne d'un `stateful_quorum`, au
+    moins 1 (#code("E016")) ; pour une autre sorte, #code("E007")],
 )
 
-`violation` a la forme d'un élément d'agrégat de clingo : `termes` est une
-suite de termes séparés par des virgules, éventuellement vide, `corps` un
-corps de règle. Chaque instance close de `termes` qui satisfait `corps` est
-une violation, dont `termes` est le #terme[témoin]. Une contrainte est
-satisfaite quand elle n'a aucune violation. La violation est elle-même une
-chaîne LOAF : ses guillemets internes s'écrivent `\"`.
+Une sorte hors du catalogue est refusée par le langage (#code("L002")).
 
 ```loaf
-constraint one_zone_per_host {
-  description "Deux zones ne partagent jamais un noyau".
-  violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
-}
-
-constraint stateful_quorum {
-  description "Un service à état survit à la perte d'un domaine de panne".
-  severity soft.
-  violation "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3".
+pattern exemple_rh {
+  constraint zone_isolation.
+  constraint stateful_quorum { severity soft. }
 }
 ```
 
-Le planificateur rapporte chaque violation d'une contrainte `soft` de la
-topologie retenue par un avertissement, avec son témoin. Quand aucune
-topologie ne satisfait les contraintes `hard`, il échoue en donnant les
-violations de la topologie qui en compte le moins, avec leurs témoins.
+Le planificateur rapporte chaque violation d'une contrainte `soft` par un
+avertissement, avec son témoin : le service ou la machine en cause. Quand
+aucune topologie ne satisfait les contraintes `hard`, il échoue en donnant les
+violations de la topologie qui en compte le moins :
 
-Une violation sans ses deux-points, une erreur de syntaxe, une variable non
-sûre (qui n'apparaît dans aucun atome positif du corps) ou un prédicat
-qu'aucune règle ne définit donnent #code("E052"), à la déclaration. Ce
-contrôle ne porte que sur un ensemble de fichiers sans autre erreur.
-
-== Objectifs <objectifs>
-
-#experimental
-
-`minimize` et `maximize` déclarent un objectif ; le sujet a la forme
-`poids, termes : corps` d'un élément d'agrégat `#minimize` ou `#maximize`
-de clingo : chaque instance close de `termes` qui satisfait `corps` compte
-pour `poids`, qui #doit être un entier, une fois par instance. `termes` est
-facultatif. Le champ `priority? int` (défaut 1) en donne la priorité. Les
-mêmes fautes que pour une violation donnent #code("E052").
-
-```loaf
-minimize "1, H : used(H)" { priority 1. }
 ```
-
-L'optimisation est lexicographique par priorité, la plus grande d'abord ; à
-priorité égale, les poids des objectifs et des pénalités des contraintes
-`soft` s'additionnent, un objectif `maximize` comptant ses poids en négatif.
-Après les objectifs des patrons, de priorité 1 ou plus, le planificateur
-minimise le nombre de nœuds, à la priorité 0.
+plan: no placement of the services satisfies the constraint stateful_quorum of pattern p (db)
+```
 
 = Sécurité, placement et exposition d'un service <securite>
 
@@ -1910,7 +1835,7 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
     bundle ne déclare pas, ou donné sous une autre forme que celle de son
     type ;
     paramètres d'un bundle que `bundles` ne liste pas ; référence de secret
-    sans backend],
+    sans backend ; paramètre d'une contrainte qui n'est pas de sa sorte],
   code("E008"), [2], [artefact autre qu'une image OCI déclaré pour
     plusieurs architectures],
   code("E009"), [2], [nœud d'une autre architecture que l'image d'OS de son
@@ -1922,8 +1847,8 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   code("E013"), [2], [consommation sans, ou avec à la fois, `capability` et
     `service`],
   code("E014"), [2], [réservation de ressource supérieure à sa limite],
-  code("E016"), [2], [`replicas` inférieur à 1, ou `min_replicas` et
-    `max_replicas` incohérents],
+  code("E016"), [2], [`replicas` inférieur à 1, `min_replicas` et
+    `max_replicas` incohérents, `domains` d'une contrainte inférieur à 1],
   code("E020"), [2], [référence non liée : `secret(x)` sans secret déclaré ;
     `host(t)` hors d'une consommation de `t` ; terme que Hamac ne sait pas
     rendre],
@@ -1956,9 +1881,6 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   code("E050"), [2], [`hamac_blp` : patrons aux niveaux différents],
   code("E051"), [2], [zone définie deux fois avec des frontières ou, pour
     `hamac_blp`, des étiquettes différentes],
-  code("E052"), [2], [contrainte ou objectif mal formé : sans ses
-    deux-points, erreur de syntaxe, variable non sûre, prédicat qu'aucune
-    règle ne définit],
   code("W001"), [2], [champ expérimental, sans stack qui écrit
     `accept_experimental`],
   code("W002"), [2], [stack sans service],

@@ -52,9 +52,10 @@ notes de travail restent en Markdown. Typst installé par snap ne peut pas écri
 - **`pkgs/hamac-clingo`** — bibliothèque : liaison OCaml de libclingo (API C du solveur ASP
   clingo, stubs C `clingo_stubs.c`), sans dépendance à Hamac. Le planificateur
   (`pkgs/hamac/planner.ml`) résout avec elle la forme ASP des manifestes (`Loaf_source.asp`)
-  augmentée de `pkgs/hamac/hamac.lp` (placement des répliques, embarqué dans l'exécutable)
-  et des règles des contraintes et objectifs des patrons, écrites en ASP sur les prédicats
-  que `hamac.lp` publie (`Planner.pattern_rules`, contrôlées par `Planner.check` : E052).
+  augmentée de `pkgs/hamac/hamac.lp` (placement des répliques, embarqué dans l'exécutable),
+  qui implémente aussi le catalogue des contraintes des patrons (`enum constraint_kind` du
+  vocabulaire : `zone_isolation`, `stateful_quorum`). Les patrons nomment une contrainte,
+  ils n'écrivent jamais de règle : l'implémentation reste interne à Hamac.
 - **`pkgs/hamac-provisioning`** — bibliothèque : rendu du provisioning (cloud-init + iPXE,
   `provisioning_gen.ml`).
 - **`pkgs/hamac-discovery`** — serveur de découverte : stocke un enregistrement de provisioning

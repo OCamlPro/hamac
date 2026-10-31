@@ -43,7 +43,7 @@ let load_manifests () =
 
 (** The services to deploy of the file arguments, the registry of the
     providers that come with them
-    ({!Hamac_manifest.Stack_check.providers_of_set}), and the patterns. *)
+    ({!Hamac_manifest.Stack_check.providers_of_set}). *)
 let load_services () =
   let manifests = load_manifests () in
   let registry = Provider_registry.create () in
@@ -57,23 +57,21 @@ let load_services () =
     | other ->
       Logs.warn (fun m -> m "%s: got %s (skipping)" path (kind_label other)); None)
     manifests in
-  let patterns = List.filter_map (function
-    | _, Hamac_manifest.Types.MPattern p -> Some p | _ -> None) manifests in
-  (services, registry, patterns)
+  (services, registry)
 
 (** The plan of the services of the file arguments
     ({!Planner.plan}, on the ASP form of the files). A failure stops the
     command. *)
 let plan_time_limit = ref Planner.default_time_limit
 
-let make_plan ~flows ~patterns services =
+let make_plan ~flows services =
   match Hamac_manifest.Loaf_source.asp ~lib:!library_dirs !manifest_files with
   | Error findings ->
     List.iter (fun (file, d) ->
       Logs.err (fun m -> m "%s" (Hamac_manifest.Diagnostic.to_string_in file d))) findings;
     exit 1
   | Ok asp ->
-    match Planner.plan ~time_limit:!plan_time_limit ~name:"stack" ~flows ~asp ~patterns services with
+    match Planner.plan ~time_limit:!plan_time_limit ~name:"stack" ~flows ~asp services with
     | plan -> plan
     | exception Planner.Error msgs ->
       List.iter (fun msg -> Logs.err (fun m -> m "plan: %s" msg)) msgs;
@@ -93,21 +91,6 @@ let report (findings : Hamac_manifest.Stack_check.finding list) =
     | D.Warning -> Logs.warn (fun m -> m "%s" (D.to_string_in file d)); (e, w + 1))
     (0, 0) findings
 
-(** The rules of the constraints and objectives of the patterns, checked
-    by clingo against the manifests ({!Planner.check}), when the files are
-    otherwise accepted. *)
-let check_pattern_rules given findings =
-  let patterns = List.map snd (Hamac_manifest.Stack_check.patterns_of given) in
-  let has_rules (p : Hamac_manifest.Types.pattern_manifest) = p.constraints <> [] || p.objectives <> [] in
-  if List.exists (fun (_, d) -> Hamac_manifest.Diagnostic.is_error d) findings
-  || not (List.exists has_rules patterns) then []
-  else
-    match Hamac_manifest.Loaf_source.asp ~lib:!library_dirs !manifest_files with
-    | Error findings -> findings
-    | Ok asp ->
-      List.map (fun (d : Hamac_manifest.Diagnostic.t) ->
-        ((match d.loc with Some l -> l.file | None -> ""), d)) (Planner.check ~asp patterns)
-
 (** [hamac validate]: stage 1 on every file; stages 2 and 3 as well when a
     stack is among them (its references, patterns, zones, providers and
     flows). *)
@@ -123,7 +106,6 @@ let run_validate ~strict () =
       let _, findings = Hamac_manifest.Stack_check.run given in
       findings
   in
-  let findings = findings @ check_pattern_rules given findings in
   let errors, warnings = report findings in
   if errors > 0 || (strict && warnings > 0) then exit 1
 
@@ -142,12 +124,11 @@ let run_plan () =
     exit 1
   end;
   let flows = Hamac_manifest.Flows.declared services in
-  let patterns = List.map snd (Hamac_manifest.Stack_check.patterns_of ls) in
-  let plan = make_plan ~flows ~patterns services in
+  let plan = make_plan ~flows services in
   Planner.display_plan plan
 
 let run_resolve () =
-  let services, registry, _ = load_services () in
+  let services, registry = load_services () in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
@@ -192,7 +173,7 @@ let run_resolve () =
   if resolution.errors <> [] then exit 1
 
 let run_simulate () =
-  let services, registry, patterns = load_services () in
+  let services, registry = load_services () in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1
@@ -200,7 +181,7 @@ let run_simulate () =
 
   (* Plan infrastructure *)
   let flows = Hamac_manifest.Flows.declared services in
-  let plan = make_plan ~flows ~patterns services in
+  let plan = make_plan ~flows services in
   Planner.display_plan plan;
 
   (* Resolve providers; consumed services are reached on their node *)
@@ -241,7 +222,7 @@ let run_simulate () =
   Logs.app (fun m -> m "Run: docker compose up -d")
 
 let run_deploy () =
-  let services, registry, _ = load_services () in
+  let services, registry = load_services () in
   if services = [] then begin
     Logs.err (fun m -> m "No service manifests provided.");
     exit 1

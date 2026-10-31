@@ -196,27 +196,12 @@ type zone_decl = {
   boundary: string;          (** firewall | diode *)
 } [@@deriving show]
 
-(** A constraint of a pattern: [violation] is an element of an aggregate
-    of clingo, [terms : body], whose instances are the violations of the
-    constraint, written on the predicates that the planner publishes
-    (doc/typst/manifest.typ, section « Contraintes »). *)
+(** A constraint of a pattern, from the catalogue that Hamac implements
+    (enum [constraint_kind] of the vocabulary). *)
 type constraint_decl = {
-  cid: string;
-  cdescription: string;
+  kind: string;              (** zone_isolation | stateful_quorum *)
   severity: string;          (** hard | soft *)
-  weight: int;               (** of a soft constraint, default 1 *)
-  cpriority: int;            (** of a soft constraint, default 1 *)
-  violation: string;
-  cloc: Diagnostic.loc option;  (** of the violation field *)
-} [@@deriving show]
-
-(** An objective of a pattern: [element] is an element of an aggregate of
-    clingo, [weight, terms : body] (section « Objectifs »). *)
-type objective = {
-  direction: string;         (** minimize | maximize *)
-  element: string;
-  priority: int;             (** default 1 *)
-  oloc: Diagnostic.loc option;
+  domains: int option;       (** of a stateful_quorum *)
 } [@@deriving show]
 
 (** A pattern is the block of a LOAF module (module exemple_rh 1.0.0.),
@@ -228,7 +213,6 @@ type pattern_manifest = {
   zones: zone_decl list;
   pat_assurance: (string * assurance) list;   (** zone name → minimum *)
   constraints: constraint_decl list;
-  objectives: objective list;
 } [@@deriving show]
 
 (* ============================================================ *)

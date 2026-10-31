@@ -306,30 +306,8 @@ premier port.
          { Types.zname = "rh"; boundary = "firewall" }];
        pat_assurance = [];
        constraints =
-       [{ Types.cid = "one_zone_per_host"; cdescription = "Deux zones ne partagent jamais un noyau";
-          severity = "hard"; weight = 1; cpriority = 1;
-          violation = "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2";
-          cloc =
-          (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 31; column = 5 })
-          };
-         { Types.cid = "stateful_quorum";
-           cdescription =
-           "Un service \195\160 \195\169tat survit \195\160 la perte d'un domaine de panne";
-           severity = "soft"; weight = 1; cpriority = 1;
-           violation = "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3";
-           cloc =
-           (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf";
-                   line = 37; column = 5 })
-           }
-         ];
-       objectives =
-       [{ Types.direction = "minimize"; element = "1, H : used(H)"; priority = 1;
-          oloc =
-          (Some { Diagnostic.file = "examples/hr-stack/patterns/exemple_rh.loaf"; 
-                  line = 40; column = 3 })
-          }
-         ]
+       [{ Types.kind = "stateful_quorum"; severity = "soft"; domains = None };
+         { Types.kind = "zone_isolation"; severity = "hard"; domains = None }]
        })
   == examples/hr-stack/stack.loaf
   (Types.MStack
@@ -493,11 +471,11 @@ premier port.
          { Types.zname = "internal"; boundary = "firewall" };
          { Types.zname = "public"; boundary = "firewall" };
          { Types.zname = "secure"; boundary = "firewall" }];
-       pat_assurance = []; constraints = []; objectives = [] })
+       pat_assurance = []; constraints = [] })
   == examples/enterprise-stack/organisation.loaf
   (Types.MPattern
      { Types.pat_name = "organisation"; pat_version = None; zones = []; 
-       pat_assurance = []; constraints = []; objectives = [] })
+       pat_assurance = []; constraints = [] })
 
   $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev_workstation/bundle.loaf | sed "s|$R/||"
   == provisioning-profiles/dev-workstation.loaf

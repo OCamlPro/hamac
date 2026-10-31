@@ -7,13 +7,11 @@
 % service_zone/2, service_memory_limit/3…) et place chaque réplique de
 % chaque service à déployer sur un nœud de sa zone, en respectant la
 % capacité des nœuds, la répartition demandée et les contraintes des
-% patrons, avec le moins de nœuds possible après leurs objectifs.
+% patrons, avec le moins de nœuds possible.
 %
 % Le planificateur (planner.ml) fixe la taille d'un nœud par -c node_memory=…
-% -c node_cpu=…, et ajoute une règle par contrainte et par objectif des
-% patrons (Planner.pattern_rules) ; les valeurs ci-dessous ne servent qu'à
-% lancer clingo à la main sur ce fichier et la forme ASP d'un ensemble de
-% manifestes sans contraintes :
+% -c node_cpu=… ; les valeurs ci-dessous ne servent qu'à lancer clingo à la
+% main sur ce fichier et la forme ASP d'un ensemble de manifestes :
 %
 %   loaf export --asp -L <vocabulaire> <fichiers> > m.lp
 %   clingo m.lp hamac.lp
@@ -27,40 +25,17 @@
 % d'une énumération du vocabulaire (spread/1, par exemple, est l'énumération
 % des répartitions ; d'où spread_out/1).
 %
-% Prédicats publiés, sur lesquels s'écrivent les contraintes et objectifs
-% des patrons (ne pas les renommer sans changer leur spécification,
-% doc/typst/manifest.typ, section « Contraintes ») :
-%
-%   deployed(S)          S est un service à déployer
-%   zone_of(S, Z)        sa zone (default sans zone déclarée)
-%   replicas(S, N)       son nombre de répliques (max_replicas s'il est
-%                        dimensionné automatiquement)
-%   memory(S, M)         mémoire d'une réplique, en Mi (défaut 256)
-%   cpu(S, C)            processeur d'une réplique, en millicœurs (défaut 500)
-%   stateful(S)          S a un volume local ou répliqué
-%   replica(S, I)        la réplique I de S, I dans 1..N
-%   rank(S, I, R)        rang de la réplique dans sa zone (plus grandes d'abord)
-%   arch_of(S, A)        S s'exécute sur l'architecture A
-%   host(H)              un nœud candidat, H = (Z, A, K)
-%   host_zone(H, Z)      la zone d'un nœud
-%   host_arch(H, A)      son architecture
-%   failure_domain(H, D) le domaine de panne d'un nœud
-%   place(S, I, H)       la réplique I de S est sur le nœud H
-%   on(S, H)             au moins une réplique de S est sur H
-%   used(H)              le nœud H porte au moins une réplique
-%   zone_on(H, Z)        un service de la zone Z a une réplique sur H
-%   oversized(S, M, C)   une réplique de S dépasse un nœud (non placée)
-%
-% Et ceux des contraintes : violation(P, C, T), la contrainte C du patron P
-% est violée, de témoin T.
+% Les contraintes des patrons sont prises dans le catalogue du vocabulaire
+% (enum constraint_kind) ; leur sens est implémenté ici, section
+% « contraintes ». violation(P, K, T) : la contrainte K du patron P est
+% violée, de témoin T.
 
 #const node_memory = 4096.
 #const node_cpu = 4000.
-% relax = 1 : les contraintes hard des patrons deviennent des pénalités, de
-% priorité relax_priority, au-dessus de tout objectif ; le planificateur
-% s'en sert pour nommer celles qu'aucun placement ne satisfait.
+% relax = 1 : les contraintes hard des patrons deviennent des pénalités, au
+% plus haut niveau de priorité ; le planificateur s'en sert pour nommer
+% celles qu'aucun placement ne satisfait.
 #const relax = 0.
-#const relax_priority = 1000.
 
 % ------------------------------------------------------------ services
 % Les services à déployer : ceux que nomme la stack ; sans stack, ceux qui
@@ -192,34 +167,29 @@ lower_bound(Z, N) :- zone_of(_, Z),
 single_arch(Z, A) :- zone_arch(Z, A), #count { B : zone_arch(Z, B) } = 1.
 :- lower_bound(Z, L), single_arch(Z, A), host((Z, A, K)), K <= L, not used((Z, A, K)).
 
-% ------------------------------------------------------------ patrons
-% Une contrainte « termes : corps » donne la règle
-% violation_of(V, (termes)) :- corps., V étant la déclaration elle-même ;
-% un objectif « poids, termes : corps », minimize_term(E, poids, (termes))
-% ou maximize_term(…). Les faits des patrons les rattachent à leur patron.
-violation(P, C, T) :- violation_of(V, T), pattern_constraint_violation(P, C, V).
+% ------------------------------------------------------------ contraintes
+% zone_isolation : deux zones ne partagent jamais une machine.
+violation(P, zone_isolation, H) :- pattern_constraint(P, zone_isolation),
+    host(H), 2 { zone_on(H, Z) : zone_of(_, Z) }.
 
-soft_constraint(P, C) :- pattern_constraint_severity(P, C, soft).
-constraint_weight(P, C, W) :- pattern_constraint_weight(P, C, W).
-constraint_weight(P, C, 1) :- pattern_constraint(P, C), not pattern_constraint_weight(P, C, _).
-constraint_priority(P, C, N) :- pattern_constraint_priority(P, C, N).
-constraint_priority(P, C, 1) :- pattern_constraint(P, C), not pattern_constraint_priority(P, C, _).
+% stateful_quorum : un service à état a des répliques sur au moins N
+% domaines de panne (défaut 3), pour survivre à la perte de l'un d'eux.
+quorum(P, N) :- pattern_constraint_domains(P, stateful_quorum, N).
+quorum(P, 3) :- pattern_constraint(P, stateful_quorum),
+    not pattern_constraint_domains(P, stateful_quorum, _).
+violation(P, stateful_quorum, S) :- quorum(P, N), stateful(S),
+    #count { D : on(S, H), failure_domain(H, D) } < N.
 
-:- violation(P, C, _), not soft_constraint(P, C), relax = 0.
-:~ violation(P, C, T), not soft_constraint(P, C), relax = 1. [1@relax_priority, P, C, T]
-:~ violation(P, C, T), soft_constraint(P, C), constraint_weight(P, C, W), constraint_priority(P, C, N). [W@N, P, C, T]
-
-minimize_priority(P, E, N) :- pattern_minimize_priority(P, E, N).
-minimize_priority(P, E, 1) :- pattern_minimize(P, E), not pattern_minimize_priority(P, E, _).
-maximize_priority(P, E, N) :- pattern_maximize_priority(P, E, N).
-maximize_priority(P, E, 1) :- pattern_maximize(P, E), not pattern_maximize_priority(P, E, _).
-
-#minimize { W@N, P, E, T : minimize_term(E, W, T), minimize_priority(P, E, N) }.
-#maximize { W@N, P, E, T : maximize_term(E, W, T), maximize_priority(P, E, N) }.
+% Une contrainte hard est satisfaite ; une contrainte soft coûte 1 par
+% violation, avant le nombre de nœuds.
+soft_constraint(P, K) :- pattern_constraint_severity(P, K, soft).
+:- violation(P, K, _), not soft_constraint(P, K), relax = 0.
+:~ violation(P, K, T), not soft_constraint(P, K), relax = 1. [1@2, P, K, T]
+:~ violation(P, K, T), soft_constraint(P, K). [1@1, P, K, T]
 
 % ------------------------------------------------------------ objectif
-% Le moins de nœuds possible, à la priorité 0 : les objectifs et les
-% contraintes soft des patrons, de priorité 1 ou plus, passent avant.
+% Le moins de nœuds possible, à la priorité 0 : les contraintes soft des
+% patrons, à la priorité 1, passent avant.
 #minimize { 1@0, H : used(H) }.
 
 % ------------------------------------------------------------ sortie
@@ -243,11 +213,6 @@ maximize_priority(P, E, 1) :- pattern_maximize(P, E), not pattern_maximize_prior
 #defined service_storage_class/3.
 #defined hamac__service_arch/2.
 #defined zone_leq/2.
-#defined pattern_constraint/2.     #defined pattern_constraint_violation/3.
-#defined pattern_constraint_severity/3.
-#defined pattern_constraint_weight/3.  #defined pattern_constraint_priority/3.
-#defined pattern_minimize/2.       #defined pattern_minimize_priority/3.
-#defined pattern_maximize/2.       #defined pattern_maximize_priority/3.
-% Ceux des règles des patrons, quand ils n'en ont pas.
-#defined violation_of/2.  #defined minimize_term/3.  #defined maximize_term/3.
+#defined pattern_constraint/2.     #defined pattern_constraint_severity/3.
+#defined pattern_constraint_domains/3.
 #defined error/2.

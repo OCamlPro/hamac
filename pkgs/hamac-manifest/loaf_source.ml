@@ -462,26 +462,14 @@ let pattern cx pt : pattern_manifest =
       (z, Option.get (assurance_of (List.filter_map (function
          | [z'; a; l] when const z' = z -> Some (const a, l) | _ -> None) rows))))
       zone_names in
-  (* The rules of constraints and objectives are checked by the planner,
-     with its program (E052). *)
   let constraints = F.list1 cx k p "constraint" Fun.id |> List.map (fun c ->
     let q = [pt; c] in
-    { cid = const c;
-      cdescription = Option.value (F.opt1 cx k q "constraint.description" str) ~default:"";
+    { kind = const c;
       severity = Option.value (F.opt1 cx k q "constraint.severity" const) ~default:"hard";
-      weight = Option.value (F.opt1 cx k q "constraint.weight" int) ~default:1;
-      cpriority = Option.value (F.opt1 cx k q "constraint.priority" int) ~default:1;
-      violation = F.req1 cx k q "constraint.violation" str;
-      cloc = F.loc cx k q "constraint.violation" }) in
-  let objectives direction = F.list1 cx k p direction Fun.id |> List.map (fun t ->
-    let q = [pt; t] in
-    { direction; element = str t;
-      priority = Option.value (F.opt1 cx k q (direction ^ ".priority") int) ~default:1;
-      oloc = F.loc cx k q direction }) in
+      domains = F.opt1 cx k q "constraint.domains" int }) in
   { pat_name = name pt;
     pat_version = None;  (* that of its module: set by load *)
-    zones; pat_assurance; constraints;
-    objectives = objectives "minimize" @ objectives "maximize" }
+    zones; pat_assurance; constraints }
 
 (* ============================================================ *)
 (* kind: stack                                                   *)
@@ -627,8 +615,7 @@ let experimental = [
                "need", "placement"; "spread", "placement";
                "affinity", "placement"; "anti_affinity", "placement";
                "exposure", "exposure"; "consumes.mode", "mode" ];
-  "pattern", [ "assurance", "assurance"; "constraint", "constraints";
-               "minimize", "objectives"; "maximize", "objectives" ];
+  "pattern", [ "assurance", "assurance"; "constraint", "constraints" ];
   "infrastructure", [ "certificate", "certificate" ];
   "provisioning_profile", [ "assurance", "assurance" ];
   "bundle", [ "lifecycle", "lifecycle" ];

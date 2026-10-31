@@ -1,0 +1,11 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+pattern p {
+  zone a {}
+  constraint zone_isolation { domains 3. }
+  constraint stateful_quorum { domains 0. }
+}

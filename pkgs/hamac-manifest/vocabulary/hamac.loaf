@@ -231,21 +231,11 @@ block pattern {
   % les plus sûres disponibles, les plus sensibles d'abord.
   assurance* name, axis => assurance_level.
 
-  % Contraintes et objectifs : des éléments d'agrégat de clingo, écrits sur
-  % les prédicats que publie le planificateur.
-  constraint* name {
-    description? string.
+  % Contraintes sur la topologie, prises dans le catalogue que Hamac
+  % implémente : le sujet est la sorte de contrainte.
+  constraint* constraint_kind {
     severity? severity.  % défaut hard
-    weight? int.         % d'une contrainte soft, défaut 1
-    priority? int.       % d'une contrainte soft, défaut 1
-    violation string.    % « termes : corps »
-  }
-  % Objectifs : le sujet est l'élément « poids, termes : corps ».
-  minimize* string {
-    priority? int.       % défaut 1
-  }
-  maximize* string {
-    priority? int.
+    domains? int.        % stateful_quorum : domaines de panne, défaut 3
   }
 }
 
@@ -256,6 +246,10 @@ enum boundary { firewall; diode }.
 % reste vient des modèles de sécurité que chargent les patrons.
 predicate zone_leq(name, name).
 enum severity { hard; soft }.
+enum constraint_kind {
+  zone_isolation;        % deux zones ne partagent jamais une machine
+  stateful_quorum        % un service à état est sur assez de domaines de panne
+}.
 
 % ---------------------------------------------------------------------
 % Stack
@@ -491,6 +485,14 @@ namespace hamac {
   ::error(fmt("[E007] {L} is not a level of the axis boot"),
           I.node(R).boot(L)) :-
       I.node(R).boot(L), not assurance_level(boot, L).
+
+  % Les paramètres d'une contrainte sont ceux de sa sorte.
+  ::error(fmt("[E007] domains is a parameter of stateful_quorum, not of {K}"),
+          P.constraint(K).domains(N)) :-
+      pattern(P), P.constraint(K).domains(N), K != stateful_quorum.
+  ::error(fmt("[E016] stateful_quorum needs at least 1 domain"),
+          P.constraint(K).domains(N)) :-
+      pattern(P), P.constraint(K).domains(N), N < 1.
 
   % Zones et flux. La zone d'un service, default s'il n'en déclare pas.
   derived predicate zone_of(service, name).

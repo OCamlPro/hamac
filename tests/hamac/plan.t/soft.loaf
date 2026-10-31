@@ -1,0 +1,24 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+% La même exigence, en préférence : le plan se fait, avec un avertissement.
+pattern p {
+  zone a {}
+  constraint stateful_quorum {
+    severity soft.
+    domains 2.
+  }
+}
+
+service db {
+  runtime http.
+  zone a.
+  storage data {
+    mount "/var/lib/db".
+    class replicated.
+    size 1, gi.
+  }
+}

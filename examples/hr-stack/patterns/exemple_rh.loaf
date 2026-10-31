@@ -1,11 +1,10 @@
 % SPDX-License-Identifier: AGPL-3.0-only
 % Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
 %
-% Un patron d'exemple : le treillis de l'organisation, ses zones, et
-% quelques contraintes que la topologie calculée doit satisfaire, écrites
-% en ASP sur les prédicats que publie le planificateur. C'est un
-% module : une stack le charge par « use exemple_rh 1.0. », depuis un
-% répertoire de bibliothèque (./patterns par défaut, ou hamac -L DIR).
+% Un patron d'exemple : les zones de l'organisation, ses modèles de
+% sécurité, et les contraintes que la topologie calculée doit satisfaire.
+% C'est un module : une stack le charge par « use exemple_rh 1.0. », depuis
+% un répertoire de bibliothèque (./patterns par défaut, ou hamac -L DIR).
 
 loaf 0.1.
 module exemple_rh 1.0.0.
@@ -26,16 +25,11 @@ pattern exemple_rh {
     blp::category rh; finance.
   }
 
-  constraint one_zone_per_host {
-    description "Deux zones ne partagent jamais un noyau".
-    violation "H : zone_on(H, Z1), zone_on(H, Z2), Z1 != Z2".
-  }
+  % Deux zones ne partagent jamais une machine.
+  constraint zone_isolation.
 
-  constraint stateful_quorum {
-    description "Un service à état survit à la perte d'un domaine de panne".
-    severity soft.
-    violation "S : stateful(S), #count { D : on(S, H), failure_domain(H, D) } < 3".
-  }
-
-  minimize "1, H : used(H)" { priority 1. }
+  % Un service à état survit à la perte d'un domaine de panne : ses
+  % répliques sont sur au moins trois domaines. Une préférence, pas une
+  % obligation.
+  constraint stateful_quorum { severity soft. }
 }

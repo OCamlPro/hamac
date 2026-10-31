@@ -3,19 +3,21 @@
 
 loaf 0.1.
 use hamac 0.2.
-use hamac_blp 0.2.
 
-% Chaque service sur trois nœuds au moins : web n'a que deux répliques.
+% Un service à état sur trois domaines de panne au moins : db n'a que deux
+% répliques.
 pattern p {
-  blp::levels [low].
-  zone a { blp::level low. }
-  constraint quorum {
-    violation "S : deployed(S), #count { H : on(S, H) } < 3".
-  }
+  zone a {}
+  constraint stateful_quorum {}
 }
 
-service web {
+service db {
   runtime http.
   zone a.
   replicas 2.
+  storage data {
+    mount "/var/lib/db".
+    class replicated.
+    size 1, gi.
+  }
 }

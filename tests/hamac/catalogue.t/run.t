@@ -47,7 +47,6 @@ LOAF, et n'ont pas de cas ici.
   manifest.loaf:20:3: [E046] the infrastructure lab has no node of the zone of web for one of its architectures
   lib/b.loaf:8:3: [E050] the levels of b differ from those of another pattern of the set
   lib/b.loaf:8:13: [E051] zone rh is already defined with another label
-  manifest.loaf:6:19: [E052] constraint c1 of p: unsafe variables: 'X' is unsafe
   manifest.loaf:11:3: [W001] 'placement' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
   manifest.loaf:5:1: [W002] the stack has no services
   web.loaf:5:1: [W003] service web is defined in web-prod.loaf and web.loaf

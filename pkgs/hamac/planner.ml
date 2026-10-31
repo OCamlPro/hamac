@@ -14,7 +14,7 @@
     {!Hamac_lp.text}), which places every replica of every service to
     deploy on a node of its zone, within the capacity of a node and the
     spread the service asks for, with as few nodes as possible, and the
-    rules of the constraints and objectives of the patterns. Everything
+    constraints of the patterns. Everything
     the plan says about resources (demand of a replica, number of replicas,
     nodes) is read from the optimal model: [hamac.lp] is its only source. *)
 
@@ -108,182 +108,24 @@ let service_name = function
   | Clingo.Fun (c, []) -> Some c
   | _ -> None
 
-(* ============================================================ *)
-(* Rules of the patterns                                         *)
-(* ============================================================ *)
-
-(** A rule that a constraint or an objective of a pattern adds to
-    [hamac.lp], and the declaration it comes from. *)
-type rule = {
-  text: string;
-  pattern: string;
-  subject: string;        (** ["constraint c"], ["minimize \"…\""] *)
-  loc: Hamac_manifest.Diagnostic.loc option;
-}
-
-(** [s] as a string of clingo. *)
-let asp_string s =
-  let b = Buffer.create (String.length s + 2) in
-  Buffer.add_char b '"';
-  String.iter (function
-    | '"' -> Buffer.add_string b "\\\""
-    | '\\' -> Buffer.add_string b "\\\\"
-    | '\n' -> Buffer.add_string b "\\n"
-    | c -> Buffer.add_char b c) s;
-  Buffer.add_char b '"';
-  Buffer.contents b
-
-(** The position of the first [c] of [s] outside strings and brackets. *)
-let find_top c s =
-  let n = String.length s in
-  let rec go i depth in_str =
-    if i >= n then None
-    else match s.[i] with
-      | '\\' when in_str -> go (i + 2) depth in_str
-      | '"' -> go (i + 1) depth (not in_str)
-      | _ when in_str -> go (i + 1) depth in_str
-      | '(' | '{' | '[' -> go (i + 1) (depth + 1) in_str
-      | ')' | '}' | ']' -> go (i + 1) (depth - 1) in_str
-      | ch when ch = c && depth = 0 -> Some i
-      | _ -> go (i + 1) depth in_str
-  in
-  go 0 0 false
-
-(** [terms : body] split at its colon. *)
-let split_element s =
-  match find_top ':' s with
-  | None -> None
-  | Some i ->
-    Some (String.trim (String.sub s 0 i),
-          String.trim (String.sub s (i + 1) (String.length s - i - 1)))
-
-(* One rule per line: {!rule_of_message} finds a rule by its line. *)
-let one_line = String.map (function '\n' | '\r' -> ' ' | c -> c)
-
-let rule_text head body =
-  one_line (if body = "" then head ^ "." else head ^ " :- " ^ body ^ ".")
-
-(** The rules of the constraints and objectives of [patterns]: a
-    constraint [terms : body] derives [violation_of(V, (terms))], an
-    objective [weight, terms : body] [minimize_term(E, weight, (terms))]
-    or [maximize_term(…)], where [V] and [E] are the declarations
-    themselves, which [hamac.lp] joins to the facts of the patterns. A
-    declaration without its colon is returned as an E052 diagnostic. *)
-let pattern_rules (patterns : pattern_manifest list)
-  : rule list * Hamac_manifest.Diagnostic.t list =
-  let module D = Hamac_manifest.Diagnostic in
-  let malformed ?loc what expected =
-    D.make ?loc "E052" [] (Printf.sprintf "%s: expected '%s'" what expected) in
-  List.fold_left (fun (rules, diags) (p : pattern_manifest) ->
-    let rules, diags = List.fold_left (fun (rules, diags) (c : constraint_decl) ->
-      let subject = "constraint " ^ c.cid in
-      match split_element c.violation with
-      | None -> (rules, malformed ?loc:c.cloc (subject ^ " of " ^ p.pat_name) "terms : body" :: diags)
-      | Some (terms, body) ->
-        let head = Printf.sprintf "violation_of(%s, (%s))" (asp_string c.violation) terms in
-        ({ text = rule_text head body; pattern = p.pat_name; subject; loc = c.cloc } :: rules, diags))
-      (rules, diags) p.constraints in
-    List.fold_left (fun (rules, diags) (o : objective) ->
-      let subject = Printf.sprintf "%s %S" o.direction o.element in
-      let split = Option.bind (split_element o.element) (fun (left, body) ->
-        match find_top ',' left with
-        | Some i -> Some (String.trim (String.sub left 0 i),
-                          String.trim (String.sub left (i + 1) (String.length left - i - 1)), body)
-        | None -> if left = "" then None else Some (left, "", body)) in
-      match split with
-      | None -> (rules, malformed ?loc:o.oloc (subject ^ " of " ^ p.pat_name) "weight, terms : body" :: diags)
-      | Some (weight, terms, body) ->
-        let head = Printf.sprintf "%s_term(%s, %s, (%s))" o.direction (asp_string o.element) weight terms in
-        ({ text = rule_text head body; pattern = p.pat_name; subject; loc = o.oloc } :: rules, diags))
-      (rules, diags) p.objectives)
-    ([], []) patterns
-  |> fun (rules, diags) -> (List.rev rules, List.rev diags)
-
-(** The program of a plan: the manifests, [hamac.lp], then the rules of
-    the patterns, one per line, and the line of the first rule. *)
-let program asp rules =
-  let prefix = String.concat "\n" (asp @ [ Hamac_lp.text ]) in
-  let first = 2 + List.length (String.split_on_char '\n' prefix) - 1 in
-  (String.concat "\n" (prefix :: List.map (fun r -> r.text) rules), first)
-
-(** The rule a message of clingo is about, by its line ([<block>:12:3-8:]),
-    and the message without its location. *)
-let rule_of_message rules first ((w, msg) : Clingo.warning * string) =
-  let located line =
-    match String.index_opt line ':' with
-    | None -> None
-    | Some i ->
-      match String.split_on_char ':' (String.sub line (i + 1) (String.length line - i - 1)) with
-      | l :: _ :: rest ->
-        Option.map (fun l -> (l, String.trim (String.concat ":" rest))) (int_of_string_opt l)
-      | _ -> None in
-  match located msg with
-  | Some (l, text) when l >= first && l - first < List.length rules ->
-    (* The notes that follow ([<block>:12:5-6: note: 'X' is unsafe]) say
-       which term is at fault; the rule as clingo prints it does not help. *)
-    let lines = String.split_on_char '\n' text in
-    let notes = match w, lines with
-      | Clingo.Atom_undefined, _ :: atom :: _ -> [ String.trim atom ]   (* the atom at fault *)
-      | _ -> List.filter_map (fun line ->
-          match located (String.trim line) with
-          | Some (_, n) when String.starts_with ~prefix:"note: " n ->
-            Some (String.sub n 6 (String.length n - 6))
-          | _ -> None) lines in
-    let strip t = List.fold_left (fun t p ->
-      if String.starts_with ~prefix:p t then String.sub t (String.length p) (String.length t - String.length p)
-      else t) t [ "error: "; "info: " ] in
-    let head = strip (List.hd lines) in
-    let head = List.fold_left (fun h suffix ->
-      if String.ends_with ~suffix h then String.sub h 0 (String.length h - String.length suffix) else h)
-      head [ ":"; " in" ] in
-    let head = if notes = [] then head else head ^ ":" in
-    Some (List.nth rules (l - first), String.concat " " (head :: notes))
-  | _ -> None
-
-(** Checks the rules of the constraints and objectives of [patterns]
-    against the manifests [asp] and [hamac.lp], by grounding them: a
-    syntax error, an unsafe variable or a predicate that no rule defines
-    gives E052, at the declaration. *)
-let check ~(asp : string list) (patterns : pattern_manifest list) : Hamac_manifest.Diagnostic.t list =
-  let module D = Hamac_manifest.Diagnostic in
-  let rules, malformed = pattern_rules patterns in
-  if rules = [] then malformed
-  else
-    let text, first = program asp rules in
-    (* Without a limit on the messages: clingo stops reporting after the
-       limit, and a rule of a pattern would then go unchecked. *)
-    let messages = Clingo.with_control ~message_limit:1_000_000 (fun ctl ->
-      (try Clingo.add ctl text; Clingo.ground ctl with Clingo.Error _ -> ());
-      Clingo.messages ctl) in
-    let found = List.filter_map (rule_of_message rules first) messages in
-    malformed @ List.map (fun (r, msg) ->
-      D.make ?loc:r.loc "E052" [] (Printf.sprintf "%s of %s: %s" r.subject r.pattern msg)) found
-
 (** Default bound on the search for the optimal placement, in seconds. *)
 let default_time_limit = 30.
 
-(** The best model of the manifests [asp], [hamac.lp] and the rules of the
-    patterns that clingo finds within [time_limit] seconds, and whether it
-    is proven optimal. With [relax], the hard constraints of the patterns
-    become penalties above every objective: the model then says which ones
-    no placement satisfies. *)
-let solve ?(relax = false) ~time_limit (asp : string list) (patterns : pattern_manifest list)
+(** The best model of the manifests [asp] and [hamac.lp] that clingo finds
+    within [time_limit] seconds, and whether it is proven optimal. With
+    [relax], the hard constraints of the patterns become penalties above
+    every other cost: the model then says which ones no placement
+    satisfies. *)
+let solve ?(relax = false) ~time_limit (asp : string list)
   : Clingo.model option * Clingo.outcome =
-  let rules, _ = pattern_rules patterns in
-  let top = List.fold_left (fun acc (p : pattern_manifest) ->
-    List.fold_left max acc
-      (List.map (fun (c : constraint_decl) -> c.cpriority) p.constraints
-       @ List.map (fun (o : objective) -> o.priority) p.objectives)) 0 patterns in
   let args = [ Printf.sprintf "--const=node_memory=%d" node_ram_mb;
                Printf.sprintf "--const=node_cpu=%d" node_cpu_milli;
-               Printf.sprintf "--const=relax=%d" (if relax then 1 else 0);
-               Printf.sprintf "--const=relax_priority=%d" (top + 1) ] in
+               Printf.sprintf "--const=relax=%d" (if relax then 1 else 0) ] in
   match
     Clingo.with_control ~args (fun ctl ->
-      Clingo.add ctl (fst (program asp rules));
+      Clingo.add ctl (String.concat "\n" (asp @ [ Hamac_lp.text ]));
       Clingo.ground ctl;
       let r = Clingo.fold ~time_limit ctl ~init:None (fun _ m -> Some m) in
-      (* The program was checked ({!check}): messages are for debugging. *)
       List.iter (fun (_, msg) -> Logs.debug (fun f -> f "clingo: %s" msg)) (Clingo.messages ctl);
       r)
   with
@@ -301,11 +143,11 @@ let violations (m : Clingo.model) =
 
 (** The optimal placement, or the hard constraints that make it
     impossible. *)
-let solve_plan ~time_limit asp patterns : Clingo.model * bool =
-  match solve ~time_limit asp patterns with
+let solve_plan ~time_limit asp : Clingo.model * bool =
+  match solve ~time_limit asp with
   | Some m, outcome -> (m, outcome.exhausted)
   | None, { satisfiable = Some false; _ } ->
-    let culprits = match solve ~relax:true ~time_limit asp patterns with
+    let culprits = match solve ~relax:true ~time_limit asp with
       | Some m, _ -> violations m
       | None, _ -> [] in
     raise (Error (match culprits with
@@ -381,16 +223,16 @@ let read_model (m : Clingo.model) =
     flows they declare (already checked by {!Hamac_manifest.Flows.declared}).
     [asp] is the ASP form of the set of files the services come from
     ({!Hamac_manifest.Loaf_source.asp}); [services] are the services to
-    deploy, the same as those that [hamac.lp] derives from it; [patterns],
-    those of the stack, whose constraints and objectives ({!pattern_rules})
-    are added to [hamac.lp]: a violated soft constraint gives a warning. The search
+    deploy, the same as those that [hamac.lp] derives from it. The
+    constraints of the patterns are in [asp], and [hamac.lp] implements
+    them: a violated soft constraint gives a warning. The search
     stops after [time_limit] seconds ({!default_time_limit}): the plan then
     has the best placement found, and a warning.
     @raise Error if the services cannot be placed. *)
 let plan ?(time_limit = default_time_limit) ~(name : string)
     ~(flows : Hamac_manifest.Flows.flow list)
-    ~(asp : string list) ?(patterns = []) (services : service_manifest list) : plan =
-  let model, proven = solve_plan ~time_limit asp patterns in
+    ~(asp : string list) (services : service_manifest list) : plan =
+  let model, proven = solve_plan ~time_limit asp in
   let demands, placement = read_model model in
   let given = List.sort_uniq String.compare (List.map (fun (s : service_manifest) -> s.name) services) in
   let derived = List.sort String.compare (Hashtbl.fold (fun s _ acc -> s :: acc) demands []) in
