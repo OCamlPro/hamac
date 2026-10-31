@@ -198,6 +198,7 @@ unmet(prefer_min_domains(S, N), S) :- prefer_min_domains(S, N), domains(S, M), M
 #show violation/2.
 #show unmet/2.
 #show zone_leq/2.
+#show enclave/1.
 #show error/2.
 
 % Prédicats des manifestes qu'un ensemble peut ne pas définir.
@@ -209,7 +210,7 @@ unmet(prefer_min_domains(S, N), S) :- prefer_min_domains(S, N), domains(S, M), M
 #defined service_spread/2.    #defined service_anti_affinity/2.
 #defined service_storage_class/3.
 #defined hamac__service_arch/2.
-#defined zone_leq/2.
+#defined zone_leq/2.       #defined enclave/1.
 #defined separate/2.     #defined prefer_separate/2.
 #defined min_domains/2.  #defined prefer_min_domains/2.
 #defined error/2.

@@ -24,6 +24,7 @@ namespace blp {
   block pattern {
     levels* [name].          % les niveaux, du moins au plus sensible
     category* name.          % les catégories de besoin d'en connaître
+    enclave_from? name.      % ce niveau et au-delà : des enclaves
     zone* name {
       level? name.           % l'étiquette de la zone
       category* name.
@@ -65,6 +66,13 @@ namespace blp {
       pattern(P), P.zone(Z).level(L), pattern(Q), Q.zone(Z).level(M), L != M, P > Q.
   ::error(fmt("[E051] zone {Z} is already defined with another label"), P.zone(Z).category(C)) :-
       pattern(P), P.zone(Z).category(C), pattern(Q), Q.zone(Z).level(_), not Q.zone(Z).category(C).
+
+  % Les enclaves : les zones du seuil et au-delà.
+  ::enclave(Z) :- pattern(P), P.enclave_from(L), zone_level(Z, LZ),
+                  rank(L, I), rank(LZ, J), I <= J.
+  ::error(fmt("[E042] level {L} of enclave_from is not among the levels of the patterns"),
+          P.enclave_from(L)) :-
+      pattern(P), P.enclave_from(L), not rank(L, _).
 
   % L'ordre des zones.
   ::zone_leq(A, B) :- zone_level(A, LA), zone_level(B, LB), rank(LA, I), rank(LB, J), I <= J,

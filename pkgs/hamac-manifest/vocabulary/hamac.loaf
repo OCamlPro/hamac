@@ -222,9 +222,9 @@ block pattern {
   % hamac_blp 0.2.), qui ajoutent leurs champs aux zones et aux routes et
   % définissent zone_leq.
 
-  zone* name {
-    boundary? boundary.                      % défaut firewall
-  }
+  % Les zones. Leurs étiquettes, leurs enclaves viennent des modèles de
+  % sécurité que charge le patron.
+  zone* name {}
   % Plancher d'assurance d'une zone, pour un patron qui doit répondre à une
   % exigence (hébergement certifié, hygiène renforcée…) : zone, axe =>
   % niveau minimal. Sans plancher, Hamac place chaque zone sur les machines
@@ -233,7 +233,6 @@ block pattern {
 
 }
 
-enum boundary { firewall; diode }.
 
 % L'ordre des zones : zone_leq(A, B), un service de la zone B peut lire
 % (ouvrir une connexion vers) la zone A. Chaque zone se lit elle-même ; le
@@ -250,6 +249,11 @@ predicate prefer_separate(service, service).
 predicate min_domains(service, int).          % sur au moins N domaines de panne
 predicate prefer_min_domains(service, int).
 predicate floor(name, axis, assurance_level). % plancher d'assurance d'une zone
+
+% Une enclave : une zone derrière une diode, qui ne laisse passer les
+% données que vers elle, et qui a son propre plan de contrôle. Les modèles
+% de sécurité la déduisent de leur politique (blp::enclave_from…).
+predicate enclave(name).
 
 % ---------------------------------------------------------------------
 % Stack
@@ -503,22 +507,15 @@ namespace hamac {
   ::error(fmt("[E042] zone {Z} of {S} is not defined by the patterns"), S.zone(Z)) :-
       service(S), S.zone(Z), defined_zone(_), not defined_zone(Z).
 
-  % Une zone définie par deux patrons a la même frontière.
-  boundary_of(P, Z, B) :- pattern(P), P.zone(Z).boundary(B).
-  boundary_of(P, Z, firewall) :- pattern(P), P.zone(Z), not P.zone(Z).boundary(_).
-  ::error(fmt("[E051] zone {Z} is already defined with another boundary"), P.zone(Z)) :-
-      pattern(P), P.zone(Z), boundary_of(P, Z, B), boundary_of(Q, Z, C), B != C, P > Q.
-
   % Ouvrir une connexion vers un service revient à le lire : le modèle de
   % sécurité doit permettre à la zone du consommateur de lire celle du
-  % service consommé. À travers une diode, rien ne répond : le flux est
-  % alors de mode push.
+  % service consommé. Entre une enclave et une autre zone, rien ne répond :
+  % le flux est alors de mode push.
   ::error(fmt("[E040] {S} (zone {ZS}) cannot consume {T} (zone {ZT}): the security model of the patterns does not let zone {ZS} read zone {ZT}; if {T} must expose data to zone {ZS}, have it push them to a service of that zone"),
           S.consumes(N).service(T)) :-
       S.consumes(N).service(T), zone_of(S, ZS), zone_of(T, ZT), not ::zone_leq(ZT, ZS).
-  diode(Z) :- pattern(P), P.zone(Z).boundary(diode).
-  across_diode(ZS, ZT) :- zone_of(_, ZS), zone_of(_, ZT), ZS != ZT, diode(ZS).
-  across_diode(ZS, ZT) :- zone_of(_, ZS), zone_of(_, ZT), ZS != ZT, diode(ZT).
+  across_diode(ZS, ZT) :- zone_of(_, ZS), zone_of(_, ZT), ZS != ZT, ::enclave(ZS).
+  across_diode(ZS, ZT) :- zone_of(_, ZS), zone_of(_, ZT), ZS != ZT, ::enclave(ZT).
   ::error(fmt("[E041] {S} (zone {ZS}) consumes {T} (zone {ZT}) across a diode: nothing can answer a request through it; declare the flow mode push, {T} sending what {S} receives"),
           S.consumes(N).service(T)) :-
       S.consumes(N).service(T), zone_of(S, ZS), zone_of(T, ZT), across_diode(ZS, ZT),

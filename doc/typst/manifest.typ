@@ -365,7 +365,8 @@ Trois rôles se partagent les fichiers d'un ensemble :
   [*Traduire*], [Les modules (`hamac_blp`, `hamac_ha`, ou ceux d'une
     organisation) contiennent les règles : ils ramènent leurs notions aux
     _primitives_ que Hamac sait appliquer, comme l'ordre des zones
-    (`zone_leq`, @modeles) ou les primitives de placement (@contraintes).],
+    (`zone_leq`, @modeles), les enclaves (`enclave`, @enclaves) ou les
+    primitives de placement (@contraintes).],
   [*Agir*], [Hamac n'interprète que les primitives : il en déduit le
     filtrage entre zones, le placement des répliques et la configuration de
     la bordure.],
@@ -993,8 +994,8 @@ que ses fichiers chargent.
 
 #tableau((auto, 1fr),
   [Déclaration], [Sens, défaut et contrôles],
-  [`zone* name { … }`], [une zone (@modeles) ; `boundary? boundary`, sa
-    frontière (défaut `firewall`, @frontieres)],
+  [`zone* name { … }`], [une zone (@modeles) ; son étiquette, et si elle
+    est une enclave (@enclaves), viennent des modèles de sécurité],
   [`assurance* name, axis => assurance_level`], [#experimental plancher
     d'assurance d'une zone sur un axe, pour un patron qui doit répondre à une
     exigence (@assurance)],
@@ -1040,8 +1041,7 @@ Une #terme[zone] est un ensemble de machines et de services traités de la
 même façon : même réseau, même filtrage, mêmes exigences. Chaque service est
 dans une zone (`zone`, @flux), `default` s'il n'en déclare pas. Dès que les
 patrons de l'ensemble définissent des zones, la zone d'un service #doit être
-l'une d'elles (#code("E042")) ; une zone définie par deux patrons #doit avoir
-la même frontière (#code("E051")).
+l'une d'elles (#code("E042")).
 
 Ouvrir une connexion vers un service revient à le lire. Ce qu'une zone peut
 lire est la relation `zone_leq(A, B)` : la zone `B` peut lire la zone `A`.
@@ -1108,6 +1108,7 @@ use anssi_hygiene 1.0.
 
 pattern anssi_renforce {
   blp::levels [public, default, internal, secure].
+  blp::enclave_from secure.        % secure et au-delà : derrière une diode
   blp::category finance; rh.
 
   zone public { blp::level public. }
@@ -1117,10 +1118,7 @@ pattern anssi_renforce {
     blp::level internal.
     blp::category rh.
   }
-  zone secure {
-    blp::level secure.
-    boundary diode.
-  }
+  zone secure { blp::level secure. }
 
   assurance internal, boot, confidential_vm.
   assurance internal, operator, secnumcloud.
@@ -1129,25 +1127,29 @@ pattern anssi_renforce {
 }
 ```
 
-== Frontières de zone <frontieres>
+== Enclaves <enclaves>
 
-#tableau((auto, 1fr),
-  [`boundary`], [Sens],
-  [`firewall` (défaut)], [filtrage avec état ; les flux déclarés ouvrent des
-    connexions],
-  [`diode`], [passerelle unidirectionnelle, du bas vers le haut : aucune
-    donnée ne sort de la zone vers une zone moins sensible],
-)
+Hamac filtre toujours les connexions entre zones (@flux). Une #terme[enclave]
+va plus loin : c'est une zone derrière une diode, une passerelle physique
+unidirectionnelle par laquelle les données entrent dans l'enclave et n'en
+sortent pas.
 
-À travers une diode, aucune requête ne peut recevoir de réponse. Une
-consommation entre deux zones dont l'une a une frontière `diode` #doit donc
-être de mode `push` (@flux) : le service consommé émet ce que le
-consommateur reçoit (réplication, flux d'événements, fichiers).
+- À travers une diode, aucune requête ne peut recevoir de réponse. Une
+  consommation entre une enclave et une autre zone #doit donc être de mode
+  `push` (#code("E041")) : le service consommé émet ce que le consommateur
+  reçoit (réplication, flux d'événements, fichiers).
+- Une enclave a son propre plan de contrôle, puisqu'un contrôleur extérieur
+  n'en recevrait pas les rapports. Hamac produit une infrastructure par
+  enclave, et ses nœuds sont isolés. Les manifestes signés entrent par la
+  diode ; l'état de l'enclave n'en sort que par une déclassification
+  explicite.
 
-Une zone derrière une diode a son propre plan de contrôle, puisqu'un
-contrôleur extérieur n'en recevrait pas les rapports. Hamac produit une
-infrastructure par enclave. Les manifestes signés entrent par la diode ;
-l'état de l'enclave n'en sort que par une déclassification explicite.
+Qu'une zone soit une enclave découle de la politique de sécurité : c'est la
+primitive `enclave(Z)`, que produisent les modèles de sécurité (@roles).
+`hamac_blp` la déduit d'un seuil, `blp::enclave_from secure.` faisant des
+enclaves de toutes les zones de niveau `secure` et au-delà ; un modèle
+d'intégrité (Biba) pourrait de même isoler les zones des automates d'un site
+industriel.
 
 == Axes d'assurance <assurance>
 
@@ -1267,8 +1269,8 @@ réseau, du consommateur vers le service consommé.
 - Seuls les flux déclarés sont ouverts, vers les seuls ports déclarés du
   consommé. Tout autre trafic entre zones est refusé ; le filtrage est avec
   état.
-- Si les deux zones diffèrent et que l'une d'elles a une frontière `diode`
-  (@frontieres), le flux #doit être de mode `push` (#code("E041")).
+- Si les deux zones diffèrent et que l'une d'elles est une enclave
+  (@enclaves), le flux #doit être de mode `push` (#code("E041")).
 
 Dans l'exemple (@exemple), si `hr_api` (zone `rh`) consommait le portail
 (zone `public`), il lirait vers le bas, ce que le modèle `hamac_blp` permet :
@@ -1782,7 +1784,8 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   code("E035"), [2], [port d'une exposition absent des `port` du service],
   code("E040"), [2], [flux vers une zone que le modèle de sécurité ne permet
     pas à la zone du consommateur de lire],
-  code("E041"), [2], [flux de mode `request` à travers une diode],
+  code("E041"), [2], [flux de mode `request` entre une enclave et une autre
+    zone],
   code("E042"), [2], [zone ou niveau inconnu : zone d'un service que les
     patrons ne définissent pas, exigence d'assurance pour une zone que le
     patron ne définit pas ; pour `hamac_blp`, niveau ou catégorie d'une
@@ -1795,8 +1798,8 @@ exemples d'`examples/` ; la suite de tests et la CI le vérifient.
   code("E046"), [3], [infrastructure imposée sans nœud de la zone d'un
     service et d'une de ses architectures],
   code("E050"), [2], [`hamac_blp` : patrons aux niveaux différents],
-  code("E051"), [2], [zone définie deux fois avec des frontières ou, pour
-    `hamac_blp`, des étiquettes différentes],
+  code("E051"), [2], [`hamac_blp` : zone étiquetée différemment par deux
+    patrons],
   code("W001"), [2], [champ expérimental, sans stack qui écrit
     `accept_experimental`],
   code("W002"), [2], [stack sans service],

@@ -6,9 +6,7 @@ use hamac_blp 0.2.
 
 pattern enclave {
   blp::levels [low, high].
+  blp::enclave_from high.
   zone low { blp::level low. }
-  zone high {
-    blp::level high.
-    boundary diode.
-  }
+  zone high { blp::level high. }
 }

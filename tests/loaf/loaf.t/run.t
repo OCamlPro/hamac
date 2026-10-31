@@ -300,10 +300,7 @@ premier port.
   == examples/hr-stack/patterns/exemple_rh.loaf
   (Types.MPattern
      { Types.pat_name = "exemple_rh"; pat_version = (Some "1.0.0");
-       zones =
-       [{ Types.zname = "internal"; boundary = "firewall" };
-         { Types.zname = "public"; boundary = "firewall" };
-         { Types.zname = "rh"; boundary = "firewall" }];
+       zones = [{ Types.zname = "internal" }; { Types.zname = "public" }; { Types.zname = "rh" }];
        pat_assurance = [] })
   == examples/hr-stack/stack.loaf
   (Types.MStack
@@ -463,10 +460,8 @@ premier port.
   (Types.MPattern
      { Types.pat_name = "hamac_default"; pat_version = (Some "0.2.0");
        zones =
-       [{ Types.zname = "default"; boundary = "firewall" };
-         { Types.zname = "internal"; boundary = "firewall" };
-         { Types.zname = "public"; boundary = "firewall" };
-         { Types.zname = "secure"; boundary = "firewall" }];
+       [{ Types.zname = "default" }; { Types.zname = "internal" }; { Types.zname = "public" };
+         { Types.zname = "secure" }];
        pat_assurance = [] })
   == examples/enterprise-stack/organisation.loaf
   (Types.MPattern

@@ -450,10 +450,7 @@ let service cx s : service_manifest =
 let pattern cx pt : pattern_manifest =
   let k = "pattern" in
   let p = [pt] in
-  let zones = F.list1 cx k p "zone" Fun.id |> List.map (fun z ->
-    let q = [pt; z] in
-    { zname = const z;
-      boundary = Option.value (F.opt1 cx k q "zone.boundary" const) ~default:"firewall" }) in
+  let zones = F.list1 cx k p "zone" Fun.id |> List.map (fun z -> { zname = const z }) in
   let pat_assurance =
     let rows = F.values cx k p "assurance" in
     let zone_names = List.sort_uniq compare

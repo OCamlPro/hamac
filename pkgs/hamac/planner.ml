@@ -268,7 +268,10 @@ let plan ?(time_limit = default_time_limit) ~(name : string)
         "The placement is not proven optimal: the search for fewer nodes stopped at the \
          time limit (%gs)" time_limit :: !warnings;
 
-  (* Generate nodes — one group per zone and architecture *)
+  (* Generate nodes — one group per zone and architecture; the nodes of an
+     enclave are isolated *)
+  let enclaves = List.filter_map (function
+    | Clingo.Fun ("enclave", [z]) -> const z | _ -> None) model.symbols in
   let nodes = List.concat_map (fun (z : zone_info) ->
     let total = List.fold_left (fun acc (_, n) -> acc + n) 0 z.nodes in
     if total > 10 then
@@ -284,7 +287,7 @@ let plan ?(time_limit = default_time_limit) ~(name : string)
       boot = None;
       os_image = Some "debian:bookworm-slim";
       os_sha256 = None;
-      isolated = z.zone_name = "secure";
+      isolated = List.mem z.zone_name enclaves;
       provisioning_profile = None;
     }) z.nodes
   ) zones in

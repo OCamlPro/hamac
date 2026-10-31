@@ -189,11 +189,10 @@ type service_manifest = {
 (* kind: pattern                                                 *)
 (* ============================================================ *)
 
-(** A zone of a pattern; its label, if any, belongs to the security model
-    that the pattern uses (blp::level…). *)
+(** A zone of a pattern; its label, if any, and whether it is an enclave
+    belong to the security models that the pattern uses (blp::level…). *)
 type zone_decl = {
   zname: string;
-  boundary: string;          (** firewall | diode *)
 } [@@deriving show]
 
 (** A pattern is the block of a LOAF module (module exemple_rh 1.0.0.),

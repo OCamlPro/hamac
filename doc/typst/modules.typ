@@ -44,6 +44,9 @@ organisation peut les remplacer par les siens, ou les compléter.
   [Déclaration], [Sens et contrôles],
   [`blp::levels* [name]`, au patron], [les niveaux, du moins au plus
     sensible : un ordre total],
+  [`blp::enclave_from? name`, au patron], [ce niveau et au-delà : les zones
+    sont des enclaves (primitive `enclave`) ; un niveau inconnu donne
+    #code("E042")],
   [`blp::category* name`, au patron], [les catégories de besoin d'en
     connaître ; des catégories sans aucun niveau donnent #code("E006")],
   [`blp::level? name`, à une zone], [le niveau de la zone, l'un des niveaux

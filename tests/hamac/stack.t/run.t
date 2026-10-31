@@ -24,7 +24,7 @@ manifestes de service).
   Proposed topology:
     4x node [internal] amd64 — 4096Mi RAM, 4 CPU
     3x node [public] amd64 — 4096Mi RAM, 4 CPU
-    1x node [secure] amd64 — 4096Mi RAM, 4 CPU (isolated)
+    1x node [secure] amd64 — 4096Mi RAM, 4 CPU
   
   Network segments:
     internal: 10.10.0.0/24 (VLAN 100)
