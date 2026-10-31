@@ -296,7 +296,7 @@ block infrastructure {
     count? int.             % défaut 1
     ram? int, size_unit.
     cpu? int.
-    boot? assurance_level.  % un niveau de l'axe boot
+    assurance* axis => assurance_level.  % ce qu'offrent ses machines
     os_image? string.
     os_sha256? string.
     isolated.
@@ -486,9 +486,9 @@ namespace hamac {
   ::error(fmt("[E007] {L} is not a level of the axis {A}"),
           F.assurance(A, L)) :-
       provisioning_profile(F), F.assurance(A, L), not assurance_level(A, L).
-  ::error(fmt("[E007] {L} is not a level of the axis boot"),
-          I.node(R).boot(L)) :-
-      I.node(R).boot(L), not assurance_level(boot, L).
+  ::error(fmt("[E007] {L} is not a level of the axis {A}"),
+          I.node(R).assurance(A, L)) :-
+      I.node(R).assurance(A, L), not assurance_level(A, L).
 
   % Les champs de placement du vocabulaire, ramenés aux primitives.
   ::separate(S, T) :- service(S), S.anti_affinity(T).

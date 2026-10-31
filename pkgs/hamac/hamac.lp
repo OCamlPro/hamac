@@ -177,6 +177,14 @@ domains(S, M) :- deployed(S), M = #count { D : on(S, H), failure_domain(H, D) }.
 violation(min_domains(S, N), S) :- min_domains(S, N), domains(S, M), M < N.
 unmet(prefer_min_domains(S, N), S) :- prefer_min_domains(S, N), domains(S, M), M < N.
 
+% floor(Z, A, L) : plancher d'assurance de la zone Z sur l'axe A. Les nœuds
+% proposés pour Z offrent le plus haut des planchers de chaque axe
+% (zone_floor) ; le choix des machines d'un parc selon leur assurance
+% reste à faire.
+weaker(Z, A, L) :- floor(Z, A, L), floor(Z, A, M),
+    hamac__assurance_rank(A, L, I), hamac__assurance_rank(A, M, J), I < J.
+zone_floor(Z, A, L) :- floor(Z, A, L), not weaker(Z, A, L).
+
 % Une primitive est respectée ; une préférence coûte 1 par manquement, avant
 % le nombre de nœuds.
 :- violation(_, _), relax = 0.
@@ -199,6 +207,7 @@ unmet(prefer_min_domains(S, N), S) :- prefer_min_domains(S, N), domains(S, M), M
 #show unmet/2.
 #show zone_leq/2.
 #show enclave/1.
+#show zone_floor/3.
 #show error/2.
 
 % Prédicats des manifestes qu'un ensemble peut ne pas définir.
@@ -210,7 +219,7 @@ unmet(prefer_min_domains(S, N), S) :- prefer_min_domains(S, N), domains(S, M), M
 #defined service_spread/2.    #defined service_anti_affinity/2.
 #defined service_storage_class/3.
 #defined hamac__service_arch/2.
-#defined zone_leq/2.       #defined enclave/1.
+#defined zone_leq/2.       #defined enclave/1.       #defined floor/3.  #defined hamac__assurance_rank/3.
 #defined separate/2.     #defined prefer_separate/2.
 #defined min_domains/2.  #defined prefer_min_domains/2.
 #defined error/2.

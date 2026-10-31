@@ -101,6 +101,15 @@ Un nombre de domaines inférieur à 1 est refusé.
   $ hamac validate misuse.loaf 2>&1 | grep ERROR
   hamac: [ERROR] misuse.loaf:10:3: [E016] a service survives the loss of a failure domain only on at least 1 domain
 
+Un plancher d'assurance d'une zone passe aux nœuds que le plan propose pour
+elle : le plus haut des patrons, axe par axe.
+
+  $ hamac plan floor.loaf 2>/dev/null | sed -n '/^Proposed/,/^$/p'
+  Proposed topology:
+    1x node [a] amd64 — 4096Mi RAM, 4 CPU, boot >= measured_tpm2, physical >= site
+    1x node [b] amd64 — 4096Mi RAM, 4 CPU
+  
+
 Un nœud a une architecture, et une réplique ne va que sur un nœud d'une
 architecture de son artefact. Le binaire arm64 demande un nœud arm64 ; les
 deux répliques de 3 Gio de l'API remplissent deux nœuds amd64 ; l'image

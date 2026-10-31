@@ -1,0 +1,21 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2026 OCamlPro <contact@ocamlpro.com>
+
+loaf 0.1.
+use hamac 0.2.
+
+% Deux patrons exigent un plancher de la zone a : le plan propose des nœuds
+% qui offrent le plus haut sur chaque axe.
+pattern p {
+  zone a {}
+  zone b {}
+  assurance a, boot, confidential_vm.
+  assurance a, physical, site.
+}
+
+pattern q {
+  assurance a, boot, measured_tpm2.
+}
+
+service web { runtime http. zone a. }
+service docs { runtime http. zone b. }

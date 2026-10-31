@@ -1187,14 +1187,20 @@ axe sans plancher n'impose rien. Un niveau qui n'appartient pas à son axe
 donne #code("E007") ; une zone que le patron ne définit pas, alors qu'il en
 définit, donne #code("E042").
 
-Pour une topologie qu'il propose, Hamac donne aux nœuds de chaque zone le
-plancher de la zone, s'il y en a un.
+Pour une topologie qu'il propose, Hamac donne aux nœuds de chaque zone son
+plancher : sur chaque axe, le plus haut de ceux que fixent les patrons. Le
+plan l'indique avec les nœuds :
+
+```
+Proposed topology:
+  1x node [secure] amd64 — 4096Mi RAM, 4 CPU, boot >= measured_tpm2, physical >= site
+```
 
 #note[
-  Le planificateur de cette version ne lit pas encore l'assurance des
-  machines : il propose des nœuds sans niveau, et ni la règle du plus sûr ni
-  les planchers n'agissent sur le placement. Les planchers sont vérifiés
-  dans les manifestes (#code("E007"), #code("E042")).
+  Le planificateur de cette version ne choisit pas encore les machines d'un
+  parc existant selon leur assurance : sur un parc connu (infrastructure
+  imposée, inventaire), ni la règle du plus sûr ni le respect des planchers
+  n'agissent encore sur le placement.
 ]
 
 #note[
@@ -1573,8 +1579,9 @@ est revérifiée contre les patrons de la stack avant tout déploiement.
     de l'image d'OS de son profil (#code("E009"))],
   [#h(1em)`count? int`], [nombre de nœuds ; défaut 1],
   [#h(1em)`ram? int, size_unit`, `cpu? int`], [capacité de chaque nœud],
-  [#h(1em)`boot? assurance_level`], [niveau de l'axe `boot` (#code("E007")
-    pour un niveau d'un autre axe)],
+  [#h(1em)`assurance* axis => assurance_level`], [ce qu'offrent ses
+    machines, axe par axe (@assurance) ; un niveau hors de son axe donne
+    #code("E007")],
   [#h(1em)`os_image? string`, `os_sha256? string`], [image d'OS du nœud,
     ignorée quand le nœud a un profil],
   [#h(1em)`isolated`], [nœud réservé à une zone],
@@ -1607,7 +1614,7 @@ infrastructure si_exemple {
     count 3.
     ram 16, gi.
     cpu 4.
-    boot confidential_vm.
+    assurance boot, confidential_vm.
   }
 
   segment internal {

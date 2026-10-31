@@ -272,6 +272,20 @@ let plan ?(time_limit = default_time_limit) ~(name : string)
      enclave are isolated *)
   let enclaves = List.filter_map (function
     | Clingo.Fun ("enclave", [z]) -> const z | _ -> None) model.symbols in
+  (* The machines of a proposed node offer the floor of their zone
+     ([zone_floor] of hamac.lp: the highest of the floors of the patterns,
+     by axis). *)
+  let floors = List.filter_map (function
+    | Clingo.Fun ("zone_floor", [z; a; l]) ->
+      (match const z, const a, const l with
+       | Some z, Some a, Some l -> Some (z, a, l) | _ -> None)
+    | _ -> None) model.symbols in
+  let floor_of zone =
+    let level axis =
+      List.find_map (fun (z, a, l) -> if z = zone && a = axis then Some l else None) floors in
+    match level "boot", level "operator", level "physical" with
+    | None, None, None -> None
+    | boot, operator, physical -> Some { boot; operator; physical } in
   let nodes = List.concat_map (fun (z : zone_info) ->
     let total = List.fold_left (fun acc (_, n) -> acc + n) 0 z.nodes in
     if total > 10 then
@@ -284,7 +298,7 @@ let plan ?(time_limit = default_time_limit) ~(name : string)
       count;
       ram = Some (Printf.sprintf "%dMi" node_ram_mb);
       cpu = Some (node_cpu_milli / 1000);
-      boot = None;
+      node_assurance = floor_of z.zone_name;
       os_image = Some "debian:bookworm-slim";
       os_sha256 = None;
       isolated = List.mem z.zone_name enclaves;
@@ -362,10 +376,17 @@ let display_plan (p : plan) =
    | Some topo ->
      Logs.app (fun m -> m "Proposed topology:");
      List.iter (fun (n : infra_node) ->
-       Logs.app (fun m -> m "  %dx node [%s] %s — %s RAM, %d CPU%s"
+       let floor = match n.node_assurance with
+         | None -> ""
+         | Some a ->
+           List.filter_map (fun (axis, l) -> Option.map (fun l -> axis ^ " >= " ^ l) l)
+             [ "boot", a.boot; "operator", a.operator; "physical", a.physical ]
+           |> String.concat ", " |> fun s -> if s = "" then "" else ", " ^ s in
+       Logs.app (fun m -> m "  %dx node [%s] %s — %s RAM, %d CPU%s%s"
          n.count n.role n.arch
          (Option.value ~default:"?" n.ram)
          (Option.value ~default:0 n.cpu)
+         floor
          (if n.isolated then " (isolated)" else ""))
      ) topo.nodes;
      Logs.app (fun m -> m "");

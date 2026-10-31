@@ -88,9 +88,9 @@ type secret_decl = {
 
 (** Minimum per assurance axis; [None] imposes nothing on that axis. *)
 type assurance = {
-  boot: string option;       (** none < provider-vtpm < confidential-vm < measured-tpm2 *)
+  boot: string option;       (** none < provider_vtpm < confidential_vm < measured_tpm2 *)
   operator: string option;   (** any < eu < secnumcloud < self *)
-  physical: string option;   (** third-party < dedicated-rack < site *)
+  physical: string option;   (** third_party < dedicated_rack < site *)
 } [@@deriving show]
 
 type placement = {
@@ -238,7 +238,8 @@ type infra_node = {
   count: int;
   ram: string option;
   cpu: int option;
-  boot: string option;
+  node_assurance: assurance option;
+    (** what its machines offer; in a proposed topology, the floor of its zone *)
   os_image: string option;
   os_sha256: string option;
   isolated: bool;
