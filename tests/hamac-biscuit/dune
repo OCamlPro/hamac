@@ -1,0 +1,19 @@
+;; Écrit à la main : marmiton ne génère que les tests cram de ses
+;; exécutables (tests/<paquet>/dune).
+
+;; Test de propriété du mapping treillis MLS → Datalog Biscuit : l'autoriseur
+;; généré, évalué par clingo, accepte exactement les accès permis par le
+;; treillis, sur tous les sujets du treillis fini de l'exemple hr-stack.
+(executable
+ (name property)
+ (libraries hamac-biscuit hamac-clingo hamac-manifest loaf fmt))
+
+;; Provider Biscuit : sorties figées des commandes `hamac biscuit` sur les
+;; exemples du dépôt, et test de propriété.
+(cram
+ (deps
+  %{bin:hamac}
+  property.exe
+  (glob_files_rec %{project_root}/examples/**)
+  (glob_files_rec %{project_root}/providers/**))
+ (package hamac))

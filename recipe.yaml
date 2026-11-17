@@ -36,6 +36,15 @@ dune:
       depends:
         - name: fmt
 
+    # Provider Biscuit (Hyper Open X, lot L3) : traduction des étiquettes de
+    # route des manifestes (bloc security, modèles blp/rbac des patrons) en
+    # autoriseurs Datalog Biscuit, et bloc autorité des jetons.
+    - name: hamac-biscuit
+      kind: library
+      depends:
+        - name: hamac-manifest
+        - name: loaf
+
     - name: hamac-provisioning
       kind: library
       depends:
@@ -53,6 +62,7 @@ dune:
       depends:
         - name: hamac-manifest
         - name: hamac-provisioning
+        - name: hamac-biscuit
         - name: fpath
         - name: hamac-clingo
         - name: logs

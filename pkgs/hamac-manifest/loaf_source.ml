@@ -799,3 +799,18 @@ let asp ?vocabulary ?(lib = []) (paths : string list)
       Error (located (List.sort_uniq compare (List.map diagnostic_of_loaf ds)))
     | exception Sys_error msg ->
       Error (located [Diagnostic.make "E001" [] ("cannot read file: " ^ msg)])
+
+(** [model ~lib paths]: the LOAF model of a set of files, loaded as by
+    {!load} (same vocabulary and library directories). For an application
+    that reads facts beyond the manifests — the ranks of the security levels
+    that the patterns declare, the fields that the security models add to
+    the routes. [None] when the files are refused (the diagnostics are then
+    those of {!load}). *)
+let model ?vocabulary ?(lib = []) (paths : string list) : Loaf.t option =
+  let files = Loaf.sources paths in
+  match vocabulary_dir ?vocabulary () with
+  | Error _ -> None
+  | Ok vocab ->
+    match Loaf.load ~lib:(vocab :: lib @ library_dirs ()) files with
+    | exception _ -> None
+    | t -> Some t
