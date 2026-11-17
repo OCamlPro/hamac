@@ -365,25 +365,30 @@ let biscuit_guard f () =
     Logs.err (fun m -> m "biscuit: level %S is not declared by the patterns" lvl);
     exit 1
 
-(** The services of the files, validated as one set, and the BLP levels
-    declared by the patterns with their ranks. *)
-let biscuit_context () =
+(** The services of the files, validated as one set (errors stop the
+    command). *)
+let loaded_services () =
   let ls = Hamac_manifest.Stack_check.load_all ~lib:!library_dirs !manifest_files in
   let _, findings = Hamac_manifest.Stack_check.run ls in
   let errors = List.filter (fun (_, d) -> Hamac_manifest.Diagnostic.is_error d) findings in
   List.iter (fun (f, d) ->
     Logs.err (fun m -> m "%s" (Hamac_manifest.Diagnostic.to_string_in f d))) errors;
   if errors <> [] then exit 1;
+  List.filter_map (fun (l : Hamac_manifest.Stack_check.loaded) ->
+    match l.manifest with
+    | Some (Hamac_manifest.Types.MService s) -> Some s
+    | _ -> None) ls
+
+(** The services of the files, validated as one set, and the BLP levels
+    declared by the patterns with their ranks. *)
+let biscuit_context () =
+  let services = loaded_services () in
   let model =
     match Hamac_manifest.Loaf_source.model ~lib:!library_dirs !manifest_files with
     | Some t -> t
     | None -> Logs.err (fun m -> m "biscuit: the set of files is refused"); exit 1
   in
   let levels = Hamac_biscuit.Biscuit_gen.levels model in
-  let services = List.filter_map (fun (l : Hamac_manifest.Stack_check.loaded) ->
-    match l.manifest with
-    | Some (Hamac_manifest.Types.MService s) -> Some s
-    | _ -> None) ls in
   (levels, services)
 
 let biscuit_service_or_fail name services =
@@ -447,6 +452,33 @@ let run_biscuit_token () =
                   ?level:(if !biscuit_level = "" then None else Some !biscuit_level)
                   ~categories:(split_csv !biscuit_categories)
                   ~roles:(split_csv !biscuit_roles) ())
+
+(* ============================================================ *)
+(* sozu : provider Sozu (configuration de routage TOML)         *)
+(* ============================================================ *)
+
+let sozu_listen_address = ref ""
+let sozu_command_socket = ref ""
+
+let run_sozu_config () =
+  let options =
+    let d = Hamac_sozu.Sozu_gen.default_options in
+    { d with
+      listen_address =
+        (if !sozu_listen_address = "" then d.listen_address else !sozu_listen_address);
+      command_socket =
+        (if !sozu_command_socket = "" then d.command_socket else !sozu_command_socket) }
+  in
+  print_string (Hamac_sozu.Sozu_gen.config ~options (loaded_services ()))
+
+let run_sozu_exposures () =
+  List.iter (fun ((s : Hamac_manifest.Types.service_manifest), es) ->
+    List.iter (fun (e : Hamac_manifest.Types.exposure) ->
+      Printf.printf "%s %s:%d %s tls=%s path=%s\n"
+        (Hamac_manifest.Types.hostname s.name) e.hostname e.exp_port
+        e.exp_protocol e.tls e.path_prefix)
+      es)
+    (Hamac_sozu.Sozu_gen.exposed (loaded_services ()))
 
 (* ============================================================ *)
 (* CLI (cmdliner)                                               *)
@@ -530,6 +562,14 @@ let categories_arg =
 let roles_arg =
   let doc = "Comma-separated roles of the subject." in
   Arg.(value & opt string "" & info ["roles"] ~docv:"X,Y" ~doc)
+
+let listen_address_arg =
+  let doc = "Address the Sozu listeners bind to (port is appended). Default 0.0.0.0." in
+  Arg.(value & opt string "" & info ["listen-address"] ~docv:"ADDR" ~doc)
+
+let command_socket_arg =
+  let doc = "Path of the Sozu command socket (hot reconfiguration). Default /run/sozu/command.sock." in
+  Arg.(value & opt string "" & info ["command-socket"] ~docv:"PATH" ~doc)
 
 (* ---- Termes / commandes ---- *)
 
@@ -686,11 +726,39 @@ let biscuit_cmd =
     [ biscuit_authorizer_cmd; biscuit_authorizers_cmd;
       biscuit_routes_cmd; biscuit_token_cmd ]
 
+let sozu_config_cmd =
+  let extra =
+    Term.(const (fun a s -> sozu_listen_address := a; sozu_command_socket := s)
+          $ listen_address_arg $ command_socket_arg) in
+  Cmd.v (Cmd.info "config"
+           ~doc:"Generate the Sozu configuration (TOML) of the exposed services \
+                 of the manifests: one listener per listening port, one cluster \
+                 and one frontend per exposure, the service as backend. The \
+                 protected routes are listed in each cluster, for the Biscuit \
+                 validation at the edge.")
+    (files_term ~extra run_sozu_config)
+
+let sozu_exposures_cmd =
+  Cmd.v (Cmd.info "exposures"
+           ~doc:"List the exposures (public hostname, port, protocol, TLS, path) \
+                 of the services of the files.")
+    (files_term run_sozu_exposures)
+
+let sozu_cmd =
+  Cmd.group (Cmd.info "sozu"
+               ~doc:"Provider Sozu (Hyper Open X): generate the Sozu routing \
+                     configuration from the exposures of the manifests. Sozu is \
+                     the edge: hot reconfiguration by its command socket, and \
+                     Biscuit token validation before the request reaches the \
+                     service.")
+    [ sozu_config_cmd; sozu_exposures_cmd ]
+
 let main_cmd =
   let doc = "Hamac - infrastructure orchestrator for declarative manifests." in
   Cmd.group (Cmd.info "hamac" ~doc)
     [ validate_cmd; plan_cmd; resolve_cmd; simulate_cmd; deploy_cmd; status_cmd;
-      provision_dryrun_cmd; provision_push_cmd; provision_clear_cmd; biscuit_cmd ]
+      provision_dryrun_cmd; provision_push_cmd; provision_clear_cmd;
+      biscuit_cmd; sozu_cmd ]
 
 let () =
   Printexc.record_backtrace true;

@@ -28,6 +28,7 @@
     hamac-clingo
     hamac-manifest
     hamac-provisioning
+    hamac-sozu
     logs.fmt
     lwt
     yojson

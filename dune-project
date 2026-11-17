@@ -58,6 +58,15 @@
 )
 
 (package
+  (name hamac-sozu)
+  (allow_empty)
+  (depends
+    (hamac-manifest :build)
+    (opam-marmiton (and (>= 0.1.0) :with-dev-setup))
+  )
+)
+
+(package
   (name hamac-provisioning)
   (allow_empty)
   (depends
@@ -86,6 +95,7 @@
     (hamac-clingo :build)
     (hamac-manifest :build)
     (hamac-provisioning :build)
+    (hamac-sozu :build)
     (logs :build)
     (lwt :build)
     (opam-marmiton (and (>= 0.1.0) :with-dev-setup))

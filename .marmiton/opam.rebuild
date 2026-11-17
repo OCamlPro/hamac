@@ -1,5 +1,7 @@
+e59acc9dbf2607dbb7b9e2af2bf360f2c2a69333  ../opam/hamac-biscuit.opam
 4dff1421e5ff56b9510c5fdf5944431446c0b732  ../opam/hamac-manifest.opam
 a2a0cee0b6ce5db4d77e5f774dc0fae3deaf3176  ../opam/hamac-clingo.opam
 1546c565847e980094c3cf333ab52b1bcacdb710  ../opam/hamac-provisioning.opam
-8dc26389f27a5e0e9e07f20a1fb0302a8e40f77a  ../opam/hamac.opam
+955b5a9f3ee3eebf4ba671df852d2c2a33010554  ../opam/hamac.opam
 272916e70609ecdf7c9275676fb64b55a4a46c2d  ../opam/hamac-discovery.opam
+6b4794b75d427ac9d4bf1672d1fb4616269305db  ../opam/hamac-sozu.opam
