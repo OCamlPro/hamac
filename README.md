@@ -178,6 +178,14 @@ The mapping from the MLS lattice to Datalog is checked exhaustively on a
 finite lattice by `tests/hamac-biscuit` (the generated authorizer, evaluated
 by an ASP solver, accepts exactly the accesses the lattice allows).
 
+A narrated demo (in French, for a non-technical audience) shows the whole
+chain on `examples/hr-stack`: manifest → generated authorizer → signed
+tokens → allow/deny decisions, checked with `biscuit-cli`:
+
+```sh
+examples/hr-stack/biscuit-demo.sh     # requires biscuit-cli in the PATH
+```
+
 ## Edge routing (Sozu)
 
 Services declare their public entrance with `exposure` blocks. The
