@@ -127,6 +127,13 @@ RUN git clone https://github.com/ipxe/ipxe.git /usr/src/ipxe \
 # `docker build` de ce Dockerfile. Le CI cible ce stage spécifiquement
 # (`docker build --target qemu-img-builder`) et en extrait le binaire —
 # voir .gitlab-ci.yml.
+#
+# L'initramfs doit aussi embarquer, pour pxe-build/init :
+#   - bmaptool (chemin image physique raw.zst + .bmap, cf. provisioning.typ
+#     §3.1) ;
+#   - kexec (paquet kexec-tools) pour la branche netinstall de pxe-build/init
+#     (kexec dans l'installateur Debian avec preseed/url — chiffrement LUKS2
+#     du disque, cf. provisioning.typ @endpoints).
 FROM alpine:3.21 AS qemu-img-builder
 RUN apk add --no-cache \
       bash \

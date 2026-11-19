@@ -152,6 +152,27 @@ let check_profile e (pp : provisioning_profile_manifest) =
   if pp.pp_bundles = [] && pp.pp_cloud_init_extra = None then
     e "W013" ["bundles"]
       "no bundles and no cloud_init_extra: nothing will happen at provision time";
+  (* L'axe d'assurance est une attestation, pas une décoration : un niveau
+     de boot mesuré (TPM2) exige le chemin d'installation chiffré, seul
+     implemented aujourd'hui via le format netinstall (partman-crypto LUKS2
+     + systemd-cryptenroll). Un profil image (qcow2/raw) qui le réclamerait
+     sans le réaliser serait une fausse attestation (audit SI). *)
+  (match pp.pp_assurance with
+   | Some { boot = Some ("measured_tpm2" as lvl); _ }
+     when pp.pp_os.os_format <> "netinstall" ->
+     e "E043" ["assurance"; "boot"]
+       (Printf.sprintf
+          "profile %s claims assurance boot '%s' but os format is '%s': \
+           measured boot with LUKS2 requires format netinstall (got '%s')"
+          pp.pp_name lvl pp.pp_os.os_format pp.pp_os.os_format)
+   | _ -> ());
+  if pp.pp_os.os_format <> "netinstall" && pp.pp_preseed_extra <> [] then
+    (* preseed_extra n'a de sens qu'en netinstall ; ailleurs il est ignoré,
+       donc on avertit plutôt qu'on n'échoue *)
+    e "W015" ["preseed_extra"]
+      (Printf.sprintf
+         "profile %s: preseed_extra is only used with os format netinstall (got '%s')"
+         pp.pp_name pp.pp_os.os_format);
   List.iter (fun (i, n) ->
     e "E012" ["bundles"; string_of_int i] (Printf.sprintf "bundle '%s' listed twice" n))
     (duplicates (List.map (fun b -> b.bundle_name) pp.pp_bundles))

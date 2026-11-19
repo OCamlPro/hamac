@@ -569,8 +569,9 @@ let provisioning_profile cx f : provisioning_profile_manifest =
       | None, [] -> None (* neither: E007 of the vocabulary *)) in
     { bundle_name = name b; bundle_params }) in
   let pp_cloud_init_extra = F.opt1 cx k p "cloud_init_extra" str in
+  let pp_preseed_extra = F.list1 cx k p "preseed_extra" str in
   { pp_name = name f;
-    pp_os; pp_bundles; pp_cloud_init_extra;
+    pp_os; pp_bundles; pp_cloud_init_extra; pp_preseed_extra;
     pp_assurance = assurance_of (axis_rows (F.table cx k p "assurance" Fun.id Fun.id)) }
 
 (* ============================================================ *)

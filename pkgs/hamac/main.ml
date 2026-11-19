@@ -260,6 +260,31 @@ let run_status () =
 let provision_bundles_dir = ref ""
 let provision_mac = ref ""
 let provision_discovery_url = ref "http://localhost:8877"
+let provision_params : (string * Hamac_manifest.Types.param_value) list ref = ref []
+
+(** --param k=v (repeatable) : paramètres machine pour le rendu (surcouchent
+    les paramètres du profil ; alimentent aussi le preseed netinstall :
+    luks_passphrase, tang_url, hostname...). *)
+let parse_provision_params (kvs : string list) : (string * Hamac_manifest.Types.param_value) list =
+  List.filter_map (fun kv ->
+    match String.split_on_char '=' kv with
+    | k :: rest when k <> "" -> Some (k, Hamac_manifest.Types.PString (String.concat "=" rest))
+    | _ -> None) kvs
+
+(** Injecte les paramètres machine dans chaque bundle_ref du profil, comme
+    le fait le discovery (build_manifest_for_machine) : les params machine
+    surchargent ceux du profil. *)
+let profile_with_machine_params
+    (profile : Hamac_manifest.Types.provisioning_profile_manifest)
+    (machine_params : (string * Hamac_manifest.Types.param_value) list)
+  : Hamac_manifest.Types.provisioning_profile_manifest =
+  let open Hamac_manifest.Types in
+  let merged = List.map (fun (br : bundle_ref) ->
+    let from_profile = List.filter (fun (k, _) ->
+      not (List.mem_assoc k machine_params)) br.bundle_params in
+    { br with bundle_params = machine_params @ from_profile })
+    profile.pp_bundles in
+  { profile with pp_bundles = merged }
 
 (** The profile given to a provisioning command, the bundle search paths
     and the bundles of its set: the profile is loaded with the [bundle.loaf]
@@ -291,7 +316,9 @@ let load_profile () =
 
 let run_provision_dryrun () =
   let profile, extra, bundles = load_profile () in
-  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles profile with
+  let profile = profile_with_machine_params profile !provision_params in
+  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles
+          ~machine_params:!provision_params ~machine_mac:!provision_mac profile with
   | Error e ->
     Logs.err (fun m -> m "%a" Hamac_provisioning.Provisioning_gen.pp_error e);
     exit 1
@@ -302,6 +329,11 @@ let run_provision_dryrun () =
     print_endline "=== iPXE ===";
     print_string r.ipxe_script;
     print_endline "";
+    if r.preseed <> "" then begin
+      print_endline "=== preseed (netinstall) ===";
+      print_string r.preseed;
+      print_endline ""
+    end;
     Printf.printf "=== OS ===\nurl: %s\nsha256: %s\nformat: %s\n"
       r.os_image_url r.os_image_sha256 r.os_format
 
@@ -311,7 +343,9 @@ let run_provision_push () =
     exit 1
   end;
   let profile, extra, bundles = load_profile () in
-  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles profile with
+  let profile = profile_with_machine_params profile !provision_params in
+  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles
+          ~machine_params:!provision_params ~machine_mac:!provision_mac profile with
   | Error e ->
     Logs.err (fun m -> m "%a" Hamac_provisioning.Provisioning_gen.pp_error e);
     exit 1
@@ -537,6 +571,12 @@ let discovery_arg =
   let doc = "Discovery server base URL (no trailing slash)." in
   Arg.(value & opt string "http://localhost:8877" & info ["discovery"] ~docv:"URL" ~doc)
 
+let param_arg =
+  let doc = "Machine parameter for provisioning, K=V (repeatable). Overrides the \
+             profile bundle params and feeds the netinstall preseed (luks_passphrase, \
+             tang_url, hostname, ...)." in
+  Arg.(value & opt_all string [] & info ["param"] ~docv:"K=V" ~doc)
+
 let service_arg =
   let doc = "Name of a service of the files." in
   Arg.(value & opt string "" & info ["service"] ~docv:"NAME" ~doc)
@@ -647,28 +687,31 @@ let status_cmd =
     Term.(const go $ debug_arg)
 
 let provision_dryrun_cmd =
-  let go profile bundles_dir debug =
+  let go profile bundles_dir mac params debug =
     set_debug debug;
     if profile <> "" then manifest_files := [profile];
     provision_bundles_dir := bundles_dir;
+    provision_mac := mac;
+    provision_params := parse_provision_params params;
     run_provision_dryrun ()
   in
   Cmd.v (Cmd.info "provision-dryrun"
-           ~doc:"Render cloud-init + iPXE for a provisioning_profile without pushing it.")
-    Term.(const go $ profile_arg $ bundles_dir_arg $ debug_arg)
+           ~doc:"Render cloud-init + iPXE (+ preseed if netinstall) for a provisioning_profile without pushing it.")
+    Term.(const go $ profile_arg $ bundles_dir_arg $ mac_arg $ param_arg $ debug_arg)
 
 let provision_push_cmd =
-  let go profile bundles_dir mac discovery debug =
+  let go profile bundles_dir mac discovery params debug =
     set_debug debug;
     if profile <> "" then manifest_files := [profile];
     provision_bundles_dir := bundles_dir;
     provision_mac := mac;
     provision_discovery_url := discovery;
+    provision_params := parse_provision_params params;
     run_provision_push ()
   in
   Cmd.v (Cmd.info "provision-push"
            ~doc:"Render and push a provisioning_profile to the discovery server for a MAC.")
-    Term.(const go $ profile_arg $ bundles_dir_arg $ mac_arg $ discovery_arg $ debug_arg)
+    Term.(const go $ profile_arg $ bundles_dir_arg $ mac_arg $ discovery_arg $ param_arg $ debug_arg)
 
 let provision_clear_cmd =
   let go mac discovery debug =

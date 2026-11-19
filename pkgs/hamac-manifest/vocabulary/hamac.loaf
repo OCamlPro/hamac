@@ -348,6 +348,10 @@ block provisioning_profile {
     }
   }
   cloud_init_extra? string.            % cloud-init fusionné, en YAML sur une ligne
+  % Lignes de preseed Debian ajoutées telles quelles à la fin du preseed
+  % généré par hamac (format netinstall uniquement : partitionnement chiffré
+  % LUKS2, Clevis/Tang, TPM2, seed cloud-init NoCloud — cf. provisioning.typ).
+  preseed_extra* text.
   assurance* axis => assurance_level.  % ce qu'offre une machine installée
 }
 

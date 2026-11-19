@@ -46,6 +46,9 @@ Un profil nomme ses bundles : il se charge avec eux.
   templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
   provisioning-profiles/dev-workstation.loaf: provisioning_profile (name=dev_workstation, os=debian-12-amd64-genericcloud, 1 bundles)
   templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  provisioning-profiles/secure-workstation.loaf: provisioning_profile (name=secure_workstation, os=debian-12-amd64-netboot, 1 bundles)
+  templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  hamac: [WARNING] provisioning-profiles/secure-workstation.loaf:46:3: [W001] 'assurance' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
 
 Les diagnostics portent le fichier, la ligne et la colonne de l'élément en
 faute. Leur code est celui de Hamac quand la validation vient du vocabulaire
@@ -480,7 +483,7 @@ premier port.
          os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
        pp_bundles = [{ Types.bundle_name = "dev_workstation"; bundle_params = [] }];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
-       pp_assurance = None })
+       pp_preseed_extra = []; pp_assurance = None })
   == provisioning-profiles/dev-workstation-demo.loaf
   (Types.MProvisioningProfile
      { Types.pp_name = "dev_workstation_demo";
@@ -504,7 +507,21 @@ premier port.
           }
          ];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
-       pp_assurance = None })
+       pp_preseed_extra = []; pp_assurance = None })
+  == provisioning-profiles/secure-workstation.loaf
+  (Types.MProvisioningProfile
+     { Types.pp_name = "secure_workstation";
+       pp_os =
+       { Types.os_image_name = "debian-12-amd64-netboot";
+         os_url =
+         "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/";
+         os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+         os_format = "netinstall"; os_arch = "amd64"; os_family = "debian"; 
+         os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
+       pp_bundles = [{ Types.bundle_name = "dev_workstation"; bundle_params = [] }];
+       pp_cloud_init_extra = None; pp_preseed_extra = ["d-i grub-installer/bootdev string default"];
+       pp_assurance =
+       (Some { Types.boot = (Some "measured_tpm2"); operator = None; physical = None }) })
   == templates/bundles/dev_workstation/bundle.loaf
   (Types.MBundle
      { Types.bdl_name = "dev_workstation"; bdl_version = "0.1.0";
@@ -713,3 +730,38 @@ Le rendu d'un profil.
   url: https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
   sha256: 0000000000000000000000000000000000000000000000000000000000000000
   format: qcow2
+
+Preseed netinstall (profil sécurisé) : sans luks_passphrase, le rendu échoue.
+
+  $ hamac provision-dryrun --profile=$R/provisioning-profiles/secure-workstation.loaf --bundles-dir=$R/templates/bundles --param username=ocp-si 2>&1 | grep -o "paramètre machine requis 'luks_passphrase' manquant"
+  paramètre machine requis 'luks_passphrase' manquant
+
+Avec les paramètres machine, le preseed généré couvre LUKS2 + TPM2 + Tang.
+
+  $ hamac provision-dryrun --profile=$R/provisioning-profiles/secure-workstation.loaf --bundles-dir=$R/templates/bundles --param username=ocp-si --param luks_passphrase=EXAMPLE-ONLY --param tang_url=http://tang.example.invalid:7777 --mac=9c:bf:0d:01:37:13 2>&1 | sed -n '/=== preseed/,$p' | grep -E 'partman-auto/method string|partman-crypto/passphrase password|cryptenroll|clevis luks bind|grub-installer|format: netinstall'
+  d-i partman-auto/method string crypto
+  d-i partman-crypto/passphrase password EXAMPLE-ONLY
+     printf '%s' 'EXAMPLE-ONLY' | in-target systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7+11 --key-file=- "$LUKSDEV"; \
+     echo 'EXAMPLE-ONLY' | in-target clevis luks bind -y -k - -d "$LUKSDEV" tang '{"url":"http://tang.example.invalid:7777"}' ; \
+  d-i grub-installer/bootdev string default
+  format: netinstall
+
+Un profil qui réclame l'assurance boot measured_tpm2 sans le format
+netinstall (seul chemin chiffré) est refusé : E043, pas de fausse attestation.
+
+  $ cat > e043.loaf <<'EOF'
+  > loaf 0.1.
+  > use hamac 0.2.
+  > provisioning_profile bad_secure {
+  >   os "debian-12-amd64-genericcloud" {
+  >     url "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2".
+  >     sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+  >     format qcow2.
+  >     family debian.
+  >   }
+  >   bundles [dev_workstation].
+  >   assurance boot, measured_tpm2.
+  > }
+  > EOF
+  $ hamac validate e043.loaf $R/templates/bundles/dev_workstation/bundle.loaf 2>&1 | grep -o 'E043.*' | cut -c1-120
+  E043] profile bad_secure claims assurance boot 'measured_tpm2' but os format is 'qcow2': measured boot with LUKS2 requir

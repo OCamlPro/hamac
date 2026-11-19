@@ -1,0 +1,50 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Profil pour poste sécurisé (audit SI, notice bureau-sécurisé) :
+% installation par l'installateur Debian (format netinstall) avec plein
+% disque chiffré LUKS2, déverrouillage par TPM2 (systemd-cryptenroll, PCR
+% 7+11) et — si le paramètre machine tang_url est fourni — binding
+% Clevis/Tang pour le déverrouillage à distance via le réseau
+% d'administration ; repli sur la passphrase LUKS2 (paramètre machine
+% luks_passphrase, obligatoire avec ce format).
+%
+% Le preseed est généré par hamac (provisioning_gen.render_preseed) et servi
+% par le discovery à GET /provisioning/<mac>/preseed ; l'init PXE le passe à
+% d-i via preseed/url= sur la ligne de commande du noyau kexec. Les lignes
+% preseed_extra ci-dessous sont ajoutées telles quelles à la fin.
+%
+% L'axe d'assurance boot => measured_tpm2 est une attestation : E043 la
+% refuse si le format os n'est pas netinstall (seul chemin chiffré
+% implémenté). Ne pas le retirer tant que l'image installée n'embarque pas
+% réellement le seal TPM2.
+%
+% En exploitation, les paramètres machine (username, luks_passphrase,
+% tang_url…) viennent de l'enregistrement de machine (/api/machines), jamais
+% d'un fichier versionné — la variante *_demo n'existe pas ici volontairement
+% (une passphrase LUKS dans un dépôt serait une faute).
+
+loaf 0.1.
+use hamac 0.2.
+
+provisioning_profile secure_workstation {
+  description "Poste sécurisé : Debian 12 netinstall, LUKS2 plein disque + TPM2 + Clevis/Tang".
+
+  os "debian-12-amd64-netboot" {
+    % Répertoire netboot de l'installateur (contient 'linux' et 'initrd.gz')
+    % — pas un fichier unique : sha256 au placeholder, l'intégrité du
+    % téléchargement repose sur HTTPS (deb.debian.org).
+    url "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format netinstall.
+    family debian.
+  }
+
+  bundles [dev_workstation].
+
+  % Attestation : vérifiée par E043 (exige format netinstall).
+  assurance boot, measured_tpm2.
+
+  % Lignes de preseed ajoutées telles quelles après le preseed généré.
+  preseed_extra "d-i grub-installer/bootdev string default".
+}

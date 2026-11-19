@@ -25,6 +25,7 @@ type error =
   | Template_render_error of string * string  (* fichier, message *)
   | Script_not_found of string * string       (* bundle, script path *)
   | Write_files_collision of string * string * string (* chemin, deux origines *)
+  | Missing_preseed_param of string * string  (* profil, param machine requis pour netinstall *)
 
 let pp_error fmt = function
   | Bundle_not_found (name, paths) ->
@@ -41,6 +42,11 @@ let pp_error fmt = function
   | Write_files_collision (path, a, b) ->
     Format.fprintf fmt "write_files : %s et %s écrivent tous deux '%s' avec des contenus différents"
       a b path
+  | Missing_preseed_param (profile, p) ->
+    Format.fprintf fmt
+      "profile '%s' (format netinstall) : paramètre machine requis '%s' manquant \
+       (luks_passphrase est obligatoire pour le chiffrement LUKS2 du disque)"
+      profile p
 
 (* ============================================================ *)
 (* Résultat                                                      *)
@@ -50,6 +56,7 @@ type rendered_profile = {
   profile_name: string;
   cloud_init: string;       (** YAML final, préfixé par #cloud-config *)
   ipxe_script: string;      (** Script iPXE pointant vers l'OS image *)
+  preseed: string;          (** preseed d-i (format netinstall), "" sinon *)
   os_image_url: string;
   os_image_sha256: string;
   os_format: string;
@@ -240,17 +247,158 @@ let dedup_packages (v : Yaml.value) : Yaml.value =
 (* ============================================================ *)
 
 let render_ipxe (os : os_image_spec) : string =
+  let base = Filename.dirname os.os_url in
   let lines = [
     "#!ipxe";
     "# Généré par hamac (provisioning_gen)";
     Printf.sprintf "# Image: %s (%s)" os.os_image_name os.os_format;
     "";
-    "set base-url " ^ (Filename.dirname os.os_url);
-    Printf.sprintf "kernel %s/vmlinuz initrd=initrd.img boot=live components" (Filename.dirname os.os_url);
-    Printf.sprintf "initrd %s/initrd.img" (Filename.dirname os.os_url);
-    "boot";
-  ] in
+    "set base-url " ^ base;
+  ] @ (if os.os_format = "netinstall" then
+      (* répertoire netboot d-i : noyau 'linux' + initrd 'initrd.gz' *)
+      [ Printf.sprintf "kernel %s/linux" base;
+        Printf.sprintf "initrd %s/initrd.gz" base;
+        "boot" ]
+    else
+      [ Printf.sprintf "kernel %s/vmlinuz initrd=initrd.img boot=live components" base;
+        Printf.sprintf "initrd %s/initrd.img" base;
+        "boot" ]) in
   String.concat "\n" lines ^ "\n"
+
+(* ============================================================ *)
+(* Preseed (format os netinstall)                                *)
+(* ============================================================ *)
+
+(** Valeur texte d'un paramètre machine (PString direct, sinon rendering
+    scalaire). *)
+let param_str (params : (string * param_value) list) (name : string) : string option =
+  match List.assoc_opt name params with
+  | Some (PString s) -> Some s
+  | Some (PInt i) -> Some (string_of_int i)
+  | Some (PBool b) -> Some (string_of_bool b)
+  | _ -> None
+
+(** Échappe une valeur pour une ligne de preseed d-i (les backslashes de
+    continuation de ligne ne doivent pas apparaître dans les valeurs). *)
+let preseed_escape s =
+  String.concat " " (String.split_on_char '\n' s)
+
+(** Preseed d-i pour le format [netinstall] : installation automatisée avec
+    plein disque chiffré LUKS2 (partman-crypto), déverrouillage par TPM2
+    (systemd-cryptenroll, PCR 7+11) et, si le paramètre machine [tang_url]
+    est fourni, binding Clevis/Tang pour le déverrouillage à distance via le
+    réseau d'administration ; repli sur la passphrase LUKS2
+    ([luks_passphrase], paramètre machine obligatoire).
+
+    Le seed cloud-init NoCloud est déposé dans le système installé ; il est
+    servi par le discovery à [<base>/provisioning/<mac>/cloud-init], d'où
+    [~public_base_url] et [~machine_mac] (chaînes vides = on saute le dépôt
+    du seed, ex. dry-run hors discovery).
+
+    Les lignes [profile.pp_preseed_extra] sont ajoutées telles quelles à la
+    fin. Le disque cible ([partman-auto/disk]) n'est PAS ici : il est passé
+    sur la ligne de commande du noyau par l'init PXE (qui connaît le disque),
+    comme [preseed/url]. *)
+let render_preseed (profile : provisioning_profile_manifest)
+    ~(params : (string * param_value) list)
+    ~(public_base_url : string) ~(machine_mac : string) : (string, error) Stdlib.result =
+  let ( let* ) = Stdlib.Result.bind in
+  let os = profile.pp_os in
+  if os.os_format <> "netinstall" then Ok ""
+  else begin
+    let* luks_passphrase =
+      match param_str params "luks_passphrase" with
+      | Some p when p <> "" -> Ok p
+      | _ -> Error (Missing_preseed_param (profile.pp_name, "luks_passphrase")) in
+    let tang_url = param_str params "tang_url" |> Option.value ~default:"" in
+    let username = param_str params "username" |> Option.value ~default:"debian" in
+    let full_name = param_str params "full_name" |> Option.value ~default:username in
+    let initial_password = param_str params "initial_password" |> Option.value ~default:"" in
+    let hostname =
+      match param_str params "hostname" with
+      | Some h when h <> "" -> h
+      | _ -> "hamac-" ^ (if machine_mac = "" then "node" else
+                           String.concat "-" (String.split_on_char ':' machine_mac)) in
+    let esc = preseed_escape in
+    let seed_lines =
+      if public_base_url <> "" && machine_mac <> "" then
+        let base = String.trim public_base_url in
+        let base = if String.ends_with ~suffix:"/" base then String.sub base 0 (String.length base - 1) else base in
+        [ "   mkdir -p /target/var/lib/cloud/seed/nocloud; \\";
+          Printf.sprintf "   wget -q -O /target/var/lib/cloud/seed/nocloud/user-data %s/provisioning/%s/cloud-init; \\" base machine_mac;
+          Printf.sprintf "   printf 'instance-id: hamac-%s\\nlocal-hostname: %s\\n' > /target/var/lib/cloud/seed/nocloud/meta-data"
+            (String.concat "-" (String.split_on_char ':' machine_mac)) (esc hostname) ]
+      else [] in
+    let clevis_line =
+      if tang_url = "" then []
+      else
+        [ "   echo '" ^ esc luks_passphrase ^ "' | in-target clevis luks bind -y -k - -d \"$LUKSDEV\" tang '{\"url\":\"" ^ esc tang_url ^ "\"}' ; \\" ] in
+    let lines = [
+      "# Preseed généré par hamac (provisioning_gen) pour le profil '" ^ profile.pp_name ^ "'";
+      "# Format netinstall : installation d-i automatisée, plein disque chiffré LUKS2.";
+      "# Régénéré à chaque push de la machine — ne pas éditer à la main.";
+      "d-i debian-installer/language string fr";
+      "d-i debian-installer/country string FR";
+      "d-i debian-installer/locale string fr_FR.UTF-8";
+      "d-i keyboard-configuration/xkb-keymap select fr";
+      "d-i netcfg/enable boolean true";
+      "d-i netcfg/choose_interface select auto";
+      Printf.sprintf "d-i netcfg/get_hostname string %s" (esc hostname);
+      "d-i netcfg/get_domain string intranet";
+      "d-i mirror/country string manual";
+      "d-i mirror/http/hostname string deb.debian.org";
+      "d-i mirror/http/directory string /debian";
+      "d-i mirror/http/proxy string";
+      "d-i clock-setup/utc boolean true";
+      "d-i time/zone string Europe/Paris";
+      "d-i clock-setup/ntp boolean true";
+      "";
+      "# Compte créé par d-i avec les paramètres machine ; le bundle cloud-init";
+      "# le reprend au premier boot (sudo, clés SSH, mot de passe expiré).";
+      "d-i passwd/root-login boolean false";
+      Printf.sprintf "d-i passwd/user-fullname string %s" (esc full_name);
+      Printf.sprintf "d-i passwd/username string %s" (esc username);
+      Printf.sprintf "d-i passwd/user-password password %s" (esc initial_password);
+      Printf.sprintf "d-i passwd/user-password-again password %s" (esc initial_password);
+      "d-i user-setup/allow-password-weak boolean true";
+      "d-i user-setup/encrypt-home boolean false";
+      "";
+      "# Disque : plein disque chiffré LUKS2 (partman-crypto, sans LVM).";
+      "# Le disque cible (partman-auto/disk) et preseed/url sont passés sur la";
+      "# ligne de commande du noyau par l'init PXE.";
+      "d-i partman-auto/method string crypto";
+      "d-i partman-auto/expert_recipe string \\";
+      "   hamac-crypto :: \\";
+      "      512 512 1024 free \\";
+      "         $primary{ } $bootable{ } method{ efi } format{ efi } . \\";
+      "      100% 1000% -1 ext4 \\";
+      "         $primary{ } method{ crypto } format{ } . \\";
+      "      100% 1000% -1 ext4 \\";
+      "         $crypto{ } method{ format } format{ } \\";
+      "         use_filesystem{ } filesystem{ ext4 } mountpoint{ / } .";
+      "d-i partman-crypto/confirm boolean true";
+      Printf.sprintf "d-i partman-crypto/passphrase password %s" (esc luks_passphrase);
+      Printf.sprintf "d-i partman-crypto/passphrase-again password %s" (esc luks_passphrase);
+      "d-i partman-partitioning/confirm_write_new_label boolean true";
+      "d-i partman/choose_partition select finish";
+      "d-i partman/confirm boolean true";
+      "d-i partman/confirm_nooverwrite boolean true";
+      "";
+      "# Paquets : déverrouillage LUKS2 par TPM2 (PCR 7+11) et Clevis/Tang, + cloud-init.";
+      "d-i pkgsel/include string openssh-server cryptsetup-initramfs clevis clevis-luks clevis-initramfs cloud-init";
+      "d-i pkgsel/upgrade select none";
+      "";
+      "# Enregistrement des slots de déverrouillage + seed cloud-init NoCloud.";
+      "d-i preseed/late_command string \\";
+      "   LUKSDEV=$(in-target sh -c 'blkid -o device -t TYPE=crypto_LUKS | head -n1'); \\";
+      "   printf '%s' '" ^ esc luks_passphrase ^ "' | in-target systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7+11 --key-file=- \"$LUKSDEV\"; \\";
+    ] @ clevis_line @ seed_lines @ [
+      "   true";
+      "";
+      "d-i finish-install/keep-consoles boolean true";
+    ] @ List.map (fun l -> l) profile.pp_preseed_extra in
+    Ok (String.concat "\n" lines ^ "\n")
+  end
 
 (* ============================================================ *)
 (* Génération principale                                         *)
@@ -296,10 +444,19 @@ let bundle_loaf_files ~(search_paths : Fpath.t list) : string list =
 let render
     ?(extra_search_paths : Fpath.t list = [])
     ?(bundles : bundle_manifest list = [])
+    ?(machine_params : (string * param_value) list = [])
+    ?(public_base_url : string = "")
+    ?(machine_mac : string = "")
     (profile : provisioning_profile_manifest)
   : (rendered_profile, error) Stdlib.result =
   let ( let* ) = Stdlib.Result.bind in
   let search_paths = extra_search_paths @ default_search_paths () in
+  (* Paramètres vus par le preseed : params machine (prioritaires) + params
+     des bundle_ref du profil (pour un dry-run CLI hors discovery). *)
+  let profile_params =
+    List.concat_map (fun (br : bundle_ref) -> br.bundle_params) profile.pp_bundles in
+  let preseed_params =
+    machine_params @ List.filter (fun (k, _) -> not (List.mem_assoc k machine_params)) profile_params in
 
   let os_family = profile.pp_os.os_family in
 
@@ -385,10 +542,13 @@ let render
   let cloud_init = "#cloud-config\n# Généré par hamac pour le profile '"
                    ^ profile.pp_name ^ "'\n" ^ yaml_str in
   let ipxe_script = render_ipxe profile.pp_os in
+  let* preseed = render_preseed profile ~params:preseed_params
+                   ~public_base_url ~machine_mac in
   Ok {
     profile_name = profile.pp_name;
     cloud_init;
     ipxe_script;
+    preseed;
     os_image_url = profile.pp_os.os_url;
     os_image_sha256 = profile.pp_os.os_sha256;
     os_format = profile.pp_os.os_format;

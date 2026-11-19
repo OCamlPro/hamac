@@ -65,6 +65,7 @@ type provisioning_record = {
   pr_profile_name: string;
   pr_cloud_init: string;        (* YAML, préfixé par #cloud-config *)
   pr_ipxe_script: string;
+  pr_preseed: string;           (* preseed d-i (format netinstall), "" sinon *)
   pr_os_image_url: string;
   pr_os_image_sha256: string;
   pr_os_format: string;
@@ -1384,6 +1385,7 @@ let provisioning_record_to_json (r : provisioning_record) : Yojson.Safe.t =
     "profile_name", `String r.pr_profile_name;
     "cloud_init", `String r.pr_cloud_init;
     "ipxe_script", `String r.pr_ipxe_script;
+    "preseed", `String r.pr_preseed;
     "os_image_url", `String r.pr_os_image_url;
     "os_image_sha256", `String r.pr_os_image_sha256;
     "os_format", `String r.pr_os_format;
@@ -1443,7 +1445,9 @@ let provisioning_record_of_json (j : Yojson.Safe.t)
                        match get_float "created_at" with
                        | Error e -> Error e
                        | Ok pr_created_at ->
-                         Ok { pr_profile_name; pr_cloud_init; pr_ipxe_script;
+                         let pr_preseed = match List.assoc_opt "preseed" fields with
+                           | Some (`String s) -> s | _ -> "" in
+                         Ok { pr_profile_name; pr_cloud_init; pr_ipxe_script; pr_preseed;
                               pr_os_image_url; pr_os_image_sha256; pr_os_format;
                               pr_os_raw_zst_url; pr_os_raw_zst_sha256; pr_os_bmap_url;
                               pr_created_at })
@@ -1543,6 +1547,21 @@ let handle_provisioning_get_ipxe mac =
     ] in
     Cohttp_lwt_unix.Server.respond_string ~status:`OK ~headers
       ~body:r.pr_ipxe_script ()
+
+let handle_provisioning_get_preseed mac =
+  let mac = normalize_mac mac in
+  match Hashtbl.find_opt provisioning mac with
+  | None -> respond_error 404 ("No provisioning record for " ^ mac)
+  | Some r ->
+    if r.pr_preseed = "" then
+      respond_error 404 ("No preseed for " ^ mac ^ " (os format is not netinstall)")
+    else begin
+      let headers = Cohttp.Header.of_list [
+        ("Content-Type", "text/plain; charset=utf-8")
+      ] in
+      Cohttp_lwt_unix.Server.respond_string ~status:`OK ~headers
+        ~body:r.pr_preseed ()
+    end
 
 let handle_provisioning_delete mac =
   let mac = normalize_mac mac in
@@ -1873,6 +1892,25 @@ let load_machines_from_disk () : unit =
           Printf.eprintf "[machines] error loading %s: %s\n" path (Printexc.to_string e)
     ) (Sys.readdir dir)
 
+(** URL publique du discovery, utilisée pour les références absolues baked
+    dans le preseed (seed cloud-init NoCloud : /provisioning/<mac>/cloud-init).
+    Priorité à la variable d'env HAMAC_PUBLIC_URL ; sinon déduite du header
+    Host de la requête qui a créé/modifié la machine. *)
+let public_base_url_from_env () : string =
+  match Sys.getenv_opt "HAMAC_PUBLIC_URL" with
+  | Some u when String.trim u <> "" ->
+    let u = String.trim u in
+    if String.ends_with ~suffix:"/" u then String.sub u 0 (String.length u - 1) else u
+  | _ -> ""
+
+let base_url_of_req req : string =
+  match public_base_url_from_env () with
+  | "" ->
+    (match Cohttp.Header.get (Cohttp.Request.headers req) "host" with
+     | Some h -> "http://" ^ h
+     | None -> "")
+  | u -> u
+
 (** Construit le provisioning_profile_manifest effectif pour une machine :
     profil catalogue + params machine injectés dans chaque bundle_ref
     (les params machine surchargent ceux du profil). *)
@@ -1887,16 +1925,20 @@ let build_manifest_for_machine
   ) profile.MT.pp_bundles in
   { profile with MT.pp_bundles = merged_bundles }
 
-(** Rend une machine : génère le cloud-init, stocke comme provisioning_record
-    et whiteliste la MAC. Retourne Ok () ou Error msg. *)
-let render_and_store_machine (m : machine) : (unit, string) Stdlib.result =
+(** Rend une machine : génère le cloud-init (+ le preseed si netinstall),
+    stocke comme provisioning_record et whiteliste la MAC.
+    [~base_url] : URL publique du discovery pour le preseed (peut être ""). *)
+let render_and_store_machine ?(base_url : string = "") (m : machine)
+  : (unit, string) Stdlib.result =
   match find_profile m.mc_profile_name with
   | None -> Error (Printf.sprintf "unknown profile '%s'" m.mc_profile_name)
   | Some profile ->
     let manifest = build_manifest_for_machine profile m in
+    let machine_params = List.map (fun (k, v) -> (k, yojson_to_param v)) m.mc_params in
     let extra = [Fpath.v bundles_dir] in
     let _, bundles = catalog_with_bundles () in
-    match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles manifest with
+    match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles
+            ~machine_params ~public_base_url:base_url ~machine_mac:m.mc_mac manifest with
     | Error e ->
       Error (Format.asprintf "%a" Hamac_provisioning.Provisioning_gen.pp_error e)
     | Ok r ->
@@ -1904,6 +1946,7 @@ let render_and_store_machine (m : machine) : (unit, string) Stdlib.result =
         pr_profile_name = r.Hamac_provisioning.Provisioning_gen.profile_name;
         pr_cloud_init = r.Hamac_provisioning.Provisioning_gen.cloud_init;
         pr_ipxe_script = r.Hamac_provisioning.Provisioning_gen.ipxe_script;
+        pr_preseed = r.Hamac_provisioning.Provisioning_gen.preseed;
         pr_os_image_url = r.Hamac_provisioning.Provisioning_gen.os_image_url;
         pr_os_image_sha256 = r.Hamac_provisioning.Provisioning_gen.os_image_sha256;
         pr_os_format = r.Hamac_provisioning.Provisioning_gen.os_format;
@@ -1941,7 +1984,7 @@ let handle_machine_get mac =
   | None -> respond_error 404 ("No machine for " ^ mac)
   | Some m -> respond_json ~status:`OK (machine_to_json m)
 
-let handle_machine_create body_str =
+let handle_machine_create ~base_url body_str =
   match (try Ok (Yojson.Safe.from_string body_str)
          with e -> Error (Printexc.to_string e)) with
   | Error e -> respond_error 400 ("Invalid JSON: " ^ e)
@@ -1951,7 +1994,7 @@ let handle_machine_create body_str =
     | Ok m0 ->
       let m = { m0 with mc_status = "pending";
                         mc_updated_at = Unix.gettimeofday () } in
-      (match render_and_store_machine m with
+      (match render_and_store_machine ~base_url m with
        | Error msg -> respond_error 400 msg
        | Ok () ->
          Hashtbl.replace machines m.mc_mac m;
@@ -1982,7 +2025,7 @@ let handle_machine_delete mac =
     même MAC + created_at, déclenche un re-render du provisioning_record.
     Body : { "profile_name"?: string, "params"?: object }. Champs absents
     = inchangés. *)
-let handle_machine_update mac body_str =
+let handle_machine_update ~base_url mac body_str =
   let mac = normalize_mac mac in
   match Hashtbl.find_opt machines mac with
   | None -> respond_error 404 ("No machine for " ^ mac)
@@ -2003,7 +2046,7 @@ let handle_machine_update mac body_str =
                  mc_params = params;
                  mc_status = "pending";
                  mc_updated_at = Unix.gettimeofday () } in
-       (match render_and_store_machine m with
+       (match render_and_store_machine ~base_url m with
         | Error msg -> respond_error 400 msg
         | Ok () ->
           Hashtbl.replace machines m.mc_mac m;
@@ -2130,6 +2173,8 @@ let http_handler conn req body =
       handle_provisioning_get_cloud_init mac
   | `GET, ["provisioning"; mac; "ipxe"] ->
       handle_provisioning_get_ipxe mac
+  | `GET, ["provisioning"; mac; "preseed"] ->
+      handle_provisioning_get_preseed mac
   | `DELETE, ["provisioning"; mac] ->
       handle_provisioning_delete mac
 
@@ -2156,12 +2201,12 @@ let http_handler conn req body =
       handle_machines_list ()
   | `POST, ["api"; "machines"] ->
       Cohttp_lwt.Body.to_string body >>= fun body_str ->
-      handle_machine_create body_str
+      handle_machine_create ~base_url:(base_url_of_req req) body_str
   | `GET, ["api"; "machines"; mac] ->
       handle_machine_get mac
   | `PUT, ["api"; "machines"; mac] ->
       Cohttp_lwt.Body.to_string body >>= fun body_str ->
-      handle_machine_update mac body_str
+      handle_machine_update ~base_url:(base_url_of_req req) mac body_str
   | `DELETE, ["api"; "machines"; mac] ->
       handle_machine_delete mac
 
@@ -2212,6 +2257,7 @@ let () =
   Printf.printf "  GET    /provisioning/<mac>    - Get profile JSON\n";
   Printf.printf "  GET    /provisioning/<mac>/cloud-init - Cloud-init YAML\n";
   Printf.printf "  GET    /provisioning/<mac>/ipxe        - iPXE script\n";
+  Printf.printf "  GET    /provisioning/<mac>/preseed     - preseed d-i (format netinstall)\n";
   Printf.printf "  DELETE /provisioning/<mac>    - Remove profile\n";
   Printf.printf "  GET    /api/allowed-macs      - List allowed MAC entries\n";
   Printf.printf "  POST   /api/allowed-macs      - Add a MAC ({mac,label})\n";
