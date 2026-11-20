@@ -124,11 +124,15 @@ jobs:
           set -eux
           t=$(date +%s)
           opam exec -- dune build
-          # opam >= 2.2 ne pose plus CAML_LD_LIBRARY_PATH via `opam exec`, et
           # `opam install --deps-only` n'installe pas les stubs du projet :
-          # dllhamac_clingo_stubs.so n'est que dans _build. Sans ce chemin, le
-          # runtime OCaml ne la trouve pas (dlopen) et les tests cram plantent
-          # avec "cannot load shared library dllhamac_clingo_stubs".
+          # dllhamac_clingo_stubs.so n'est que dans _build. Or `opam exec`
+          # réécrit CAML_LD_LIBRARY_PATH avec la valeur du switch, donc poser
+          # la variable d'env ne suffit pas. On copie la stub DANS les
+          # stublibs du switch : le runtime OCaml la trouvera quelle que soit
+          # la valeur de CAML_LD_LIBRARY_PATH (sinon les tests cram plantent
+          # avec "cannot load shared library dllhamac_clingo_stubs").
+          mkdir -p _opam/lib/stublibs
+          find _build/default -name 'dllhamac_clingo_stubs.so' -exec cp -v {} _opam/lib/stublibs/ \;
           stub=$(dirname "$(find _build/default -name 'dllhamac_clingo_stubs.so' | head -n1)")
           echo "CAML_LD_LIBRARY_PATH=$PWD/_opam/lib/stublibs:$PWD/$stub" >> "$GITHUB_ENV"
           echo "TIMING build=$(($(date +%s)-t))s"
