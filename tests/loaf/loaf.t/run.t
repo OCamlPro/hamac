@@ -48,7 +48,6 @@ Un profil nomme ses bundles : il se charge avec eux.
   templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
   provisioning-profiles/secure-workstation.loaf: provisioning_profile (name=secure_workstation, os=debian-12-amd64-netboot, 1 bundles)
   templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
-  hamac: [WARNING] provisioning-profiles/secure-workstation.loaf:46:3: [W001] 'assurance' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
 
 Les diagnostics portent le fichier, la ligne et la colonne de l'élément en
 faute. Leur code est celui de Hamac quand la validation vient du vocabulaire
@@ -79,7 +78,7 @@ erreur de syntaxe.
   hamac: [ERROR] faults.loaf:8:3: [E014] memory_request of app above its memory_limit
   hamac: [ERROR] faults.loaf:7:18: [E031] mount 'rel/path' of volume data is not an absolute path
   hamac: [ERROR] faults.loaf:7:3: [E033] local volume 'data' has neither 'backup' nor 'rebuild': decide what happens to its data when the node is lost
-  hamac: [WARNING] faults.loaf:7:3: [W001] 'storage' is experimental: its meaning may change in a minor version (write accept_experimental in the stack to acknowledge)
+  hamac: [WARNING] faults.loaf:7:3: [W001] 'storage' is experimental: its meaning may change in a minor version (write accept_experimental in the stack or the manifest to acknowledge)
   hamac: [WARNING] faults.loaf:10:3: [W012] environment DB_PASSWORD of app looks like a literal secret: declare it as a secret
   [1]
   $ cat > refusals.loaf <<'EOF'
@@ -483,7 +482,7 @@ premier port.
          os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
        pp_bundles = [{ Types.bundle_name = "dev_workstation"; bundle_params = [] }];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
-       pp_preseed_extra = []; pp_assurance = None })
+       pp_preseed_extra = []; pp_assurance = None; pp_accept_experimental = false })
   == provisioning-profiles/dev-workstation-demo.loaf
   (Types.MProvisioningProfile
      { Types.pp_name = "dev_workstation_demo";
@@ -507,7 +506,7 @@ premier port.
           }
          ];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
-       pp_preseed_extra = []; pp_assurance = None })
+       pp_preseed_extra = []; pp_assurance = None; pp_accept_experimental = false })
   == provisioning-profiles/secure-workstation.loaf
   (Types.MProvisioningProfile
      { Types.pp_name = "secure_workstation";
@@ -521,7 +520,8 @@ premier port.
        pp_bundles = [{ Types.bundle_name = "dev_workstation"; bundle_params = [] }];
        pp_cloud_init_extra = None; pp_preseed_extra = ["d-i grub-installer/bootdev string default"];
        pp_assurance =
-       (Some { Types.boot = (Some "measured_tpm2"); operator = None; physical = None }) })
+       (Some { Types.boot = (Some "measured_tpm2"); operator = None; physical = None });
+       pp_accept_experimental = true })
   == templates/bundles/dev_workstation/bundle.loaf
   (Types.MBundle
      { Types.bdl_name = "dev_workstation"; bdl_version = "0.1.0";

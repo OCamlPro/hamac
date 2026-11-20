@@ -99,13 +99,10 @@ let run_validate ~strict () =
   List.iter (fun (l : Hamac_manifest.Stack_check.loaded) ->
     Option.iter (fun m -> Logs.app (fun f -> f "%s: %s" l.file (kind_label m))) l.manifest)
     given;
-  let findings =
-    if Hamac_manifest.Stack_check.stacks_of given = [] then
-      List.concat_map (fun (l : Hamac_manifest.Stack_check.loaded) -> List.map (fun d -> (l.file, d)) l.diags) given
-    else
-      let _, findings = Hamac_manifest.Stack_check.run given in
-      findings
-  in
+  (* W001 (champs expérimentaux) est filtré par Stack_check.run dès qu'une
+     stack OU un provisioning_profile écrit accept_experimental ; on passe
+     donc toujours par run, même sans stack dans l'ensemble. *)
+  let findings = snd (Hamac_manifest.Stack_check.run given) in
   let errors, warnings = report findings in
   if errors > 0 || (strict && warnings > 0) then exit 1
 

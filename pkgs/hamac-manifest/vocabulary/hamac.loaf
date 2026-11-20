@@ -353,6 +353,9 @@ block provisioning_profile {
   % LUKS2, Clevis/Tang, TPM2, seed cloud-init NoCloud — cf. provisioning.typ).
   preseed_extra* text.
   assurance* axis => assurance_level.  % ce qu'offre une machine installée
+  % Accepte les champs expérimentaux de CE profil (ex. assurance), comme
+  % accept_experimental dans une stack : retire le W001, y compris en --strict.
+  accept_experimental.
 }
 
 enum os_format { qcow2; raw; iso; netinstall }.

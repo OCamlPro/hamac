@@ -572,7 +572,8 @@ let provisioning_profile cx f : provisioning_profile_manifest =
   let pp_preseed_extra = F.list1 cx k p "preseed_extra" str in
   { pp_name = name f;
     pp_os; pp_bundles; pp_cloud_init_extra; pp_preseed_extra;
-    pp_assurance = assurance_of (axis_rows (F.table cx k p "assurance" Fun.id Fun.id)) }
+    pp_assurance = assurance_of (axis_rows (F.table cx k p "assurance" Fun.id Fun.id));
+    pp_accept_experimental = F.flag cx k p "accept_experimental" }
 
 (* ============================================================ *)
 (* kind: bundle                                                  *)
@@ -622,7 +623,7 @@ let note_experimental cx kind subj =
       Hashtbl.add seen label ();
       note cx ?loc:(first_loc f) "W001" [label]
         (Printf.sprintf "'%s' is experimental: its meaning may change in a minor version \
-                         (write accept_experimental in the stack to acknowledge)" label)
+                         (write accept_experimental in the stack or the manifest to acknowledge)" label)
     | _ -> ()) (Option.value (List.assoc_opt kind experimental) ~default:[])
 
 (** A manifest defined in several files (W003): the language merges the

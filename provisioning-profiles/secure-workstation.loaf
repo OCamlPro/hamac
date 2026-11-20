@@ -43,7 +43,10 @@ provisioning_profile secure_workstation {
   bundles [dev_workstation].
 
   % Attestation : vérifiée par E043 (exige format netinstall).
+  % accept_experimental acquitte le W001 de assurance (profil validé seul,
+  % hors de toute stack, notamment par le smoke test CI en --strict).
   assurance boot, measured_tpm2.
+  accept_experimental.
 
   % Lignes de preseed ajoutées telles quelles après le preseed généré.
   preseed_extra "d-i grub-installer/bootdev string default".
