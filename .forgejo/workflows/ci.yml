@@ -113,11 +113,17 @@ jobs:
           # Taille des deux candidats au cache, pour juger du coût d'un
           # aller-retour par le serveur de cache.
           du -sh ~/.opam ~/.opam/download-cache _opam 2>/dev/null || true
+          # opam >= 2.2 ne pose plus CAML_LD_LIBRARY_PATH via `opam exec` :
+          # sans lui, le runtime OCaml ne trouve pas dllhamac_clingo_stubs.so
+          # (chargée par dlopen) et tous les tests cram plantent avec
+          # "cannot load shared library dllhamac_clingo_stubs".
+          echo "CAML_LD_LIBRARY_PATH=$PWD/_opam/lib/stublibs" >> "$GITHUB_ENV"
 
       - name: Build
         run: |
           set -eux
           t=$(date +%s)
+          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune build
           echo "TIMING build=$(($(date +%s)-t))s"
 
@@ -125,6 +131,7 @@ jobs:
         run: |
           set -eux
           t=$(date +%s)
+          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune runtest
           echo "TIMING test=$(($(date +%s)-t))s"
 
@@ -136,6 +143,8 @@ jobs:
         run: |
           set -eux
           # Sans avertissement (--strict) : les fichiers livrés sont des modèles.
+          # CAML_LD_LIBRARY_PATH : stubs clingo chargés par dlopen (cf. étape opam).
+          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune exec -- hamac validate --strict examples/enterprise-stack providers
           for p in provisioning-profiles/*.loaf; do
             opam exec -- dune exec -- hamac validate --strict "$p" templates/bundles
