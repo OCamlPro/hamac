@@ -123,15 +123,22 @@ jobs:
         run: |
           set -eux
           t=$(date +%s)
-          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune build
+          # opam >= 2.2 ne pose plus CAML_LD_LIBRARY_PATH via `opam exec`, et
+          # `opam install --deps-only` n'installe pas les stubs du projet :
+          # dllhamac_clingo_stubs.so n'est que dans _build. Sans ce chemin, le
+          # runtime OCaml ne la trouve pas (dlopen) et les tests cram plantent
+          # avec "cannot load shared library dllhamac_clingo_stubs".
+          stub=$(dirname "$(find _build/default -name 'dllhamac_clingo_stubs.so' | head -n1)")
+          echo "CAML_LD_LIBRARY_PATH=$PWD/_opam/lib/stublibs:$PWD/$stub" >> "$GITHUB_ENV"
           echo "TIMING build=$(($(date +%s)-t))s"
 
       - name: Test
         run: |
           set -eux
           t=$(date +%s)
-          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
+          stub=$(dirname "$(find _build/default -name 'dllhamac_clingo_stubs.so' | head -n1)")
+          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs:$PWD/$stub${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune runtest
           echo "TIMING test=$(($(date +%s)-t))s"
 
@@ -143,8 +150,10 @@ jobs:
         run: |
           set -eux
           # Sans avertissement (--strict) : les fichiers livrés sont des modèles.
-          # CAML_LD_LIBRARY_PATH : stubs clingo chargés par dlopen (cf. étape opam).
-          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
+          # CAML_LD_LIBRARY_PATH : stubs clingo chargées par dlopen, dans _build
+          # (cf. étape Build).
+          stub=$(dirname "$(find _build/default -name 'dllhamac_clingo_stubs.so' | head -n1)")
+          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs:$PWD/$stub${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune exec -- hamac validate --strict examples/enterprise-stack providers
           for p in provisioning-profiles/*.loaf; do
             opam exec -- dune exec -- hamac validate --strict "$p" templates/bundles
