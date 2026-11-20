@@ -310,18 +310,26 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         wget -q -O "$PROV_DIR/d-i-initrd.gz" "${NB_DIR}initrd.gz" \
             || { echo "[!] cannot fetch ${NB_DIR}initrd.gz"; exec /bin/sh; }
         PRESEED_URL="${DISCOVERY_SERVER}/provisioning/${MAC}/preseed"
+        # kexec binaire standalone, sinon applet busybox (si compilée avec
+        # CONFIG_KEXEC) : `busybox kexec` a la même interface.
+        KEXEC="kexec"
         if ! command -v kexec >/dev/null 2>&1; then
-            echo "[!] kexec not in this initrd: rebuild the initramfs with kexec-tools"
-            exec /bin/sh
+            if /bin/busybox kexec --help >/dev/null 2>&1; then
+                KEXEC="/bin/busybox kexec"
+            else
+                echo "[!] kexec not in this initrd (ni binaire ni applet busybox):"
+                echo "[!] rebuild the initramfs with kexec-tools (or busybox CONFIG_KEXEC)"
+                exec /bin/sh
+            fi
         fi
-        echo "[*] kexec -l: preseed/url=$PRESEED_URL partman-auto/disk=$DISK"
-        kexec -l "$PROV_DIR/d-i-linux" \
+        echo "[*] $KEXEC -l: preseed/url=$PRESEED_URL partman-auto/disk=$DISK"
+        $KEXEC -l "$PROV_DIR/d-i-linux" \
             --initrd="$PROV_DIR/d-i-initrd.gz" \
             --append="auto=true priority=critical preseed/url=$PRESEED_URL partman-auto/disk=$DISK console=ttyS0,115200 console=tty0 ip=dhcp" \
             || { echo "[!] kexec -l failed"; exec /bin/sh; }
         sync
         echo "[*] kexec -e (Debian installer takes over)"
-        kexec -e
+        $KEXEC -e
         echo "[!] kexec -e returned (should not happen)"
         exec /bin/sh
     fi
