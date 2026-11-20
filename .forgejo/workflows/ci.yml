@@ -86,7 +86,14 @@ jobs:
           git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
           git init -q .
           git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          # Sur pull_request, GITHUB_REF_NAME = refs/pull/<n>/merge, que cette
+          # instance n'annonce PAS dans info/refs (seul refs/pull/<n>/head l'est)
+          # : le fetch échouait en 404. On fetch donc le head de la PR.
+          REF="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF="refs/pull/${{ github.event.pull_request.number }}/head"
+          fi
+          git fetch --depth 1 origin "$REF"
           git checkout -q -f FETCH_HEAD
           echo "checked out: $(git log --oneline -1)"
 
@@ -184,7 +191,14 @@ jobs:
           git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
           git init -q .
           git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          # Sur pull_request, GITHUB_REF_NAME = refs/pull/<n>/merge, que cette
+          # instance n'annonce PAS dans info/refs (seul refs/pull/<n>/head l'est)
+          # : le fetch échouait en 404. On fetch donc le head de la PR.
+          REF="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF="refs/pull/${{ github.event.pull_request.number }}/head"
+          fi
+          git fetch --depth 1 origin "$REF"
           git checkout -q -f FETCH_HEAD
           echo "checked out: $(git log --oneline -1)"
 
@@ -275,7 +289,14 @@ jobs:
           git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
           git init -q .
           git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          # refs/pull/<n>/merge n'est pas annoncé par info/refs sur cette
+          # instance (seul refs/pull/<n>/head l'est) : sur pull_request on
+          # fetch le head de la PR.
+          REF="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF="refs/pull/${{ github.event.pull_request.number }}/head"
+          fi
+          git fetch --depth 1 origin "$REF"
           git checkout -q -f FETCH_HEAD
 
       # Le binaire est lié dynamiquement à la glibc de la machine de build ;
