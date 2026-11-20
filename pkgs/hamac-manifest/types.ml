@@ -373,7 +373,10 @@ type provisioning_profile_manifest = {
   pp_os: os_image_spec;
   pp_bundles: bundle_ref list;     (** in the order of the cloud-init merge *)
   pp_cloud_init_extra: string option;  (** cloud-init (YAML) merged last *)
+  pp_preseed_extra: string list;   (** lignes de preseed ajoutées telles quelles
+                                        (format os netinstall uniquement) *)
   pp_assurance: assurance option;  (** experimental: what an installed machine offers *)
+  pp_accept_experimental: bool;    (** the profile acknowledges its experimental fields *)
 } [@@deriving show]
 
 (** Spécification d'un paramètre déclaré côté bundle.

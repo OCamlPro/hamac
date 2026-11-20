@@ -99,13 +99,10 @@ let run_validate ~strict () =
   List.iter (fun (l : Hamac_manifest.Stack_check.loaded) ->
     Option.iter (fun m -> Logs.app (fun f -> f "%s: %s" l.file (kind_label m))) l.manifest)
     given;
-  let findings =
-    if Hamac_manifest.Stack_check.stacks_of given = [] then
-      List.concat_map (fun (l : Hamac_manifest.Stack_check.loaded) -> List.map (fun d -> (l.file, d)) l.diags) given
-    else
-      let _, findings = Hamac_manifest.Stack_check.run given in
-      findings
-  in
+  (* W001 (champs expérimentaux) est filtré par Stack_check.run dès qu'une
+     stack OU un provisioning_profile écrit accept_experimental ; on passe
+     donc toujours par run, même sans stack dans l'ensemble. *)
+  let findings = snd (Hamac_manifest.Stack_check.run given) in
   let errors, warnings = report findings in
   if errors > 0 || (strict && warnings > 0) then exit 1
 
@@ -260,6 +257,31 @@ let run_status () =
 let provision_bundles_dir = ref ""
 let provision_mac = ref ""
 let provision_discovery_url = ref "http://localhost:8877"
+let provision_params : (string * Hamac_manifest.Types.param_value) list ref = ref []
+
+(** --param k=v (repeatable) : paramètres machine pour le rendu (surcouchent
+    les paramètres du profil ; alimentent aussi le preseed netinstall :
+    luks_passphrase, tang_url, hostname...). *)
+let parse_provision_params (kvs : string list) : (string * Hamac_manifest.Types.param_value) list =
+  List.filter_map (fun kv ->
+    match String.split_on_char '=' kv with
+    | k :: rest when k <> "" -> Some (k, Hamac_manifest.Types.PString (String.concat "=" rest))
+    | _ -> None) kvs
+
+(** Injecte les paramètres machine dans chaque bundle_ref du profil, comme
+    le fait le discovery (build_manifest_for_machine) : les params machine
+    surchargent ceux du profil. *)
+let profile_with_machine_params
+    (profile : Hamac_manifest.Types.provisioning_profile_manifest)
+    (machine_params : (string * Hamac_manifest.Types.param_value) list)
+  : Hamac_manifest.Types.provisioning_profile_manifest =
+  let open Hamac_manifest.Types in
+  let merged = List.map (fun (br : bundle_ref) ->
+    let from_profile = List.filter (fun (k, _) ->
+      not (List.mem_assoc k machine_params)) br.bundle_params in
+    { br with bundle_params = machine_params @ from_profile })
+    profile.pp_bundles in
+  { profile with pp_bundles = merged }
 
 (** The profile given to a provisioning command, the bundle search paths
     and the bundles of its set: the profile is loaded with the [bundle.loaf]
@@ -291,7 +313,9 @@ let load_profile () =
 
 let run_provision_dryrun () =
   let profile, extra, bundles = load_profile () in
-  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles profile with
+  let profile = profile_with_machine_params profile !provision_params in
+  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles
+          ~machine_params:!provision_params ~machine_mac:!provision_mac profile with
   | Error e ->
     Logs.err (fun m -> m "%a" Hamac_provisioning.Provisioning_gen.pp_error e);
     exit 1
@@ -302,6 +326,11 @@ let run_provision_dryrun () =
     print_endline "=== iPXE ===";
     print_string r.ipxe_script;
     print_endline "";
+    if r.preseed <> "" then begin
+      print_endline "=== preseed (netinstall) ===";
+      print_string r.preseed;
+      print_endline ""
+    end;
     Printf.printf "=== OS ===\nurl: %s\nsha256: %s\nformat: %s\n"
       r.os_image_url r.os_image_sha256 r.os_format
 
@@ -311,7 +340,9 @@ let run_provision_push () =
     exit 1
   end;
   let profile, extra, bundles = load_profile () in
-  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles profile with
+  let profile = profile_with_machine_params profile !provision_params in
+  match Hamac_provisioning.Provisioning_gen.render ~extra_search_paths:extra ~bundles
+          ~machine_params:!provision_params ~machine_mac:!provision_mac profile with
   | Error e ->
     Logs.err (fun m -> m "%a" Hamac_provisioning.Provisioning_gen.pp_error e);
     exit 1
@@ -339,6 +370,146 @@ let run_provision_clear () =
   | Error e ->
     Logs.err (fun m -> m "%a" Provisioning_client.pp_push_error e);
     exit 1
+
+(* ============================================================ *)
+(* biscuit : provider Biscuit (autoriseurs Datalog des routes)  *)
+(* ============================================================ *)
+
+let biscuit_service = ref ""
+let biscuit_route = ref ""
+let biscuit_user = ref ""
+let biscuit_level = ref ""
+let biscuit_categories = ref ""
+let biscuit_roles = ref ""
+
+let split_csv = function "" -> [] | s -> String.split_on_char ',' s
+
+(** A route label that the provider does not translate, or a level that no
+    pattern declares, is a command error, not a crash. *)
+let biscuit_guard f () =
+  try f ()
+  with
+  | Hamac_biscuit.Biscuit_gen.Unknown_field fld ->
+    Logs.err (fun m -> m "biscuit: route field not translated to Biscuit: %s" fld);
+    exit 1
+  | Hamac_biscuit.Biscuit_gen.Unknown_level lvl ->
+    Logs.err (fun m -> m "biscuit: level %S is not declared by the patterns" lvl);
+    exit 1
+
+(** The services of the files, validated as one set (errors stop the
+    command). *)
+let loaded_services () =
+  let ls = Hamac_manifest.Stack_check.load_all ~lib:!library_dirs !manifest_files in
+  let _, findings = Hamac_manifest.Stack_check.run ls in
+  let errors = List.filter (fun (_, d) -> Hamac_manifest.Diagnostic.is_error d) findings in
+  List.iter (fun (f, d) ->
+    Logs.err (fun m -> m "%s" (Hamac_manifest.Diagnostic.to_string_in f d))) errors;
+  if errors <> [] then exit 1;
+  List.filter_map (fun (l : Hamac_manifest.Stack_check.loaded) ->
+    match l.manifest with
+    | Some (Hamac_manifest.Types.MService s) -> Some s
+    | _ -> None) ls
+
+(** The services of the files, validated as one set, and the BLP levels
+    declared by the patterns with their ranks. *)
+let biscuit_context () =
+  let services = loaded_services () in
+  let model =
+    match Hamac_manifest.Loaf_source.model ~lib:!library_dirs !manifest_files with
+    | Some t -> t
+    | None -> Logs.err (fun m -> m "biscuit: the set of files is refused"); exit 1
+  in
+  let levels = Hamac_biscuit.Biscuit_gen.levels model in
+  (levels, services)
+
+let biscuit_service_or_fail name services =
+  match List.find_opt
+          (fun (s : Hamac_manifest.Types.service_manifest) -> s.name = name) services with
+  | Some s -> s
+  | None -> Logs.err (fun m -> m "biscuit: no service %S in the files" name); exit 1
+
+let run_biscuit_authorizer () =
+  let levels, services = biscuit_context () in
+  let svc = biscuit_service_or_fail !biscuit_service services in
+  match svc.security with
+  | None ->
+    Logs.err (fun m -> m "biscuit: service %S declares no security zone" svc.name);
+    exit 1
+  | Some sec ->
+    match List.find_opt
+            (fun (r : Hamac_manifest.Types.route_label) -> r.route = !biscuit_route)
+            sec.route_labels with
+    | Some rl ->
+      print_string (Hamac_biscuit.Biscuit_gen.authorizer ~levels ~service:svc.name rl)
+    | None ->
+      Logs.err (fun m -> m "biscuit: service %S has no route %S" svc.name !biscuit_route);
+      exit 1
+
+let run_biscuit_authorizers () =
+  let levels, services = biscuit_context () in
+  let services =
+    if !biscuit_service = "" then services
+    else [biscuit_service_or_fail !biscuit_service services] in
+  List.iter (fun (s : Hamac_manifest.Types.service_manifest) ->
+    match s.security with
+    | None -> ()
+    | Some _ ->
+      print_string (Hamac_biscuit.Biscuit_gen.authorizers_of_service ~levels s))
+    services
+
+let run_biscuit_routes () =
+  let _, services = biscuit_context () in
+  let services =
+    if !biscuit_service = "" then services
+    else [biscuit_service_or_fail !biscuit_service services] in
+  List.iter (fun (s : Hamac_manifest.Types.service_manifest) ->
+    match s.security with
+    | None -> ()
+    | Some sec ->
+      List.iter (fun (r : Hamac_manifest.Types.route_label) ->
+        Printf.printf "%s %s%s%s\n" s.name r.route
+          (if r.public then " public" else "")
+          (match r.methods with [] -> "" | ms -> " [" ^ String.concat "," ms ^ "]"))
+        sec.route_labels)
+    services
+
+let run_biscuit_token () =
+  if !biscuit_user = "" then begin
+    Logs.err (fun m -> m "biscuit token: missing --user");
+    exit 1
+  end;
+  let levels, _ = biscuit_context () in
+  print_string (Hamac_biscuit.Biscuit_gen.token ~levels ~user:!biscuit_user
+                  ?level:(if !biscuit_level = "" then None else Some !biscuit_level)
+                  ~categories:(split_csv !biscuit_categories)
+                  ~roles:(split_csv !biscuit_roles) ())
+
+(* ============================================================ *)
+(* sozu : provider Sozu (configuration de routage TOML)         *)
+(* ============================================================ *)
+
+let sozu_listen_address = ref ""
+let sozu_command_socket = ref ""
+
+let run_sozu_config () =
+  let options =
+    let d = Hamac_sozu.Sozu_gen.default_options in
+    { d with
+      listen_address =
+        (if !sozu_listen_address = "" then d.listen_address else !sozu_listen_address);
+      command_socket =
+        (if !sozu_command_socket = "" then d.command_socket else !sozu_command_socket) }
+  in
+  print_string (Hamac_sozu.Sozu_gen.config ~options (loaded_services ()))
+
+let run_sozu_exposures () =
+  List.iter (fun ((s : Hamac_manifest.Types.service_manifest), es) ->
+    List.iter (fun (e : Hamac_manifest.Types.exposure) ->
+      Printf.printf "%s %s:%d %s tls=%s path=%s\n"
+        (Hamac_manifest.Types.hostname s.name) e.hostname e.exp_port
+        e.exp_protocol e.tls e.path_prefix)
+      es)
+    (Hamac_sozu.Sozu_gen.exposed (loaded_services ()))
 
 (* ============================================================ *)
 (* CLI (cmdliner)                                               *)
@@ -396,6 +567,46 @@ let mac_arg =
 let discovery_arg =
   let doc = "Discovery server base URL (no trailing slash)." in
   Arg.(value & opt string "http://localhost:8877" & info ["discovery"] ~docv:"URL" ~doc)
+
+let param_arg =
+  let doc = "Machine parameter for provisioning, K=V (repeatable). Overrides the \
+             profile bundle params and feeds the netinstall preseed (luks_passphrase, \
+             tang_url, hostname, ...)." in
+  Arg.(value & opt_all string [] & info ["param"] ~docv:"K=V" ~doc)
+
+let service_arg =
+  let doc = "Name of a service of the files." in
+  Arg.(value & opt string "" & info ["service"] ~docv:"NAME" ~doc)
+
+let route_arg =
+  let doc = "Path of a route of the service." in
+  Arg.(value & opt string "" & info ["route"] ~docv:"PATH" ~doc)
+
+let user_arg =
+  let doc = "Name of the subject the token speaks for. Required by token." in
+  Arg.(value & opt string "" & info ["user"] ~docv:"NAME" ~doc)
+
+let level_arg =
+  let doc =
+    "Clearance level of the subject: a level declared by the patterns of the \
+     set (translated to its rank), or a rank. Optional." in
+  Arg.(value & opt string "" & info ["level"] ~docv:"LEVEL" ~doc)
+
+let categories_arg =
+  let doc = "Comma-separated compartments (need-to-know categories) of the subject." in
+  Arg.(value & opt string "" & info ["categories"] ~docv:"A,B" ~doc)
+
+let roles_arg =
+  let doc = "Comma-separated roles of the subject." in
+  Arg.(value & opt string "" & info ["roles"] ~docv:"X,Y" ~doc)
+
+let listen_address_arg =
+  let doc = "Address the Sozu listeners bind to (port is appended). Default 0.0.0.0." in
+  Arg.(value & opt string "" & info ["listen-address"] ~docv:"ADDR" ~doc)
+
+let command_socket_arg =
+  let doc = "Path of the Sozu command socket (hot reconfiguration). Default /run/sozu/command.sock." in
+  Arg.(value & opt string "" & info ["command-socket"] ~docv:"PATH" ~doc)
 
 (* ---- Termes / commandes ---- *)
 
@@ -473,28 +684,31 @@ let status_cmd =
     Term.(const go $ debug_arg)
 
 let provision_dryrun_cmd =
-  let go profile bundles_dir debug =
+  let go profile bundles_dir mac params debug =
     set_debug debug;
     if profile <> "" then manifest_files := [profile];
     provision_bundles_dir := bundles_dir;
+    provision_mac := mac;
+    provision_params := parse_provision_params params;
     run_provision_dryrun ()
   in
   Cmd.v (Cmd.info "provision-dryrun"
-           ~doc:"Render cloud-init + iPXE for a provisioning_profile without pushing it.")
-    Term.(const go $ profile_arg $ bundles_dir_arg $ debug_arg)
+           ~doc:"Render cloud-init + iPXE (+ preseed if netinstall) for a provisioning_profile without pushing it.")
+    Term.(const go $ profile_arg $ bundles_dir_arg $ mac_arg $ param_arg $ debug_arg)
 
 let provision_push_cmd =
-  let go profile bundles_dir mac discovery debug =
+  let go profile bundles_dir mac discovery params debug =
     set_debug debug;
     if profile <> "" then manifest_files := [profile];
     provision_bundles_dir := bundles_dir;
     provision_mac := mac;
     provision_discovery_url := discovery;
+    provision_params := parse_provision_params params;
     run_provision_push ()
   in
   Cmd.v (Cmd.info "provision-push"
            ~doc:"Render and push a provisioning_profile to the discovery server for a MAC.")
-    Term.(const go $ profile_arg $ bundles_dir_arg $ mac_arg $ discovery_arg $ debug_arg)
+    Term.(const go $ profile_arg $ bundles_dir_arg $ mac_arg $ discovery_arg $ param_arg $ debug_arg)
 
 let provision_clear_cmd =
   let go mac discovery debug =
@@ -507,11 +721,84 @@ let provision_clear_cmd =
            ~doc:"Remove the provisioning record for a MAC on the discovery server.")
     Term.(const go $ mac_arg $ discovery_arg $ debug_arg)
 
+let biscuit_authorizer_cmd =
+  let extra =
+    Term.(const (fun s r -> biscuit_service := s; biscuit_route := r)
+          $ service_arg $ route_arg) in
+  Cmd.v (Cmd.info "authorizer"
+           ~doc:"Generate the Biscuit authorizer (Datalog program) of one route of \
+                 a service, from the route labels of the manifests.")
+    (files_term ~extra (biscuit_guard run_biscuit_authorizer))
+
+let biscuit_authorizers_cmd =
+  let extra = Term.(const (fun s -> biscuit_service := s) $ service_arg) in
+  Cmd.v (Cmd.info "authorizers"
+           ~doc:"Generate the Biscuit authorizers of all the routes of the services \
+                 of the files (one per route), or of one service with $(b,--service).")
+    (files_term ~extra (biscuit_guard run_biscuit_authorizers))
+
+let biscuit_routes_cmd =
+  let extra = Term.(const (fun s -> biscuit_service := s) $ service_arg) in
+  Cmd.v (Cmd.info "routes"
+           ~doc:"List the routes of the services of the files, with their labels \
+                 (public, methods).")
+    (files_term ~extra (biscuit_guard run_biscuit_routes))
+
+let biscuit_token_cmd =
+  let extra =
+    Term.(const (fun u l c r ->
+           biscuit_user := u; biscuit_level := l;
+           biscuit_categories := c; biscuit_roles := r)
+          $ user_arg $ level_arg $ categories_arg $ roles_arg) in
+  Cmd.v (Cmd.info "token"
+           ~doc:"Generate the Biscuit authority block of a token: the clearance of \
+                 a subject (user, level, compartments, roles). With no FILES, --level \
+                 is a rank.")
+    (files_term ~extra (biscuit_guard run_biscuit_token))
+
+let biscuit_cmd =
+  Cmd.group (Cmd.info "biscuit"
+               ~doc:"Provider Biscuit (Hyper Open X): translate the route labels of \
+                     the manifests (block security, models blp/rbac of the \
+                     patterns) into Biscuit Datalog authorizers, and emit token \
+                     authority blocks. The authorizer is applied at the edge \
+                     (Sozu), before the request reaches the service.")
+    [ biscuit_authorizer_cmd; biscuit_authorizers_cmd;
+      biscuit_routes_cmd; biscuit_token_cmd ]
+
+let sozu_config_cmd =
+  let extra =
+    Term.(const (fun a s -> sozu_listen_address := a; sozu_command_socket := s)
+          $ listen_address_arg $ command_socket_arg) in
+  Cmd.v (Cmd.info "config"
+           ~doc:"Generate the Sozu configuration (TOML) of the exposed services \
+                 of the manifests: one listener per listening port, one cluster \
+                 and one frontend per exposure, the service as backend. The \
+                 protected routes are listed in each cluster, for the Biscuit \
+                 validation at the edge.")
+    (files_term ~extra run_sozu_config)
+
+let sozu_exposures_cmd =
+  Cmd.v (Cmd.info "exposures"
+           ~doc:"List the exposures (public hostname, port, protocol, TLS, path) \
+                 of the services of the files.")
+    (files_term run_sozu_exposures)
+
+let sozu_cmd =
+  Cmd.group (Cmd.info "sozu"
+               ~doc:"Provider Sozu (Hyper Open X): generate the Sozu routing \
+                     configuration from the exposures of the manifests. Sozu is \
+                     the edge: hot reconfiguration by its command socket, and \
+                     Biscuit token validation before the request reaches the \
+                     service.")
+    [ sozu_config_cmd; sozu_exposures_cmd ]
+
 let main_cmd =
   let doc = "Hamac - infrastructure orchestrator for declarative manifests." in
   Cmd.group (Cmd.info "hamac" ~doc)
     [ validate_cmd; plan_cmd; resolve_cmd; simulate_cmd; deploy_cmd; status_cmd;
-      provision_dryrun_cmd; provision_push_cmd; provision_clear_cmd ]
+      provision_dryrun_cmd; provision_push_cmd; provision_clear_cmd;
+      biscuit_cmd; sozu_cmd ]
 
 let () =
   Printexc.record_backtrace true;

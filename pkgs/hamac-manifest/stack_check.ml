@@ -88,9 +88,16 @@ let stacks_of (ls : loaded list) =
     | Some (MStack s) -> Some (l.file, s) | _ -> None) ls
 
 (** All findings of a set of files; W001 is dropped when a stack accepts
-    experimental fields. *)
+    experimental fields, or when a provisioning_profile does (a profile is
+    often validated standalone, without any stack). *)
 let run (ls : loaded list) : loaded list * finding list =
-  let accept = List.exists (fun (_, (s : stack_manifest)) -> s.accept_experimental) (stacks_of ls) in
+  let accept =
+    List.exists (fun (_, (s : stack_manifest)) -> s.accept_experimental) (stacks_of ls)
+    || List.exists (fun (_, (p : provisioning_profile_manifest)) -> p.pp_accept_experimental)
+         (List.filter_map (fun l -> match l.manifest with
+            | Some (MProvisioningProfile p) -> Some (l.file, p)
+            | _ -> None) ls)
+  in
   let all = List.concat_map (fun l -> List.map (fun d -> (l.file, d)) l.diags) ls in
   let all = if accept then List.filter (fun (_, (d : Diagnostic.t)) -> d.code <> "W001") all
     else all in

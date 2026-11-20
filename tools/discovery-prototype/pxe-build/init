@@ -294,6 +294,38 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         exec /bin/sh
     fi
 
+    # Format netinstall : pas d'image à écrire sur le disque — on kexec
+    # directement dans l'installateur Debian (noyau 'linux' + initrd
+    # 'initrd.gz' du répertoire netboot pointé par os_url), avec le preseed
+    # servi par le discovery (/provisioning/<mac>/preseed : partitionnement
+    # chiffré LUKS2, TPM2, Clevis/Tang, seed cloud-init NoCloud).
+    # Le disque cible est passé sur la ligne de commande du noyau
+    # (partman-auto/disk=...), l'init le connaît mais le preseed statique non.
+    if [ "$OS_FORMAT" = "netinstall" ]; then
+        echo "[*] netinstall: booting Debian installer via kexec (preseed from discovery)"
+        NB_DIR="$OS_URL"
+        case "$NB_DIR" in */) ;; *) NB_DIR="$NB_DIR/" ;; esac
+        wget -q -O "$PROV_DIR/d-i-linux" "${NB_DIR}linux" \
+            || { echo "[!] cannot fetch ${NB_DIR}linux"; exec /bin/sh; }
+        wget -q -O "$PROV_DIR/d-i-initrd.gz" "${NB_DIR}initrd.gz" \
+            || { echo "[!] cannot fetch ${NB_DIR}initrd.gz"; exec /bin/sh; }
+        PRESEED_URL="${DISCOVERY_SERVER}/provisioning/${MAC}/preseed"
+        if ! command -v kexec >/dev/null 2>&1; then
+            echo "[!] kexec not in this initrd: rebuild the initramfs with kexec-tools"
+            exec /bin/sh
+        fi
+        echo "[*] kexec -l: preseed/url=$PRESEED_URL partman-auto/disk=$DISK"
+        kexec -l "$PROV_DIR/d-i-linux" \
+            --initrd="$PROV_DIR/d-i-initrd.gz" \
+            --append="auto=true priority=critical preseed/url=$PRESEED_URL partman-auto/disk=$DISK console=ttyS0,115200 console=tty0 ip=dhcp" \
+            || { echo "[!] kexec -l failed"; exec /bin/sh; }
+        sync
+        echo "[*] kexec -e (Debian installer takes over)"
+        kexec -e
+        echo "[!] kexec -e returned (should not happen)"
+        exec /bin/sh
+    fi
+
     # Décidé une fois, avant tout téléchargement, pour ne jamais tirer les
     # deux formats d'image en parallèle. bmaptool est préféré s'il est
     # disponible dans cette initrd ET que le profil fournit les deux URLs

@@ -86,7 +86,14 @@ jobs:
           git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
           git init -q .
           git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          # Sur pull_request, GITHUB_REF_NAME = refs/pull/<n>/merge, que cette
+          # instance n'annonce PAS dans info/refs (seul refs/pull/<n>/head l'est)
+          # : le fetch échouait en 404. On fetch donc le head de la PR.
+          REF="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF="refs/pull/${{ github.event.pull_request.number }}/head"
+          fi
+          git fetch --depth 1 origin "$REF"
           git checkout -q -f FETCH_HEAD
           echo "checked out: $(git log --oneline -1)"
 
@@ -106,18 +113,36 @@ jobs:
           # Taille des deux candidats au cache, pour juger du coût d'un
           # aller-retour par le serveur de cache.
           du -sh ~/.opam ~/.opam/download-cache _opam 2>/dev/null || true
+          # opam >= 2.2 ne pose plus CAML_LD_LIBRARY_PATH via `opam exec` :
+          # sans lui, le runtime OCaml ne trouve pas dllhamac_clingo_stubs.so
+          # (chargée par dlopen) et tous les tests cram plantent avec
+          # "cannot load shared library dllhamac_clingo_stubs".
+          echo "CAML_LD_LIBRARY_PATH=$PWD/_opam/lib/stublibs" >> "$GITHUB_ENV"
 
       - name: Build
         run: |
           set -eux
           t=$(date +%s)
           opam exec -- dune build
+          # `opam install --deps-only` n'installe pas les stubs du projet :
+          # dllhamac_clingo_stubs.so n'est que dans _build. Or `opam exec`
+          # réécrit CAML_LD_LIBRARY_PATH avec la valeur du switch, donc poser
+          # la variable d'env ne suffit pas. On copie la stub DANS les
+          # stublibs du switch : le runtime OCaml la trouvera quelle que soit
+          # la valeur de CAML_LD_LIBRARY_PATH (sinon les tests cram plantent
+          # avec "cannot load shared library dllhamac_clingo_stubs").
+          mkdir -p _opam/lib/stublibs
+          find _build/default -name 'dllhamac_clingo_stubs.so' -exec cp -v {} _opam/lib/stublibs/ \;
+          stub=$(dirname "$(find _build/default -name 'dllhamac_clingo_stubs.so' | head -n1)")
+          echo "CAML_LD_LIBRARY_PATH=$PWD/_opam/lib/stublibs:$PWD/$stub" >> "$GITHUB_ENV"
           echo "TIMING build=$(($(date +%s)-t))s"
 
       - name: Test
         run: |
           set -eux
           t=$(date +%s)
+          stub=$(dirname "$(find _build/default -name 'dllhamac_clingo_stubs.so' | head -n1)")
+          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs:$PWD/$stub${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune runtest
           echo "TIMING test=$(($(date +%s)-t))s"
 
@@ -129,6 +154,10 @@ jobs:
         run: |
           set -eux
           # Sans avertissement (--strict) : les fichiers livrés sont des modèles.
+          # CAML_LD_LIBRARY_PATH : stubs clingo chargées par dlopen, dans _build
+          # (cf. étape Build).
+          stub=$(dirname "$(find _build/default -name 'dllhamac_clingo_stubs.so' | head -n1)")
+          export CAML_LD_LIBRARY_PATH="$PWD/_opam/lib/stublibs:$PWD/$stub${CAML_LD_LIBRARY_PATH:+:$CAML_LD_LIBRARY_PATH}"
           opam exec -- dune exec -- hamac validate --strict examples/enterprise-stack providers
           for p in provisioning-profiles/*.loaf; do
             opam exec -- dune exec -- hamac validate --strict "$p" templates/bundles
@@ -184,7 +213,14 @@ jobs:
           git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
           git init -q .
           git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          # Sur pull_request, GITHUB_REF_NAME = refs/pull/<n>/merge, que cette
+          # instance n'annonce PAS dans info/refs (seul refs/pull/<n>/head l'est)
+          # : le fetch échouait en 404. On fetch donc le head de la PR.
+          REF="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF="refs/pull/${{ github.event.pull_request.number }}/head"
+          fi
+          git fetch --depth 1 origin "$REF"
           git checkout -q -f FETCH_HEAD
           echo "checked out: $(git log --oneline -1)"
 
@@ -275,7 +311,14 @@ jobs:
           git config --global http."${PUB}/".extraheader "Authorization: Basic ${AUTH}"
           git init -q .
           git remote add origin "${PUB}/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF_NAME}"
+          # refs/pull/<n>/merge n'est pas annoncé par info/refs sur cette
+          # instance (seul refs/pull/<n>/head l'est) : sur pull_request on
+          # fetch le head de la PR.
+          REF="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF="refs/pull/${{ github.event.pull_request.number }}/head"
+          fi
+          git fetch --depth 1 origin "$REF"
           git checkout -q -f FETCH_HEAD
 
       # Le binaire est lié dynamiquement à la glibc de la machine de build ;

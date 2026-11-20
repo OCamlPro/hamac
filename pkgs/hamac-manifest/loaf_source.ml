@@ -569,9 +569,11 @@ let provisioning_profile cx f : provisioning_profile_manifest =
       | None, [] -> None (* neither: E007 of the vocabulary *)) in
     { bundle_name = name b; bundle_params }) in
   let pp_cloud_init_extra = F.opt1 cx k p "cloud_init_extra" str in
+  let pp_preseed_extra = F.list1 cx k p "preseed_extra" str in
   { pp_name = name f;
-    pp_os; pp_bundles; pp_cloud_init_extra;
-    pp_assurance = assurance_of (axis_rows (F.table cx k p "assurance" Fun.id Fun.id)) }
+    pp_os; pp_bundles; pp_cloud_init_extra; pp_preseed_extra;
+    pp_assurance = assurance_of (axis_rows (F.table cx k p "assurance" Fun.id Fun.id));
+    pp_accept_experimental = F.flag cx k p "accept_experimental" }
 
 (* ============================================================ *)
 (* kind: bundle                                                  *)
@@ -621,7 +623,7 @@ let note_experimental cx kind subj =
       Hashtbl.add seen label ();
       note cx ?loc:(first_loc f) "W001" [label]
         (Printf.sprintf "'%s' is experimental: its meaning may change in a minor version \
-                         (write accept_experimental in the stack to acknowledge)" label)
+                         (write accept_experimental in the stack or the manifest to acknowledge)" label)
     | _ -> ()) (Option.value (List.assoc_opt kind experimental) ~default:[])
 
 (** A manifest defined in several files (W003): the language merges the
@@ -799,3 +801,18 @@ let asp ?vocabulary ?(lib = []) (paths : string list)
       Error (located (List.sort_uniq compare (List.map diagnostic_of_loaf ds)))
     | exception Sys_error msg ->
       Error (located [Diagnostic.make "E001" [] ("cannot read file: " ^ msg)])
+
+(** [model ~lib paths]: the LOAF model of a set of files, loaded as by
+    {!load} (same vocabulary and library directories). For an application
+    that reads facts beyond the manifests — the ranks of the security levels
+    that the patterns declare, the fields that the security models add to
+    the routes. [None] when the files are refused (the diagnostics are then
+    those of {!load}). *)
+let model ?vocabulary ?(lib = []) (paths : string list) : Loaf.t option =
+  let files = Loaf.sources paths in
+  match vocabulary_dir ?vocabulary () with
+  | Error _ -> None
+  | Ok vocab ->
+    match Loaf.load ~lib:(vocab :: lib @ library_dirs ()) files with
+    | exception _ -> None
+    | t -> Some t

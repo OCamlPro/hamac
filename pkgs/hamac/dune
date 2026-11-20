@@ -24,9 +24,11 @@
     cohttp-lwt-unix
     fmt
     fpath
+    hamac-biscuit
     hamac-clingo
     hamac-manifest
     hamac-provisioning
+    hamac-sozu
     logs.fmt
     lwt
     yojson

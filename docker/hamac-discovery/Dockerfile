@@ -59,6 +59,11 @@ RUN mkdir -p /var/lib/hamac-discovery/provisioning \
  && chown -R hamac:hamac /var/lib/hamac-discovery
 VOLUME ["/var/lib/hamac-discovery"]
 
+# HAMAC_PUBLIC_URL (optionnel) : URL publique du discovery, telle qu'atteinte
+# par les clients PXE (ex. http://socrates.intranet.ocamlpro.com:8877). Sert
+# aux références absolues baked dans le preseed netinstall (seed cloud-init
+# /provisioning/<mac>/cloud-init). Sans elle, le Host de la requête de
+# création/modification de la machine est utilisé en repli.
 ENV HAMAC_DISCOVERY_STATE=/var/lib/hamac-discovery \
     HAMAC_BUNDLES_DIR=/usr/share/hamac/bundles \
     HAMAC_PROFILES_DIR=/usr/share/hamac/profiles \

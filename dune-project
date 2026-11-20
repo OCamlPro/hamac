@@ -48,6 +48,25 @@
 )
 
 (package
+  (name hamac-biscuit)
+  (allow_empty)
+  (depends
+    (hamac-manifest :build)
+    (loaf :build)
+    (opam-marmiton (and (>= 0.1.0) :with-dev-setup))
+  )
+)
+
+(package
+  (name hamac-sozu)
+  (allow_empty)
+  (depends
+    (hamac-manifest :build)
+    (opam-marmiton (and (>= 0.1.0) :with-dev-setup))
+  )
+)
+
+(package
   (name hamac-provisioning)
   (allow_empty)
   (depends
@@ -72,9 +91,11 @@
     (cohttp-lwt-unix :build)
     (fmt :build)
     (fpath :build)
+    (hamac-biscuit :build)
     (hamac-clingo :build)
     (hamac-manifest :build)
     (hamac-provisioning :build)
+    (hamac-sozu :build)
     (logs :build)
     (lwt :build)
     (opam-marmiton (and (>= 0.1.0) :with-dev-setup))

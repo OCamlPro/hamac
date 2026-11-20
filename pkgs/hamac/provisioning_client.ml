@@ -25,6 +25,7 @@ let render_to_json (r : Hamac_provisioning.Provisioning_gen.rendered_profile) : 
     "profile_name", `String r.profile_name;
     "cloud_init", `String r.cloud_init;
     "ipxe_script", `String r.ipxe_script;
+    "preseed", `String r.preseed;
     "os_image_url", `String r.os_image_url;
     "os_image_sha256", `String r.os_image_sha256;
     "os_format", `String r.os_format;

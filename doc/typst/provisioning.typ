@@ -114,8 +114,13 @@ Les champs du sous-bloc `os` sont définis par la spécification des
 manifestes. Le `qcow2` désigné par `url` est l'image de référence ;
 `raw_zst_url`, `raw_zst_sha256` et `bmap_url` désignent une copie dérivée,
 utilisée pour écrire le disque d'une machine physique (ci-dessous). Avec le
-format `netinstall`, Hamac télécharge un noyau et un initrd Debian
-d'installation et lance une installation automatisée (preseed).
+format `netinstall`, `url` désigne le *répertoire netboot* de l'installateur
+Debian (contenant `linux` et `initrd.gz`) : Hamac lance une installation
+automatisée par preseed, généré à partir du profil et des paramètres machine
+(chiffrement LUKS2 du disque, TPM2, Clevis/Tang — cf. @endpoints et la
+procédure PXE ci-dessous). `sha256` n'a pas de fichier unique à hacher dans
+ce mode : placeholder accepté, l'intégrité du téléchargement repose sur
+HTTPS.
 
 === Écriture des images « bloc » (`qcow2` / `raw`) sur le disque
 
@@ -307,6 +312,8 @@ qu'est un bundle, il sert juste un document YAML.
     pour cette MAC],
   [`GET`], [`/provisioning/<mac>`], [L'init PXE récupère son enregistrement],
   [`GET`], [`/provisioning/<mac>/cloud-init`], [le cloud-init seul, en YAML],
+  [`GET`], [`/provisioning/<mac>/preseed`], [le preseed d-i, si le profil est
+    en format `netinstall` (404 sinon)],
   [`DELETE`], [`/provisioning/<mac>`], [Retire l'association MAC → profil],
   [`GET`], [`/provisioning`], [Liste les associations (débogage, tableau de
     bord)],
@@ -324,14 +331,16 @@ Format de `POST /provisioning/<mac>` :
   "os_format": "qcow2",
   "os_raw_zst_url": "",
   "os_raw_zst_sha256": "",
-  "os_bmap_url": ""
+  "os_bmap_url": "",
+  "preseed": ""
 }
 ```
 
 `profile_name` est le nom DNS du profil : son nom LOAF, `_` remplacé par `-`.
 `os_raw_zst_url`/`os_raw_zst_sha256`/`os_bmap_url` sont vides quand le profil
 source n'a pas de `raw_zst_url`/`bmap_url` (@bloc-os) — chaîne vide, pas de
-champ absent, pour simplifier l'analyse côté init.
+champ absent, pour simplifier l'analyse côté init. Idem pour `preseed`,
+renseigné uniquement quand `os_format` vaut `netinstall`.
 
 Format de `GET /provisioning/<mac>` : renvoie le même JSON, plus un champ
 `created_at` (horodatage Unix).
@@ -364,7 +373,22 @@ nœud : un enregistrement présent prend le dessus.
       `qemu-img convert` (ou `dd` direct pour le format `raw`). Le
       redimensionnement de la partition est délégué à cloud-init au premier
       démarrage (`growpart` + `resize_rootfs`) ;
-    - `netinstall` → preseed Debian ;
+    - `netinstall` → *kexec* dans l'installateur Debian (noyau `linux` +
+      initrd `initrd.gz` du répertoire netboot désigné par `os.url`), avec
+      `preseed/url=<discovery>/provisioning/<mac>/preseed` et
+      `partman-auto/disk=<disque>` sur la ligne de commande du noyau. Le
+      preseed est généré par hamac à partir du profil et des paramètres
+      machine : partitionnement plein disque chiffré *LUKS2*
+      (`partman-auto/method=crypto`), enregistrement d'un slot *TPM2*
+      (`systemd-cryptenroll --tpm2-pcrs=7+11`), binding *Clevis/Tang* si le
+      paramètre machine `tang_url` est fourni (déverrouillage à distance via
+      le réseau d'administration, repli sur la passphrase `luks_passphrase`),
+      et dépôt du seed cloud-init NoCloud depuis
+      `/provisioning/<mac>/cloud-init`. Les lignes `preseed_extra` du profil
+      sont ajoutées telles quelles à la fin. Le paramètre machine
+      `luks_passphrase` est obligatoire avec ce format. L'axe d'assurance
+      `boot, measured_tpm2` d'un profil n'est accepté (E043) qu'avec ce
+      format — seule voie chiffrée implémentée, donc seule voie attestable ;
   - entre dans le système installé (chroot) et y applique cloud-init ;
   - redémarre.
 + La machine démarre sur l'OS installé → cloud-init s'applique au premier
