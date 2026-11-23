@@ -366,7 +366,7 @@ let render_preseed (profile : provisioning_profile_manifest)
       "# Disque : plein disque chiffré LUKS2 (partman-crypto, sans LVM).";
       "# Le disque cible (partman-auto/disk) et preseed/url sont passés sur la";
       "# ligne de commande du noyau par l'init PXE.";
-      "d-i partman-auto/method string crypto";
+      "d-i partman-auto/method string regular";
       "d-i partman-auto/expert_recipe string \\";
       "   hamac-crypto :: \\";
       "      512 512 1024 free \\";

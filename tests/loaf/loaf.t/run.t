@@ -739,7 +739,7 @@ Preseed netinstall (profil sécurisé) : sans luks_passphrase, le rendu échoue.
 Avec les paramètres machine, le preseed généré couvre LUKS2 + TPM2 + Tang.
 
   $ hamac provision-dryrun --profile=$R/provisioning-profiles/secure-workstation.loaf --bundles-dir=$R/templates/bundles --param username=ocp-si --param luks_passphrase=EXAMPLE-ONLY --param tang_url=http://tang.example.invalid:7777 --mac=9c:bf:0d:01:37:13 2>&1 | sed -n '/=== preseed/,$p' | grep -E 'partman-auto/method string|partman-crypto/passphrase password|cryptenroll|clevis luks bind|grub-installer|format: netinstall'
-  d-i partman-auto/method string crypto
+  d-i partman-auto/method string regular
   d-i partman-crypto/passphrase password EXAMPLE-ONLY
      printf '%s' 'EXAMPLE-ONLY' | in-target systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7+11 --key-file=- "$LUKSDEV"; \
      echo 'EXAMPLE-ONLY' | in-target clevis luks bind -y -k - -d "$LUKSDEV" tang '{"url":"http://tang.example.invalid:7777"}' ; \
