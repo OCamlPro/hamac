@@ -326,7 +326,7 @@ let render_preseed (profile : provisioning_profile_manifest)
         let base = if String.ends_with ~suffix:"/" base then String.sub base 0 (String.length base - 1) else base in
         [ "   mkdir -p /target/var/lib/cloud/seed/nocloud; \\";
           Printf.sprintf "   wget -q -O /target/var/lib/cloud/seed/nocloud/user-data %s/provisioning/%s/cloud-init; \\" base machine_mac;
-          Printf.sprintf "   printf 'instance-id: hamac-%s\\nlocal-hostname: %s\\n' > /target/var/lib/cloud/seed/nocloud/meta-data"
+          Printf.sprintf "   printf 'instance-id: hamac-%s\\nlocal-hostname: %s\\n' > /target/var/lib/cloud/seed/nocloud/meta-data; \\"
             (String.concat "-" (String.split_on_char ':' machine_mac)) (esc hostname) ]
       else [] in
     let clevis_line =

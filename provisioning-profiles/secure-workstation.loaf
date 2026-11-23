@@ -31,10 +31,10 @@ provisioning_profile secure_workstation {
   description "Poste sécurisé : Debian 12 netinstall, LUKS2 plein disque + TPM2 + Clevis/Tang".
 
   os "debian-12-amd64-netboot" {
-    % Répertoire netboot de l'installateur (contient 'linux' et 'initrd.gz')
-    % — pas un fichier unique : sha256 au placeholder, l'intégrité du
-    % téléchargement repose sur HTTPS (deb.debian.org).
-    url "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/".
+    % Répertoire netboot de l'installateur contenant le noyau 'linux' et
+    % l'initrd 'initrd.gz' — pas un fichier unique : sha256 au placeholder,
+    % l'intégrité du téléchargement repose sur HTTPS (deb.debian.org).
+    url "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/".
     sha256 "0000000000000000000000000000000000000000000000000000000000000000".
     format netinstall.
     family debian.
