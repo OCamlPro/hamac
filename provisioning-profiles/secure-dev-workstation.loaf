@@ -1,0 +1,35 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Profil pour poste de développement sécurisé : même installation que
+% secure-workstation.loaf (Debian 12 netinstall, LUKS2 plein disque, TPM2,
+% Clevis/Tang optionnel via tang_url, repli passphrase) avec en plus la
+% chaîne de dev (bundle dev_toolchain : opam/Coq, VSCode).
+%
+% En exploitation, les paramètres machine (username, luks_passphrase,
+% tang_url, opam_switch, opam_packages…) viennent de l'enregistrement de
+% machine (/api/machines), jamais d'un fichier versionné.
+
+loaf 0.1.
+use hamac 0.2.
+
+provisioning_profile secure_dev_workstation {
+  description "Poste de dev sécurisé : Debian 12 netinstall, LUKS2 + TPM2 + Tang optionnel, toolchain opam/Coq/VSCode".
+
+  os "debian-12-amd64-netboot" {
+    % Répertoire netboot de l'installateur (noyau 'linux', initrd
+    % 'initrd.gz') ; intégrité par HTTPS (deb.debian.org).
+    url "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format netinstall.
+    family debian.
+  }
+
+  bundles [dev_workstation, dev_toolchain].
+
+  % Attestation : vérifiée par E043 (exige format netinstall).
+  assurance boot, measured_tpm2.
+  accept_experimental.
+
+  preseed_extra "d-i grub-installer/bootdev string default".
+}

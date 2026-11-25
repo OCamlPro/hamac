@@ -1,0 +1,38 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Profil pour le serveur de backup : Debian 12 netinstall, LUKS2 plein
+% disque, déverrouillage MANUEL par passphrase (paramètre machine
+% luks_passphrase, obligatoire avec ce format) + seal TPM2
+% (systemd-cryptenroll, PCR 7+11).
+%
+% Pas de binding Clevis/Tang ici : ce serveur ne se déverrouille pas via
+% le réseau (tang_url laissé vide), conformément à l'architecture de
+% sécurité. Le service Tang qu'il héberge pour les autres machines est
+% configuré hors profil, sur le VLAN d'administration dédié.
+%
+% En exploitation, les paramètres machine (username, luks_passphrase…)
+% viennent de l'enregistrement de machine (/api/machines), jamais d'un
+% fichier versionné.
+
+loaf 0.1.
+use hamac 0.2.
+
+provisioning_profile backup_server {
+  description "Serveur de backup : Debian 12 netinstall, LUKS2 plein disque, déverrouillage manuel (passphrase) + TPM2".
+
+  os "debian-12-amd64-netboot" {
+    url "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format netinstall.
+    family debian.
+  }
+
+  bundles [server_base].
+
+  % Attestation : vérifiée par E043 (exige format netinstall).
+  assurance boot, measured_tpm2.
+  accept_experimental.
+
+  preseed_extra "d-i grub-installer/bootdev string default".
+}

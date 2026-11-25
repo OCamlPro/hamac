@@ -1,0 +1,30 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Chaîne de développement OCaml/Coq + VSCode, en complément de dev_workstation
+% (qui crée le compte admin). Les listes cloud-init (packages, runcmd) des
+% bundles se concatènent : ce fragment n'ajoute que ce qui manque.
+
+loaf 0.1.
+use hamac 0.2.
+
+bundle dev_toolchain {
+  version "0.1.0".
+  description "Toolchain dev : opam (+ switch et paquets donnés), VSCode via le dépôt Microsoft".
+
+  % Compte sur lequel opam est initialisé (le compte admin créé par
+  % dev_workstation).
+  param username {
+    type string.
+    required.
+  }
+
+  % Switch OCaml à créer, ex. "5.3.0". Vide : switch par défaut d'opam.
+  param opam_switch { type string. }
+
+  % Paquets opam à installer, séparés par des espaces, ex. "coq". Vide : aucun.
+  param opam_packages { type string. }
+
+  % Installer VSCode (code) depuis le dépôt apt Microsoft.
+  param install_vscode { type bool. }
+}
