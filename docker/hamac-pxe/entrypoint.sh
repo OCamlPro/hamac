@@ -75,6 +75,10 @@ cat > /tftp/boot.ipxe <<EOF
 #!ipxe
 echo hamac-pxe : chargement du live installer...
 imgfree
+# En UEFI, iPXE ne réutilise pas le bail DHCP du firmware : sans dhcp
+# explicite, le chargement TFTP échoue par "Network unreachable".
+# Le bail (IP) vient du vrai DHCP du LAN, le boot server du proxy dnsmasq.
+dhcp || dhcp || dhcp
 kernel tftp://$DHCP_PROXY_ADDRESS/vmlinuz console=ttyS0 console=tty0 ip=dhcp hamac.discovery=$PXE_DISCOVERY_URL hamac.pxe=$DHCP_PROXY_ADDRESS
 initrd tftp://$DHCP_PROXY_ADDRESS/initramfs.img
 imgstat
@@ -173,9 +177,16 @@ allowed_macs_sync() {
         N=$(wc -l < "$TMP" 2>/dev/null || echo 0)
         echo "[hamac-pxe.sync] whitelist changed ($N entries), reloading dnsmasq"
         cp "$TMP" "$ALLOWED_MACS_FILE"
-        if [ -f /var/run/dnsmasq.pid ]; then
-          kill -HUP "$(cat /var/run/dnsmasq.pid)" 2>/dev/null || true
-        fi
+        # dnsmasq tourne en --no-daemon : aucun pid-file n'est écrit, le
+        # kill -HUP via /var/run/dnsmasq.pid ne part jamais et la whitelist
+        # n'est jamais rechargée à chaud (toutes les MAC restent
+        # proxy-ignored). On retrouve le process par /proc, robuste au
+        # pid-file absent.
+        for d in /proc/[0-9]*; do
+          if [ "$(cat "$d/comm" 2>/dev/null)" = "dnsmasq" ]; then
+            kill -HUP "${d#/proc/}" 2>/dev/null || true
+          fi
+        done
       fi
     else
       echo "[hamac-pxe.sync] discovery unreachable, keeping current whitelist"
