@@ -138,7 +138,7 @@ for mod in \
     virtio virtio_ring virtio_pci virtio_blk virtio_net \
     loop ata_piix \
     e1000 e1000e igb ixgbe \
-    usb_common usbcore xhci_hcd xhci_pci mii libphy r8152 \
+    usb_common usbcore xhci_hcd xhci_pci mii libphy r8152 r8169 atlantic alx \
     nvme_auth nvme_core nvme \
     jbd2 ext4; do
     # Assignation directement dans la condition du if : sous `set -e`, une
@@ -161,8 +161,9 @@ sleep 2
 echo "[*] Waiting for network interface..."
 IFACE=""
 for i in 1 2 3 4 5 6 7 8 9 10; do
-    for iface in eth0 ens3 enp0s3 eno1 enp3s0; do
-        if [ -e "/sys/class/net/$iface" ] && [ "$iface" != "lo" ]; then
+    for path in /sys/class/net/*; do
+        iface="${path##*/}"
+        if [ "$iface" != "lo" ]; then
             IFACE="$iface"
             break 2
         fi
