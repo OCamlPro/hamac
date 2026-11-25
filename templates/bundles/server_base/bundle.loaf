@@ -1,0 +1,31 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Serveur headless minimal : un compte admin sudo, SSH, outils de base.
+% Volontairement sans Tang ni outil de backup : la configuration réseau
+% d'administration (VLAN dédié, Tang) relève de l'architecture de sécurité
+% et se fait hors profil, conformément au document d'architecture.
+
+loaf 0.1.
+use hamac 0.2.
+
+bundle server_base {
+  version "0.1.0".
+  description "Serveur minimal : compte admin sudo, SSH, outils de base".
+
+  param username {
+    type string.
+    required.
+  }
+
+  % Nom affiché (GECOS). Vide : username.
+  param full_name { type string. }
+
+  % Clés SSH publiques. Peut être vide si initial_password est fourni.
+  param ssh_public_keys { type list_string. }
+
+  % Mot de passe initial en clair, expiré au premier login.
+  param initial_password { type string. }
+
+  param timezone { type string. }
+}

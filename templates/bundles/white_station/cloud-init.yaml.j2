@@ -1,0 +1,29 @@
+{# Bundle white_station — fragment cloud-init (Debian).
+   Concaténé avec celui de dev_workstation : la liste users s'allonge du
+   compte générique (sans sudo), packages et runcmd s'ajoutent.
+   Params : generic_username (req), generic_password, hardening. #}
+
+users:
+  - name: {{ params.generic_username }}
+    gecos: "Compte générique employés"
+    shell: /bin/bash
+    sudo: false
+{% if params.generic_password %}
+    lock_passwd: false
+    plain_text_passwd: {{ params.generic_password }}
+{% else %}
+    lock_passwd: true
+{% endif %}
+
+{% if params.hardening %}
+packages:
+  - clamav
+  - clamav-daemon
+  - clamav-freshclam
+  - unattended-upgrades
+
+runcmd:
+  - systemctl enable --now clamav-freshclam
+  - bash -c 'echo "APT::Periodic::Update-Package-Lists \"1\"; APT::Periodic::Unattended-Upgrade \"1\";" > /etc/apt/apt.conf.d/50hamac-unattended-upgrades'
+{% endif %}
+  - echo "hamac white_station provisioning done"

@@ -1,0 +1,35 @@
+% SPDX-License-Identifier: AGPL-3.0-only
+% Copyright (C) 2025-2026 OCamlPro <contact@ocamlpro.com>
+%
+% Profil pour la station blanche (poste employés OCP) : image cloud Debian
+% 12 (qcow2), compte admin créé par le bundle dev_workstation (paramètres
+% de la machine), plus un compte générique "OCamlPro" sans sudo, ClamAV et
+% les mises à jour de sécurité automatiques (bundle white_station).
+%
+% Le nom du compte générique est fixé ici (valeur de paramètre du bundle) :
+% c'est une constante de l'architecture, pas une donnée de machine. Les
+% secrets (mots de passe, clés SSH) viennent de l'enregistrement de machine
+% (/api/machines), jamais d'un fichier versionné.
+
+loaf 0.1.
+use hamac 0.2.
+
+provisioning_profile white_station {
+  description "Station blanche : Debian 12 cloud, compte admin + compte générique employés (OCamlPro), ClamAV, mises à jour auto".
+
+  cloud_init_extra "{runcmd: [systemctl enable --now ssh]}".
+
+  os "debian-12-amd64-genericcloud" {
+    url "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2".
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000".
+    format qcow2.
+    family debian.
+  }
+
+  bundles [dev_workstation, white_station].
+
+  bundle white_station {
+    param generic_username { value "OCamlPro". }
+    param hardening { value true. }
+  }
+}

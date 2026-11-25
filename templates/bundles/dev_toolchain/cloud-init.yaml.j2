@@ -1,0 +1,29 @@
+{# Bundle dev_toolchain — fragment cloud-init (Debian).
+   Concaténé avec celui de dev_workstation : packages et runcmd s'ajoutent.
+   Params : username (req), opam_switch, opam_packages, install_vscode. #}
+
+packages:
+  - opam
+  - build-essential
+  - pkg-config
+  - m4
+  - bubblewrap
+  - unzip
+{% if params.install_vscode %}
+  - apt-transport-https
+{% endif %}
+
+runcmd:
+{% if params.install_vscode %}
+  # --- VSCode : dépôt apt Microsoft ---
+  - bash -c 'wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg'
+  - bash -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+  - apt-get update
+  - apt-get install -y code
+{% endif %}
+  # --- opam, initialisé pour {{ params.username }} ---
+  - sudo -u {{ params.username }} opam init --bare --disable-sandboxing -y{% if params.opam_switch %} {{ params.opam_switch }}{% endif %}
+{% if params.opam_packages %}
+  - sudo -u {{ params.username }} opam install -y {{ params.opam_packages }}
+{% endif %}
+  - echo "hamac dev_toolchain provisioning done"
