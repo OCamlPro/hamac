@@ -159,19 +159,20 @@ docker cp "${QIB_CID}:/usr/src/qemu/build/qemu-img" usr/bin/qemu-img
 docker rm "${QIB_CID}"
 chmod +x usr/bin/qemu-img
 
-# Replace init with Hamac's version
-cp /path/to/hamac/tools/discovery-prototype/pxe-build/init ./init
-chmod +x init
-
 # Keep the pristine d-i init as /init.d-i (pxe-build/init execs it at
 # hamac.stage=2, after kexec into the installer kernel) — but make its
-# mounts idempotent: our /init has already mounted /proc and /sys, and a
-# second `mount /sys` under `sh -e` returns EBUSY and panics the kernel
-# ("Attempted to kill init" exitcode 0xff00).
+# mounts idempotent FIRST: our /init has already mounted /proc and /sys,
+# and a second `mount /sys` under `sh -e` returns EBUSY and panics the
+# kernel ("Attempted to kill init" exitcode 0xff00). Save it BEFORE
+# replacing ./init below.
 cp init init.d-i
 sed -i -e 's|^mount /run$|mount /run 2>/dev/null || true|' \
        -e 's|^mount /proc$|mount /proc 2>/dev/null || true|' \
        -e 's|^mount /sys$|mount /sys 2>/dev/null || true|' init.d-i
+
+# Replace init with Hamac's version
+cp /path/to/hamac/tools/discovery-prototype/pxe-build/init ./init
+chmod +x init
 
 # Rebuild initramfs
 find . | cpio -ov --format=newc | gzip -9 > /path/to/hamac/tools/discovery-prototype/tftp/initramfs-hybrid.gz
