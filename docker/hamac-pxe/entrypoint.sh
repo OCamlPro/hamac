@@ -75,7 +75,7 @@ cat > /tftp/boot.ipxe <<EOF
 #!ipxe
 echo hamac-pxe : chargement du live installer...
 imgfree
-kernel tftp://$DHCP_PROXY_ADDRESS/vmlinuz console=ttyS0 console=tty0 ip=dhcp hamac.discovery=$PXE_DISCOVERY_URL
+kernel tftp://$DHCP_PROXY_ADDRESS/vmlinuz console=ttyS0 console=tty0 ip=dhcp hamac.discovery=$PXE_DISCOVERY_URL hamac.pxe=$DHCP_PROXY_ADDRESS
 initrd tftp://$DHCP_PROXY_ADDRESS/initramfs.img
 imgstat
 boot
