@@ -99,7 +99,7 @@ chmod +x sbin/kexec
 # libxenmisc4.17 alone is NOT enough (kexec then fails at load with
 # "libxentoollog.so.1: cannot open shared object file"). Copy them all.
 XEN_V="4.17.5+72-g01140da4e8-1"
-for p in libxenmisc4.17 libxentoollog1 libxencall1 libxenevtchn1 libxengnttab1 libxenforeignmemory1 libxendevicemodel1; do
+for p in libxenmisc4.17 libxentoollog1 libxentoolcore1 libxencall1 libxenevtchn1 libxengnttab1 libxenforeignmemory1 libxendevicemodel1 libxenstore4 libxenhypfs1; do
   wget -O "/tmp/${p}.deb" "http://deb.debian.org/debian/pool/main/x/xen/${p}_${XEN_V}_amd64.deb"
   dpkg-deb -x "/tmp/${p}.deb" /tmp/xen-extract
 done
