@@ -82,6 +82,21 @@ mkdir -p "lib/modules/${KVER}/kernel/fs/ext4" "lib/modules/${KVER}/kernel/fs/jbd
 cp "${SRC}/ext4/ext4.ko.xz" "lib/modules/${KVER}/kernel/fs/ext4/"
 cp "${SRC}/jbd2/jbd2.ko.xz" "lib/modules/${KVER}/kernel/fs/jbd2/"
 
+# Add the kexec binary (bookworm kexec-tools) + its xen libs, for the
+# netinstall path: pxe-build/init kexecs the Debian installer kernel
+# (the stock netboot initrd has no kexec, and Debian's busybox-static
+# is built without the kexec applet). kexec is dynamically linked:
+# libc.so.6 is already in the base initrd (/lib/x86_64-linux-gnu), the
+# libxen* runtime libs come from bookworm's libxenmisc4.17.
+mkdir -p /tmp/kexec-extract
+wget -O /tmp/kexec-tools.deb "http://deb.debian.org/debian/pool/main/k/kexec-tools/kexec-tools_2.0.25-3+deb12u3_amd64.deb"
+dpkg-deb -x /tmp/kexec-tools.deb /tmp/kexec-extract
+cp /tmp/kexec-extract/sbin/kexec sbin/kexec
+chmod +x sbin/kexec
+wget -O /tmp/libxenmisc.deb "http://deb.debian.org/debian/pool/main/x/xen/libxenmisc4.17_4.17.5+72-g01140da4e8-1_amd64.deb"
+dpkg-deb -x /tmp/libxenmisc.deb /tmp/xen-extract
+cp /tmp/xen-extract/usr/lib/x86_64-linux-gnu/libxen*.so* usr/lib/x86_64-linux-gnu/
+
 # Add zstd + bmaptool + python3 (minimal + stdlib) + their real runtime
 # deps, for writing OS images via `bmaptool copy` instead of embarking
 # qemu-utils whole (~20 transitive packages, mostly TLS/PKCS#11, irrelevant
