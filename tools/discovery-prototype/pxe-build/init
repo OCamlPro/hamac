@@ -5,6 +5,9 @@
 #
 # Kernel command line options:
 #   hamac.discovery=URL     - Discovery server URL (default: http://10.0.2.2:8877)
+#   hamac.pxe=IP            - Hamac PXE/TFTP server (set by boot.ipxe)
+#   hamac.stage=2           - Second-stage boot (after kexec): exec the pristine
+#                             d-i init (/init.d-i) instead of this agent
 #   hamac.hostname=NAME     - Node hostname
 #   hamac.role=ROLE         - Node role: pve-master | pve-node | worker (default: pve-node)
 #   hamac.install=MODE      - Install mode: proxmox | debian | none (default: none)
@@ -29,6 +32,8 @@ parse_cmdline() {
         case "$word" in
             hamac.hostname=*) HOSTNAME="${word#hamac.hostname=}" ;;
             hamac.discovery=*) DISCOVERY_SERVER="${word#hamac.discovery=}" ;;
+            hamac.pxe=*) PXE_SERVER="${word#hamac.pxe=}" ;;
+            hamac.stage=2) STAGE=2 ;;
             hamac.role=*) NODE_ROLE="${word#hamac.role=}" ;;
             hamac.install=*) INSTALL_MODE="${word#hamac.install=}" ;;
             hamac.disk=*) TARGET_DISK="${word#hamac.disk=}" ;;
@@ -41,6 +46,8 @@ parse_cmdline() {
 # Defaults
 HOSTNAME=""
 DISCOVERY_SERVER=""
+PXE_SERVER=""
+STAGE=1
 NODE_ROLE="pve-node"
 INSTALL_MODE="none"
 TARGET_DISK=""
@@ -48,6 +55,12 @@ CLUSTER_NAME="hamac-cluster"
 MASTER_IP=""
 
 parse_cmdline
+
+# Second stage (after kexec into the installer kernel): hand over to the
+# pristine d-i init kept as /init.d-i in the hybrid initramfs.
+if [ "$STAGE" = "2" ] && [ -x /init.d-i ]; then
+    exec /init.d-i
+fi
 
 [ -z "$HOSTNAME" ] && HOSTNAME="pve-node-$$"
 [ -z "$DISCOVERY_SERVER" ] && DISCOVERY_SERVER="http://10.0.2.2:8877"
@@ -303,13 +316,18 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
     # (partman-auto/disk=...), l'init le connaît mais le preseed statique non.
     if [ "$OS_FORMAT" = "netinstall" ]; then
         echo "[*] netinstall: booting Debian installer via kexec (preseed from discovery)"
-        NB_DIR="$OS_URL"
-        case "$NB_DIR" in */) ;; *) NB_DIR="$NB_DIR/" ;; esac
-        wget -q -O "$PROV_DIR/d-i-linux" "${NB_DIR}linux" \
-            || { echo "[!] cannot fetch ${NB_DIR}linux"; exec /bin/sh; }
-        wget -q -O "$PROV_DIR/d-i-initrd.gz" "${NB_DIR}initrd.gz" \
-            || { echo "[!] cannot fetch ${NB_DIR}initrd.gz"; exec /bin/sh; }
+        # The installer kernel/initrd come from the hamac PXE server (TFTP),
+        # not from the public mirror: the initrd we kexec into is the SAME
+        # hybrid initramfs served as /tftp/initramfs.img — it carries the NVMe
+        # modules that the stock netboot initrd lacks (no nvme udeb exists),
+        # and hamac.stage=2 makes this init exec /init.d-i (the pristine d-i
+        # init) once the installer kernel is up.
+        [ -z "$PXE_SERVER" ] && PXE_SERVER="$DISCOVERY_SERVER"
         PRESEED_URL="${DISCOVERY_SERVER}/provisioning/${MAC}/preseed"
+        /bin/busybox tftp -g -r vmlinuz "$PXE_SERVER" -l "$PROV_DIR/d-i-linux" \
+            || { echo "[!] cannot fetch vmlinuz from tftp://$PXE_SERVER"; exec /bin/sh; }
+        /bin/busybox tftp -g -r initramfs.img "$PXE_SERVER" -l "$PROV_DIR/d-i-initrd.img" \
+            || { echo "[!] cannot fetch initramfs.img from tftp://$PXE_SERVER"; exec /bin/sh; }
         # kexec binaire standalone, sinon applet busybox (si compilée avec
         # CONFIG_KEXEC) : `busybox kexec` a la même interface.
         KEXEC="kexec"
@@ -324,8 +342,8 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         fi
         echo "[*] $KEXEC -l: preseed/url=$PRESEED_URL partman-auto/disk=$DISK"
         $KEXEC -l "$PROV_DIR/d-i-linux" \
-            --initrd="$PROV_DIR/d-i-initrd.gz" \
-            --append="auto=true priority=critical preseed/url=$PRESEED_URL partman-auto/disk=$DISK console=ttyS0,115200 console=tty0 ip=dhcp" \
+            --initrd="$PROV_DIR/d-i-initrd.img" \
+            --append="auto=true priority=critical preseed/url=$PRESEED_URL partman-auto/disk=$DISK console=ttyS0,115200 console=tty0 ip=dhcp hamac.stage=2" \
             || { echo "[!] kexec -l failed"; exec /bin/sh; }
         sync
         echo "[*] kexec -e (Debian installer takes over)"
