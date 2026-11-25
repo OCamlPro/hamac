@@ -513,7 +513,7 @@ premier port.
        pp_os =
        { Types.os_image_name = "debian-12-amd64-netboot";
          os_url =
-         "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/";
+         "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/";
          os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
          os_format = "netinstall"; os_arch = "amd64"; os_family = "debian"; 
          os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };

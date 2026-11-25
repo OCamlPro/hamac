@@ -326,7 +326,7 @@ let render_preseed (profile : provisioning_profile_manifest)
         let base = if String.ends_with ~suffix:"/" base then String.sub base 0 (String.length base - 1) else base in
         [ "   mkdir -p /target/var/lib/cloud/seed/nocloud; \\";
           Printf.sprintf "   wget -q -O /target/var/lib/cloud/seed/nocloud/user-data %s/provisioning/%s/cloud-init; \\" base machine_mac;
-          Printf.sprintf "   printf 'instance-id: hamac-%s\\nlocal-hostname: %s\\n' > /target/var/lib/cloud/seed/nocloud/meta-data"
+          Printf.sprintf "   printf 'instance-id: hamac-%s\\nlocal-hostname: %s\\n' > /target/var/lib/cloud/seed/nocloud/meta-data; \\"
             (String.concat "-" (String.split_on_char ':' machine_mac)) (esc hostname) ]
       else [] in
     let clevis_line =
@@ -363,19 +363,30 @@ let render_preseed (profile : provisioning_profile_manifest)
       "d-i user-setup/allow-password-weak boolean true";
       "d-i user-setup/encrypt-home boolean false";
       "";
-      "# Disque : plein disque chiffré LUKS2 (partman-crypto, sans LVM).";
+      "# Disque : racine chiffrée LUKS2. En mode automatique, partman-crypto ne";
+      "# chiffre que via le flux LVM chiffré (partman-auto/method crypto) : la";
+      "# partition LUKS2 (ajoutée automatiquement autour des lignes $lvmok) ->";
+      "# PV -> VG -> LV root ext4. Pas de ligne method{ crypto } explicite :";
+      "# le mapping PV->VG échouerait (le PV est /dev/mapper/<part>_crypt).";
+      "# /boot reste en clair (hors LUKS), lu par GRUB depuis l'ESP.";
       "# Le disque cible (partman-auto/disk) et preseed/url sont passés sur la";
       "# ligne de commande du noyau par l'init PXE.";
       "d-i partman-auto/method string crypto";
+      "d-i partman-auto-lvm/guided_size string max";
       "d-i partman-auto/expert_recipe string \\";
       "   hamac-crypto :: \\";
       "      512 512 1024 free \\";
       "         $primary{ } $bootable{ } method{ efi } format{ efi } . \\";
-      "      100% 1000% -1 ext4 \\";
-      "         $primary{ } method{ crypto } format{ } . \\";
-      "      100% 1000% -1 ext4 \\";
-      "         $crypto{ } method{ format } format{ } \\";
+      "      512 512 1024 ext4 \\";
+      "         $primary{ } method{ format } format{ } \\";
+      "         use_filesystem{ } filesystem{ ext4 } mountpoint{ /boot } . \\";
+      "      1000 10000 -1 ext4 \\";
+      "         $lvmok{ } lv_name{ root } \\";
+      "         method{ format } format{ } \\";
       "         use_filesystem{ } filesystem{ ext4 } mountpoint{ / } .";
+      "d-i partman-lvm/device_remove_lvm boolean true";
+      "d-i partman-lvm/confirm boolean true";
+      "d-i partman-lvm/confirm_nooverwrite boolean true";
       "d-i partman-crypto/confirm boolean true";
       Printf.sprintf "d-i partman-crypto/passphrase password %s" (esc luks_passphrase);
       Printf.sprintf "d-i partman-crypto/passphrase-again password %s" (esc luks_passphrase);
