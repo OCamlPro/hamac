@@ -272,12 +272,14 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Préparer le tftp-root avec les NBP iPXE (UEFI + BIOS).
-# undionly.kpxe (BIOS legacy) vient toujours du paquet apt `ipxe` — aucun
-# problème constaté sur ce chemin, pas de raison de le builder from-source
-# aussi. ipxe.efi (UEFI x86-64) vient du stage `ipxe-builder` ci-dessus
-# (snp.efi renommé — voir le commentaire en tête de fichier).
+# BIOS legacy : ipxe.lkrn, PAS undionly.kpxe — l'OPROM Realtek charge le NBP
+# en mémoire de base et échoue avec "NBP is too big to fit in free base
+# memory" sur undionly.kpxe (91 Ko). ipxe.lkrn est reconnu comme un noyau
+# Linux par le BIOS PXE et chargé hors de la mémoire de base. ipxe.efi
+# (UEFI x86-64) vient du stage `ipxe-builder` ci-dessus (snp.efi renommé —
+# voir le commentaire en tête de fichier).
 RUN mkdir -p /tftp \
- && cp /usr/lib/ipxe/undionly.kpxe /tftp/
+ && cp /usr/lib/ipxe/ipxe.lkrn /tftp/
 COPY --from=ipxe-builder /usr/src/ipxe/src/bin-x86_64-efi/snp.efi /tftp/ipxe.efi
 
 # Kernel et initramfs copiés depuis le contexte de build

@@ -50,7 +50,7 @@ echo "[hamac-pxe] poll_interval=${POLL_INTERVAL}s"
 
 # ---- Script iPXE de second étage --------------------------------------------
 # Chaîne de boot : le firmware (UEFI ou BIOS) charge d'abord le NBP iPXE
-# (ipxe.efi / undionly.kpxe) servi par dnsmasq. iPXE refait un DHCP ; dnsmasq
+# (ipxe.efi / ipxe.lkrn) servi par dnsmasq. iPXE refait un DHCP ; dnsmasq
 # le reconnaît (user-class "iPXE") et lui renvoie ce script, qui charge le
 # kernel + initramfs (toujours en TFTP) et boote. Le init lit /proc/cmdline
 # pour hamac.discovery= (URL publique atteignable depuis le client).
@@ -120,7 +120,7 @@ fi
   echo ""
   echo "# Chaîne de boot iPXE, sélection par architecture client :"
   echo "#   arch 7/9 = UEFI x86-64  -> ipxe.efi"
-  echo "#   arch 0   = BIOS legacy  -> undionly.kpxe"
+  echo "#   arch 0   = BIOS legacy  -> ipxe.lkrn (undionly.kpxe trop gros pour la memoire de base de l'OPROM Realtek)"
   echo "# Une fois iPXE chargé (user-class iPXE), on lui sert le script boot.ipxe"
   echo "# au lieu de re-servir le NBP (évite la boucle de chainload)."
   echo "dhcp-userclass=set:ipxe,iPXE"
@@ -128,7 +128,7 @@ fi
   echo "dhcp-match=set:efi64,option:client-arch,9"
   echo "dhcp-boot=tag:hamac-pxe,tag:ipxe,boot.ipxe"
   echo "dhcp-boot=tag:hamac-pxe,tag:!ipxe,tag:efi64,ipxe.efi"
-  echo "dhcp-boot=tag:hamac-pxe,tag:!ipxe,undionly.kpxe"
+  echo "dhcp-boot=tag:hamac-pxe,tag:!ipxe,ipxe.lkrn"
   echo ""
   echo "# pxe-service : sans ça, un dhcp-boot seul ne suffit pas en mode"
   echo "# proxy quand un vrai DHCP (la Turris) répond aussi sur le même"
@@ -139,7 +139,7 @@ fi
   echo "# qui manquait. Limité à tag:!ipxe (avant chargement d'iPXE) pour"
   echo "# ne pas interférer avec le dhcp-boot=...,boot.ipxe du 2e étage."
   echo "pxe-service=tag:hamac-pxe,tag:!ipxe,X86-64_EFI,\"hamac-pxe boot\",ipxe.efi"
-  echo "pxe-service=tag:hamac-pxe,tag:!ipxe,x86PC,\"hamac-pxe boot\",undionly.kpxe"
+  echo "pxe-service=tag:hamac-pxe,tag:!ipxe,x86PC,\"hamac-pxe boot\",ipxe.lkrn"
   echo ""
   echo "# Whitelist MAC chargée depuis $ALLOWED_MACS_FILE — rechargée"
   echo "# automatiquement par dnsmasq au SIGHUP (envoyé par le sidecar"
