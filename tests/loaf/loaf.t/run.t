@@ -40,14 +40,38 @@ module introuvable : ici, les fichiers de la stack sans son patron.
 Un profil nomme ses bundles : il se charge avec eux.
 
   $ for p in $R/provisioning-profiles/*.loaf; do
-  >   hamac validate $p $R/templates/bundles/dev_workstation/bundle.loaf 2>&1 | sed "s|$R/||"
+  >   hamac validate $p $R/templates/bundles/*/bundle.loaf 2>&1 | sed "s|$R/||"
   > done
+  provisioning-profiles/backup-server.loaf: provisioning_profile (name=backup_server, os=debian-12-amd64-netboot, 1 bundles)
+  templates/bundles/dev_toolchain/bundle.loaf: bundle (name=dev_toolchain, version=0.1.0, 4 params)
+  templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  templates/bundles/server_base/bundle.loaf: bundle (name=server_base, version=0.1.0, 5 params)
+  templates/bundles/white_station/bundle.loaf: bundle (name=white_station, version=0.1.0, 3 params)
   provisioning-profiles/dev-workstation-demo.loaf: provisioning_profile (name=dev_workstation_demo, os=debian-12-amd64-genericcloud, 1 bundles)
+  templates/bundles/dev_toolchain/bundle.loaf: bundle (name=dev_toolchain, version=0.1.0, 4 params)
   templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  templates/bundles/server_base/bundle.loaf: bundle (name=server_base, version=0.1.0, 5 params)
+  templates/bundles/white_station/bundle.loaf: bundle (name=white_station, version=0.1.0, 3 params)
   provisioning-profiles/dev-workstation.loaf: provisioning_profile (name=dev_workstation, os=debian-12-amd64-genericcloud, 1 bundles)
+  templates/bundles/dev_toolchain/bundle.loaf: bundle (name=dev_toolchain, version=0.1.0, 4 params)
   templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  templates/bundles/server_base/bundle.loaf: bundle (name=server_base, version=0.1.0, 5 params)
+  templates/bundles/white_station/bundle.loaf: bundle (name=white_station, version=0.1.0, 3 params)
+  provisioning-profiles/secure-dev-workstation.loaf: provisioning_profile (name=secure_dev_workstation, os=debian-12-amd64-netboot, 2 bundles)
+  templates/bundles/dev_toolchain/bundle.loaf: bundle (name=dev_toolchain, version=0.1.0, 4 params)
+  templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  templates/bundles/server_base/bundle.loaf: bundle (name=server_base, version=0.1.0, 5 params)
+  templates/bundles/white_station/bundle.loaf: bundle (name=white_station, version=0.1.0, 3 params)
   provisioning-profiles/secure-workstation.loaf: provisioning_profile (name=secure_workstation, os=debian-12-amd64-netboot, 1 bundles)
+  templates/bundles/dev_toolchain/bundle.loaf: bundle (name=dev_toolchain, version=0.1.0, 4 params)
   templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  templates/bundles/server_base/bundle.loaf: bundle (name=server_base, version=0.1.0, 5 params)
+  templates/bundles/white_station/bundle.loaf: bundle (name=white_station, version=0.1.0, 3 params)
+  provisioning-profiles/white-station.loaf: provisioning_profile (name=white_station, os=debian-12-amd64-genericcloud, 2 bundles)
+  templates/bundles/dev_toolchain/bundle.loaf: bundle (name=dev_toolchain, version=0.1.0, 4 params)
+  templates/bundles/dev_workstation/bundle.loaf: bundle (name=dev_workstation, version=0.1.0, 6 params)
+  templates/bundles/server_base/bundle.loaf: bundle (name=server_base, version=0.1.0, 5 params)
+  templates/bundles/white_station/bundle.loaf: bundle (name=white_station, version=0.1.0, 3 params)
 
 Les diagnostics portent le fichier, la ligne et la colonne de l'élément en
 faute. Leur code est celui de Hamac quand la validation vient du vocabulaire
@@ -469,7 +493,22 @@ premier port.
   (Types.MPattern
      { Types.pat_name = "organisation"; pat_version = None; zones = []; pat_assurance = [] })
 
-  $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/dev_workstation/bundle.loaf | sed "s|$R/||"
+  $ ../show.exe $R/provisioning-profiles/*.loaf $R/templates/bundles/*/bundle.loaf | sed "s|$R/||"
+  == provisioning-profiles/backup-server.loaf
+  (Types.MProvisioningProfile
+     { Types.pp_name = "backup_server";
+       pp_os =
+       { Types.os_image_name = "debian-12-amd64-netboot";
+         os_url =
+         "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/";
+         os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+         os_format = "netinstall"; os_arch = "amd64"; os_family = "debian"; 
+         os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
+       pp_bundles = [{ Types.bundle_name = "server_base"; bundle_params = [] }];
+       pp_cloud_init_extra = None; pp_preseed_extra = ["d-i grub-installer/bootdev string default"];
+       pp_assurance =
+       (Some { Types.boot = (Some "measured_tpm2"); operator = None; physical = None });
+       pp_accept_experimental = true })
   == provisioning-profiles/dev-workstation.loaf
   (Types.MProvisioningProfile
      { Types.pp_name = "dev_workstation";
@@ -507,6 +546,23 @@ premier port.
          ];
        pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
        pp_preseed_extra = []; pp_assurance = None; pp_accept_experimental = false })
+  == provisioning-profiles/secure-dev-workstation.loaf
+  (Types.MProvisioningProfile
+     { Types.pp_name = "secure_dev_workstation";
+       pp_os =
+       { Types.os_image_name = "debian-12-amd64-netboot";
+         os_url =
+         "https://deb.debian.org/debian/dists/bookworm/main/installer-amd64/current/images/netboot/debian-installer/amd64/";
+         os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+         os_format = "netinstall"; os_arch = "amd64"; os_family = "debian"; 
+         os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
+       pp_bundles =
+       [{ Types.bundle_name = "dev_workstation"; bundle_params = [] };
+         { Types.bundle_name = "dev_toolchain"; bundle_params = [] }];
+       pp_cloud_init_extra = None; pp_preseed_extra = ["d-i grub-installer/bootdev string default"];
+       pp_assurance =
+       (Some { Types.boot = (Some "measured_tpm2"); operator = None; physical = None });
+       pp_accept_experimental = true })
   == provisioning-profiles/secure-workstation.loaf
   (Types.MProvisioningProfile
      { Types.pp_name = "secure_workstation";
@@ -522,6 +578,36 @@ premier port.
        pp_assurance =
        (Some { Types.boot = (Some "measured_tpm2"); operator = None; physical = None });
        pp_accept_experimental = true })
+  == provisioning-profiles/white-station.loaf
+  (Types.MProvisioningProfile
+     { Types.pp_name = "white_station";
+       pp_os =
+       { Types.os_image_name = "debian-12-amd64-genericcloud";
+         os_url =
+         "https://cdimage.debian.org/cdimage/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2";
+         os_sha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+         os_format = "qcow2"; os_arch = "amd64"; os_family = "debian"; 
+         os_raw_zst_url = ""; os_raw_zst_sha256 = ""; os_bmap_url = "" };
+       pp_bundles =
+       [{ Types.bundle_name = "dev_workstation"; bundle_params = [] };
+         { Types.bundle_name = "white_station";
+           bundle_params =
+           [("generic_username", (Types.PString "OCamlPro")); ("hardening", (Types.PString "true"))]
+           }
+         ];
+       pp_cloud_init_extra = (Some "{runcmd: [systemctl enable --now ssh]}"); 
+       pp_preseed_extra = []; pp_assurance = None; pp_accept_experimental = false })
+  == templates/bundles/dev_toolchain/bundle.loaf
+  (Types.MBundle
+     { Types.bdl_name = "dev_toolchain"; bdl_version = "0.1.0";
+       bdl_description =
+       "Toolchain dev : opam (+ switch et paquets donn\195\169s), VSCode via le d\195\169p\195\180t Microsoft";
+       bdl_params =
+       [{ Types.param_name = "install_vscode"; param_type = "bool"; param_required = false };
+         { Types.param_name = "opam_packages"; param_type = "string"; param_required = false };
+         { Types.param_name = "opam_switch"; param_type = "string"; param_required = false };
+         { Types.param_name = "username"; param_type = "string"; param_required = true }];
+       bdl_depends_on = []; bdl_lifecycle = "install" })
   == templates/bundles/dev_workstation/bundle.loaf
   (Types.MBundle
      { Types.bdl_name = "dev_workstation"; bdl_version = "0.1.0";
@@ -535,6 +621,28 @@ premier port.
          { Types.param_name = "timezone"; param_type = "string"; param_required = false };
          { Types.param_name = "username"; param_type = "string"; param_required = true }];
        bdl_depends_on = []; bdl_lifecycle = "install" })
+  == templates/bundles/server_base/bundle.loaf
+  (Types.MBundle
+     { Types.bdl_name = "server_base"; bdl_version = "0.1.0";
+       bdl_description = "Serveur minimal : compte admin sudo, SSH, outils de base";
+       bdl_params =
+       [{ Types.param_name = "full_name"; param_type = "string"; param_required = false };
+         { Types.param_name = "initial_password"; param_type = "string"; param_required = false };
+         { Types.param_name = "ssh_public_keys"; param_type = "list[string]"; 
+           param_required = false };
+         { Types.param_name = "timezone"; param_type = "string"; param_required = false };
+         { Types.param_name = "username"; param_type = "string"; param_required = true }];
+       bdl_depends_on = []; bdl_lifecycle = "install" })
+  == templates/bundles/white_station/bundle.loaf
+  (Types.MBundle
+     { Types.bdl_name = "white_station"; bdl_version = "0.1.0";
+       bdl_description =
+       "Station blanche : compte g\195\169n\195\169rique employ\195\169s (sans sudo) + ClamAV + unattended-upgrades";
+       bdl_params =
+       [{ Types.param_name = "generic_password"; param_type = "string"; param_required = false };
+         { Types.param_name = "generic_username"; param_type = "string"; param_required = true };
+         { Types.param_name = "hardening"; param_type = "bool"; param_required = false }];
+       bdl_depends_on = ["dev_workstation"]; bdl_lifecycle = "install" })
 
 Manifeste en plusieurs fichiers
 ==============================
