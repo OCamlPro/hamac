@@ -93,8 +93,16 @@ wget -O /tmp/kexec-tools.deb "http://deb.debian.org/debian/pool/main/k/kexec-too
 dpkg-deb -x /tmp/kexec-tools.deb /tmp/kexec-extract
 cp /tmp/kexec-extract/sbin/kexec sbin/kexec
 chmod +x sbin/kexec
-wget -O /tmp/libxenmisc.deb "http://deb.debian.org/debian/pool/main/x/xen/libxenmisc4.17_4.17.5+72-g01140da4e8-1_amd64.deb"
-dpkg-deb -x /tmp/libxenmisc.deb /tmp/xen-extract
+# libxenctrl.so.4.17 depends on the split xen libs (libxentoollog,
+# libxencall, libxenevtchn, libxengnttab, libxenforeignmemory,
+# libxendevicemodel — each its own bookworm package since xen 4.17);
+# libxenmisc4.17 alone is NOT enough (kexec then fails at load with
+# "libxentoollog.so.1: cannot open shared object file"). Copy them all.
+XEN_V="4.17.5+72-g01140da4e8-1"
+for p in libxenmisc4.17 libxentoollog1 libxencall1 libxenevtchn1 libxengnttab1 libxenforeignmemory1 libxendevicemodel1; do
+  wget -O "/tmp/${p}.deb" "http://deb.debian.org/debian/pool/main/x/xen/${p}_${XEN_V}_amd64.deb"
+  dpkg-deb -x "/tmp/${p}.deb" /tmp/xen-extract
+done
 cp /tmp/xen-extract/usr/lib/x86_64-linux-gnu/libxen*.so* usr/lib/x86_64-linux-gnu/
 
 # Add zstd + bmaptool + python3 (minimal + stdlib) + their real runtime
