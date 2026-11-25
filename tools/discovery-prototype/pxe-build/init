@@ -18,9 +18,12 @@
 set -e
 
 # Mount essential filesystems
-/bin/busybox mount -t proc none /proc
-/bin/busybox mount -t sysfs none /sys
-/bin/busybox mount -t devtmpfs none /dev 2>/dev/null || mknod /dev/console c 5 1
+# Mounts idempotents : après un kexec, le noyau peut déjà avoir monté
+# certains fs (EBUSY) — sous set -e, un mount non gardé tuait init
+# (panic "Attempted to kill init" exitcode 0xff00).
+/bin/busybox mount -t proc none /proc 2>/dev/null || true
+/bin/busybox mount -t sysfs none /sys 2>/dev/null || true
+/bin/busybox mount -t devtmpfs none /dev 2>/dev/null || mknod /dev/console c 5 1 || true
 
 # Create busybox symlinks
 /bin/busybox --install -s /bin
