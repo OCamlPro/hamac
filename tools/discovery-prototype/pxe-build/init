@@ -360,7 +360,7 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         echo "[*] $KEXEC -l: preseed/url=$PRESEED_URL partman-auto/disk=$DISK"
         $KEXEC -l "$PROV_DIR/d-i-linux" \
             --initrd="$PROV_DIR/d-i-initrd.img" \
-            --append="console=ttyS0,115200 console=tty0 ip=dhcp hamac.stage=2" \
+            --append="console=tty0 ip=dhcp hamac.stage=2" \
             || { echo "[!] kexec -l failed"; exec /bin/sh; }
         sync
         echo "[*] kexec -e (Debian installer takes over)"
