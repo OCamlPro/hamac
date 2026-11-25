@@ -332,6 +332,19 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
             || { echo "[!] cannot fetch vmlinuz from tftp://$PXE_SERVER"; exec /bin/sh; }
         /bin/busybox tftp -g -r initramfs.img "$PXE_SERVER" -l "$PROV_DIR/d-i-initrd.img" \
             || { echo "[!] cannot fetch initramfs.img from tftp://$PXE_SERVER"; exec /bin/sh; }
+        # Preseed embarqué dans l'initrd : les paramètres noyau (preseed/url=...)
+        # n'atteignent pas debconf de façon fiable (les noms avec '/' ne passent
+        # pas par l'env de init), donc on télécharge le preseed et on le met dans
+        # un mini-cpio accolé à l'initrd — d-i le charge automatiquement
+        # (/preseed.cfg, cf. S30initrd-preseed). Le disque cible y est injecté
+        # aussi, à la place de partman-auto/disk= sur la cmdline.
+        /bin/busybox wget -q -O "$PROV_DIR/preseed.cfg" "$PRESEED_URL" \
+            || { echo "[!] cannot fetch preseed from $PRESEED_URL"; exec /bin/sh; }
+        echo "d-i partman-auto/disk string $DISK" >> "$PROV_DIR/preseed.cfg"
+        /bin/busybox gunzip -c "$PROV_DIR/d-i-initrd.img" > "$PROV_DIR/d-i-initrd.raw"
+        ( cd "$PROV_DIR" && echo preseed.cfg | /bin/busybox cpio -o -H newc 2>/dev/null ) >> "$PROV_DIR/d-i-initrd.raw"
+        /bin/busybox gzip -c "$PROV_DIR/d-i-initrd.raw" > "$PROV_DIR/d-i-initrd.img"
+        echo "[*] preseed embedded in initrd (partman-auto/disk=$DISK)"
         # kexec binaire standalone, sinon applet busybox (si compilée avec
         # CONFIG_KEXEC) : `busybox kexec` a la même interface.
         KEXEC="kexec"
@@ -347,7 +360,7 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         echo "[*] $KEXEC -l: preseed/url=$PRESEED_URL partman-auto/disk=$DISK"
         $KEXEC -l "$PROV_DIR/d-i-linux" \
             --initrd="$PROV_DIR/d-i-initrd.img" \
-            --append="auto=true priority=critical preseed/url=$PRESEED_URL partman-auto/disk=$DISK console=ttyS0,115200 console=tty0 ip=dhcp hamac.stage=2" \
+            --append="console=ttyS0,115200 console=tty0 ip=dhcp hamac.stage=2" \
             || { echo "[!] kexec -l failed"; exec /bin/sh; }
         sync
         echo "[*] kexec -e (Debian installer takes over)"

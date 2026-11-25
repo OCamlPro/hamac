@@ -337,6 +337,11 @@ let render_preseed (profile : provisioning_profile_manifest)
       "# Preseed généré par hamac (provisioning_gen) pour le profil '" ^ profile.pp_name ^ "'";
       "# Format netinstall : installation d-i automatisée, plein disque chiffré LUKS2.";
       "# Régénéré à chaque push de la machine — ne pas éditer à la main.";
+      "# Mode automatique : le preseed est embarqué dans l'initrd (preseed.cfg) ;";
+      "# les paramètres noyau type auto=true n'atteignent pas debconf de façon";
+      "# fiable, tout passe par ce fichier.";
+      "d-i auto-install/enable boolean true";
+      "debconf debconf/priority select critical";
       "d-i debian-installer/language string fr";
       "d-i debian-installer/country string FR";
       "d-i debian-installer/locale string fr_FR.UTF-8";
