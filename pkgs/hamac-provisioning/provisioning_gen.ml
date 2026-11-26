@@ -374,6 +374,8 @@ let render_preseed (profile : provisioning_profile_manifest)
       "# PV -> VG -> LV root ext4. Pas de ligne method{ crypto } explicite :";
       "# le mapping PV->VG échouerait (le PV est /dev/mapper/<part>_crypt).";
       "# /boot reste en clair (hors LUKS), lu par GRUB depuis l'ESP.";
+      "# Le swap est un LV du VG chiffré : pas de swap en clair sur le disque";
+      "# (sinon partman-crypto bloque sur le test unsafe_swap).";
       "# Le disque cible (partman-auto/disk) et preseed/url sont passés sur la";
       "# ligne de commande du noyau par l'init PXE.";
       "d-i partman-auto/method string crypto";
@@ -386,7 +388,7 @@ let render_preseed (profile : provisioning_profile_manifest)
       "         $primary{ } method{ format } format{ } \\";
       "         use_filesystem{ } filesystem{ ext4 } mountpoint{ /boot } . \\";
       "      8192 8192 16384 linux-swap \\";
-      "         $primary{ } method{ swap } format{ } . \\";
+      "         $lvmok{ } lv_name{ swap } method{ swap } format{ } . \\";
       "      1000 10000 -1 ext4 \\";
       "         $lvmok{ } lv_name{ root } \\";
       "         method{ format } format{ } \\";
