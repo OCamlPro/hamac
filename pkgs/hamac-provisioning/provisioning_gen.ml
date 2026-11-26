@@ -385,6 +385,8 @@ let render_preseed (profile : provisioning_profile_manifest)
       "      512 512 1024 ext4 \\";
       "         $primary{ } method{ format } format{ } \\";
       "         use_filesystem{ } filesystem{ ext4 } mountpoint{ /boot } . \\";
+      "      8192 8192 16384 linux-swap \\";
+      "         $primary{ } method{ swap } format{ } . \\";
       "      1000 10000 -1 ext4 \\";
       "         $lvmok{ } lv_name{ root } \\";
       "         method{ format } format{ } \\";
