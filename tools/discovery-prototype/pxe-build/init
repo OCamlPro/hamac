@@ -28,6 +28,11 @@ set -e
 # Create busybox symlinks
 /bin/busybox --install -s /bin
 /bin/busybox --install -s /sbin
+# The busybox dpkg-deb applet does not know --fsys-tarfile: debootstrap would
+# pick it as extractor and fail ("unrecognized option"). Hide dpkg/dpkg-deb so
+# it falls back to the `ar` extractor, like the stock d-i initrd (which ships
+# no dpkg-deb).
+rm -f /bin/dpkg /bin/dpkg-deb /sbin/dpkg /sbin/dpkg-deb
 
 # Parse kernel command line
 parse_cmdline() {
