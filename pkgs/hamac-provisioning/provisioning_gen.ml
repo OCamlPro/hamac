@@ -381,7 +381,7 @@ let render_preseed (profile : provisioning_profile_manifest)
       "d-i partman-auto/expert_recipe string \\";
       "   hamac-crypto :: \\";
       "      512 512 1024 free \\";
-      "         $primary{ } $bootable{ } method{ efi } format{ efi } . \\";
+      "         $primary{ } $bootable{ } method{ efi } . \\";
       "      512 512 1024 ext4 \\";
       "         $primary{ } method{ format } format{ } \\";
       "         use_filesystem{ } filesystem{ ext4 } mountpoint{ /boot } . \\";
