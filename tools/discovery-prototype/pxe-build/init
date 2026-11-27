@@ -25,9 +25,11 @@ set -e
 /bin/busybox mount -t sysfs none /sys 2>/dev/null || true
 /bin/busybox mount -t devtmpfs none /dev 2>/dev/null || mknod /dev/console c 5 1 || true
 
-# Create busybox symlinks
-/bin/busybox --install -s /bin
-/bin/busybox --install -s /sbin
+# Create busybox symlinks. The busybox shipped in the d-i initrd has no
+# --install applet, but the applet symlinks are already baked into the
+# initramfs; guard the call so it never kills init under set -e.
+/bin/busybox --install -s /bin 2>/dev/null || true
+/bin/busybox --install -s /sbin 2>/dev/null || true
 # The busybox dpkg-deb applet does not know --fsys-tarfile: debootstrap would
 # pick it as extractor and fail ("unrecognized option"). Hide dpkg/dpkg-deb so
 # it falls back to the `ar` extractor, like the stock d-i initrd (which ships
@@ -333,9 +335,9 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         # init) once the installer kernel is up.
         [ -z "$PXE_SERVER" ] && PXE_SERVER="$DISCOVERY_SERVER"
         PRESEED_URL="${DISCOVERY_SERVER}/provisioning/${MAC}/preseed"
-        /bin/busybox tftp -g -r vmlinuz "$PXE_SERVER" -l "$PROV_DIR/d-i-linux" \
+        /bin/busybox tftp -g -r vmlinuz -l "$PROV_DIR/d-i-linux" "$PXE_SERVER" \
             || { echo "[!] cannot fetch vmlinuz from tftp://$PXE_SERVER"; exec /bin/sh; }
-        /bin/busybox tftp -g -r initramfs.img "$PXE_SERVER" -l "$PROV_DIR/d-i-initrd.img" \
+        /bin/busybox tftp -g -r initramfs.img -l "$PROV_DIR/d-i-initrd.img" "$PXE_SERVER" \
             || { echo "[!] cannot fetch initramfs.img from tftp://$PXE_SERVER"; exec /bin/sh; }
         # Preseed embarqué dans l'initrd : les paramètres noyau (preseed/url=...)
         # n'atteignent pas debconf de façon fiable (les noms avec '/' ne passent
@@ -346,9 +348,9 @@ if wget -q -O "$PROV_DIR/record.json" "$PROV_URL" 2>/dev/null && \
         /bin/busybox wget -q -O "$PROV_DIR/preseed.cfg" "$PRESEED_URL" \
             || { echo "[!] cannot fetch preseed from $PRESEED_URL"; exec /bin/sh; }
         echo "d-i partman-auto/disk string $DISK" >> "$PROV_DIR/preseed.cfg"
-        /bin/busybox gunzip -c "$PROV_DIR/d-i-initrd.img" > "$PROV_DIR/d-i-initrd.raw"
-        ( cd "$PROV_DIR" && echo preseed.cfg | /bin/busybox cpio -o -H newc 2>/dev/null ) >> "$PROV_DIR/d-i-initrd.raw"
-        /bin/busybox gzip -c "$PROV_DIR/d-i-initrd.raw" > "$PROV_DIR/d-i-initrd.img"
+        gunzip -c "$PROV_DIR/d-i-initrd.img" > "$PROV_DIR/d-i-initrd.raw"
+        ( cd "$PROV_DIR" && echo preseed.cfg | cpio -o -H newc 2>/dev/null ) >> "$PROV_DIR/d-i-initrd.raw"
+        gzip -c "$PROV_DIR/d-i-initrd.raw" > "$PROV_DIR/d-i-initrd.img"
         echo "[*] preseed embedded in initrd (partman-auto/disk=$DISK)"
         # kexec binaire standalone, sinon applet busybox (si compilée avec
         # CONFIG_KEXEC) : `busybox kexec` a la même interface.

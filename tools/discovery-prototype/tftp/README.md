@@ -39,22 +39,24 @@ cd /tmp/hybrid-initramfs
 # Extract Debian's netboot initrd (contains kernel modules)
 zcat /path/to/initrd.gz | cpio -idmv
 
-# Replace busybox with busybox-static (Debian's installer busybox does NOT
-# implement `--install`, which our init script uses to symlink applets
-# into /bin and /sbin — under `set -e` this aborted init immediately with
-# "Kernel panic - not syncing: Attempted to kill init!". Confirmed and
-# fixed via local QEMU testing before this went anywhere near production —
-# see HAMAC_PXE_FREEZE_INVESTIGATION.md.)
+# Do NOT swap in busybox-static: recent busybox builds (1.36+/1.37, incl.
+# Debian's busybox-static deb) enable FEATURE_SH_STANDALONE, where the
+# shell runs applets directly and IGNORES PATH — under that shell every
+# command in debootstrap (tar, ar, chroot, ...) silently became a busybox
+# applet instead of the real d-i binary, and the base-system install
+# failed at "chroot /target dpkg --install" with "dpkg: postinst failed".
+# Keep the busybox that ships INSIDE the d-i initrd (1.35, PATH-respecting,
+# exactly what stock d-i runs under). Its applet symlinks are already
+# baked into the initrd; `busybox --install` does not exist there, so the
+# init script guards that call with `|| true`.
 #
-# snapshot.debian.org, not deb.debian.org/.../pool/... : a pool/ URL pinned
-# to an exact version still 404s once Debian rebuilds that same version
-# (binNMU, `+bN`) and drops the old file from the pool — hit this for real
-# in CI. snapshot.debian.org serves a file by its permanent hash instead
-# (see .gitlab-ci.yml BUSYBOX_STATIC_URL comment for how to look one up).
-wget -O /tmp/busybox-static.deb "https://snapshot.debian.org/file/7c87a0b1d84991b9ebe331f38ddddaaae22fe145"
-dpkg-deb -x /tmp/busybox-static.deb /tmp/busybox-extract
-cp /tmp/busybox-extract/usr/bin/busybox bin/busybox
-chmod +x bin/busybox
+# The d-i busybox lacks the cpio/gzip applets, which pxe-build/init uses
+# to embed the preseed into the kexec'd initrd — ship the real bookworm
+# binaries instead (they only need libc, already in the initrd):
+wget -O /tmp/cpio.deb "http://deb.debian.org/debian/pool/main/c/cpio/cpio_2.13+dfsg-7.1_amd64.deb"
+wget -O /tmp/gzip.deb "http://deb.debian.org/debian/pool/main/g/gzip/gzip_1.12-1_amd64.deb"
+dpkg-deb -x /tmp/cpio.deb /tmp/cpio-x && cp /tmp/cpio-x/bin/cpio usr/bin/cpio
+dpkg-deb -x /tmp/gzip.deb /tmp/gzip-x && cp /tmp/gzip-x/bin/gzip usr/bin/gzip
 
 # Add NVMe modules (missing from Debian's netboot initrd entirely — not a
 # module, not builtin, and not even offered as a debian-installer udeb;
